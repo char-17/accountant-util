@@ -441,29 +441,10 @@ function App() {
                 />
               </div>
 
-              {/* Reminders and the month's summary are reference panels, not
-                  the work itself, so they sit in a side column outside the main
-                  panel instead of competing with it for the same width. */}
-              <div className="dashboard-side">
-                <Reminders
-                  assignments={assignments}
-                  desktopEnabled={desktopNotifications}
-                  onDesktopEnabledChange={setDesktopNotifications}
-                  desktopPermission={desktop.permission}
-                  onRequestDesktopPermission={desktop.askForPermission}
-                  completedKeys={completedKeys}
-                  onFocusClient={focusClientInWorklist}
-                />
-                <MonthlySummary
-                  summary={filters.summary}
-                  year={year}
-                  month={month}
-                  isFiltered={filters.isFiltered}
-                  totalTasks={filters.totalCount}
-                />
-              </div>
-
-              <div className="dashboard-right">
+              {/* The month's worklist is the page the accountant works on,
+                  so it takes the centre and the widest share of the grid;
+                  export and backup sit with it because they act on this month. */}
+              <div className="dashboard-center">
                 <MonthlyWorklist
                   statuses={filters.filtered}
                   totalCount={filters.totalCount}
@@ -497,6 +478,28 @@ function App() {
                   onBackup={handleBackup}
                   onRestore={handleRestore}
                   busy={backup.busy}
+                />
+              </div>
+
+              {/* Reminders and the month's summary are reference panels, not
+                  the work itself, so they sit in the far-right column, out of
+                  the way of the worklist. */}
+              <div className="dashboard-aside">
+                <Reminders
+                  assignments={assignments}
+                  desktopEnabled={desktopNotifications}
+                  onDesktopEnabledChange={setDesktopNotifications}
+                  desktopPermission={desktop.permission}
+                  onRequestDesktopPermission={desktop.askForPermission}
+                  completedKeys={completedKeys}
+                  onFocusClient={focusClientInWorklist}
+                />
+                <MonthlySummary
+                  summary={filters.summary}
+                  year={year}
+                  month={month}
+                  isFiltered={filters.isFiltered}
+                  totalTasks={filters.totalCount}
                 />
               </div>
             </div>

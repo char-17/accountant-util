@@ -130,12 +130,12 @@ body {
   justify-content: center;
 }
 
-/* Three columns: the client roster on the far left, the reference panels
-   (reminders, monthly summary) in a side column, and the worklist in the middle
-   where it gets the most room. */
+/* Three columns: the client roster on the far left, the month's
+   worklist in the centre where it gets the most room, and the
+   reference panels (reminders, monthly summary) on the far right. */
 .dashboard-content {
   display: grid;
-  grid-template-columns: 240px 300px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr) 300px;
   gap: 16px;
   min-height: 500px;
   align-items: start;
@@ -148,7 +148,7 @@ body {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.dashboard-side {
+.dashboard-aside {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -157,14 +157,14 @@ body {
   padding: 16px;
 }
 
-.dashboard-side .reminders,
-.dashboard-side .monthly-summary {
+.dashboard-aside .reminders,
+.dashboard-aside .monthly-summary {
   margin-bottom: 0;
   padding-bottom: 0;
   border-bottom: none;
 }
 
-.dashboard-right {
+.dashboard-center {
   background: #fff;
   border-radius: 12px;
   padding: 20px;
@@ -177,12 +177,12 @@ body {
   .dashboard-content {
     grid-template-columns: 220px minmax(0, 1fr);
   }
-  .dashboard-side {
+  .dashboard-aside {
     grid-column: 1 / -1;
     flex-direction: row;
     flex-wrap: wrap;
   }
-  .dashboard-side > * {
+  .dashboard-aside > * {
     flex: 1 1 260px;
   }
 }
@@ -1069,7 +1069,7 @@ body {
   .app-main,
   .dashboard,
   .dashboard-content,
-  .dashboard-right {
+  .dashboard-center {
     display: block;
     overflow: visible;
     width: 100%;
