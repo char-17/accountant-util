@@ -1,0 +1,19 @@
+# Git κρατά LF στο repository και μετατρέπει σε CRLF μόνο στο working tree
+# των Windows. Χωρίς αυτό, τα αρχεία αλλάζουν γραμμή-γραμμή ανάλογα με το
+# checkout, και τα diffs γεμίζουν με αλλαγές που δεν έγιναν ποτέ.
+* text=auto eol=lf
+
+# Windows και εκτελέσιμα που πρέπει να έχουν CRLF στο δίσκο
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Δυαδικά: μην τα αγγίξει ποτέ
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.xlsx binary
+*.db binary

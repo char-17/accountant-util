@@ -1,0 +1,44 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Πραγματικά δεδομένα λογιστή — ποτέ στο history.
+# Το αρχείο Excel περιέχει ονόματα πελατών και η βάση περιέχει τις ίδιες
+# εγγραφές. Μένουν στο δίσκο, αλλά δεν είναι version-controlled: το git
+# history δεν ξεχνάει, οπότε ένα αρχείο που μπει μία φορά είναι εκεί για πάντα.
+EXTARS FROM ME/
+
+# Βάση δεδομένων. Η πραγματική βάση της εφαρμογής είναι στο %APPDATA%, αλλά
+# ένα αντίγραφο μένει στο src-tauri κατά τα dev runs. Βλ. lib/dbPath.cjs.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# Backups που δημιουργούν τα scripts συντήρησης
+*.bak
+*.bak-*
+*.probe
+*.tmp
+_backup*.db
