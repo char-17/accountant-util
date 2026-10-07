@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { MonthlyStatusWithDetails } from "../domain/types";
 import type { WorklistFilters } from "../domain/worklist";
 import { WorklistFiltersBar } from "./WorklistFiltersBar";
+import { TaskPaymentRow } from "./TaskPaymentRow";
 
 interface MonthlyWorklistProps {
   /** Already filtered; the component does not re-apply the filters. */
@@ -10,14 +11,36 @@ interface MonthlyWorklistProps {
   totalCount: number;
   filters: WorklistFilters;
   isFiltered: boolean;
-  onFilterClientQueryChange: (value: string) => void;
-  onFilterTaskQueryChange: (value: string) => void;
   onFilterStatusChange: (value: WorklistFilters["status"]) => void;
+  /** Per-client picker. */
+  onFilterClientSelect: (id: number | null) => void;
+  /** Per-task picker. */
+  onFilterTaskSelect: (id: number | null) => void;
+  clientOptions: Array<{ id: number; name: string }>;
+  taskOptions: Array<{ id: number; name: string }>;
   onFilterReset: () => void;
   year: number;
   month: number;
   onToggle: (clientId: number, taskTypeId: number, completed: boolean) => Promise<void>;
+  /** Single click: narrows the list to this client. */
   onSelectClient: (clientId: number) => void;
+  /** Double click: opens the full client tab. */
+  onOpenClient: (clientId: number) => void;
+  /** Client to pulse, so an incoming reminder can point at the right card. */
+  highlightClientId?: number | null;
+  onSetAmount: (clientId: number, taskTypeId: number, amount: number | null) => Promise<void>;
+  onSetPaid: (
+    clientId: number,
+    taskTypeId: number,
+    isPaid: boolean,
+    paidAt: string | null
+  ) => Promise<void>;
+  onSetInvoiced: (
+    clientId: number,
+    taskTypeId: number,
+    isInvoiced: boolean,
+    invoicedAt: string | null
+  ) => Promise<void>;
 }
 
 /** The change awaiting the user's confirmation. */
@@ -41,14 +64,21 @@ export function MonthlyWorklist({
   totalCount,
   filters,
   isFiltered,
-  onFilterClientQueryChange,
-  onFilterTaskQueryChange,
   onFilterStatusChange,
+  onFilterClientSelect,
+  onFilterTaskSelect,
+  clientOptions,
+  taskOptions,
   onFilterReset,
   year,
   month,
   onToggle,
   onSelectClient,
+  onOpenClient,
+  highlightClientId,
+  onSetAmount,
+  onSetPaid,
+  onSetInvoiced,
 }: MonthlyWorklistProps) {
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,9 +109,11 @@ export function MonthlyWorklist({
   const filterBar = (
     <WorklistFiltersBar
       filters={filters}
-      onClientQueryChange={onFilterClientQueryChange}
-      onTaskQueryChange={onFilterTaskQueryChange}
       onStatusChange={onFilterStatusChange}
+      onClientSelect={onFilterClientSelect}
+      onTaskSelect={onFilterTaskSelect}
+      clientOptions={clientOptions}
+      taskOptions={taskOptions}
       onReset={onFilterReset}
       isFiltered={isFiltered}
       shownCount={statuses.length}
@@ -94,7 +126,7 @@ export function MonthlyWorklist({
     // everything", which is a different situation for the user.
     return (
       <div className="worklist">
-        <h3>
+        <h3 className="section-heading">
           Εργασίες μήνα <span className="worklist-period">{month}/{year}</span>
         </h3>
         {isFiltered ? (
@@ -128,23 +160,32 @@ export function MonthlyWorklist({
 
   return (
     <div className="worklist">
-      <h3>
+      <h3 className="section-heading">
         Εργασίες μήνα <span className="worklist-period">{month}/{year}</span>
       </h3>
 
       {filterBar}
 
       <div className="worklist-clients">
-        {[...byClient.entries()].map(([clientId, group]) => {
+        {[...byClient.entries()].map(([clientId, group], index) => {
           const done = group.items.filter((i) => i.status === "completed").length;
           const allDone = done === group.items.length;
+          const highlighted = highlightClientId === clientId;
 
           return (
-            <div key={clientId} className="worklist-client">
+            <div
+              key={clientId}
+              className={`worklist-client ${index % 2 === 0 ? "alt" : ""} ${
+                highlighted ? "highlight" : ""
+              }`}
+            >
+              {/* The name is a button, so it is reachable by keyboard and on
+                  touch. A double click also opens the tab, for the mouse. */}
               <button
                 className="worklist-client-name"
                 onClick={() => onSelectClient(clientId)}
-                title="Άνοιγμα καρτέλας πελάτη"
+                onDoubleClick={() => onOpenClient(clientId)}
+                title="Επιλογή πελάτη · διπλό κλικ ανοίγει την καρτέλα"
               >
                 {group.name}
                 <span className={`worklist-count ${allDone ? "done" : ""}`}>
@@ -158,7 +199,7 @@ export function MonthlyWorklist({
                     key={item.id}
                     className={`worklist-item ${item.status === "completed" ? "done" : ""}`}
                   >
-                    <label>
+                    <label className="worklist-item-main">
                       <input
                         type="checkbox"
                         checked={item.status === "completed"}
@@ -177,6 +218,13 @@ export function MonthlyWorklist({
                         {new Date(item.completedAt).toLocaleDateString("el-GR")}
                       </span>
                     )}
+
+                    <TaskPaymentRow
+                      item={item}
+                      onSetAmount={onSetAmount}
+                      onSetPaid={onSetPaid}
+                      onSetInvoiced={onSetInvoiced}
+                    />
                   </li>
                 ))}
               </ul>

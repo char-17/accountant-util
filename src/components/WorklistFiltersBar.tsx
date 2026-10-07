@@ -1,63 +1,191 @@
+import { useState } from "react";
 import type { WorklistFilters } from "../domain/worklist";
 import { STATUS_FILTER_LABELS } from "../domain/worklist";
 
 interface WorklistFiltersBarProps {
   filters: WorklistFilters;
-  onClientQueryChange: (value: string) => void;
-  onTaskQueryChange: (value: string) => void;
   onStatusChange: (value: WorklistFilters["status"]) => void;
   onReset: () => void;
   /** Hidden when nothing is filtered, so the row stays out of the way. */
   isFiltered: boolean;
   shownCount: number;
   totalCount: number;
+  /** Clients offered by the per-client picker. */
+  clientOptions: Array<{ id: number; name: string }>;
+  /** Tasks offered by the per-task picker. */
+  taskOptions: Array<{ id: number; name: string }>;
+  onClientSelect: (id: number | null) => void;
+  onTaskSelect: (id: number | null) => void;
 }
 
 /**
- * Search by client or task plus a status filter. Colour is never the only cue:
- * the selected option is also underlined and labelled as active.
+ * A search box above a list of options: typing narrows the list, and the list
+ * floats over the page rather than pushing the worklist down.
+ *
+ * Implemented instead of a native dropdown element because a select with 44
+ * clients cannot be searched at all, and the native dropdown on Windows renders
+ * as a tall list that covers the rest of the window.
+ */
+interface ClientFilterSelectProps {
+  value: number | null;
+  options: Array<{ id: number; name: string }>;
+  onChange: (id: number | null) => void;
+  allLabel: string;
+  searchLabel: string;
+  listLabel: string;
+  className: string;
+}
+
+function normalize(value: string): string {
+  return value.trim().toLocaleLowerCase("el-GR");
+}
+
+export function ClientFilterSelect({
+  value,
+  options,
+  onChange,
+  allLabel,
+  searchLabel,
+  listLabel,
+  className,
+}: ClientFilterSelectProps) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const term = normalize(search);
+  const visible = term === "" ? options : options.filter((o) => normalize(o.name).includes(term));
+  const selected = options.find((o) => o.id === value);
+
+  function choose(id: number | null) {
+    onChange(id);
+    setOpen(false);
+    setSearch("");
+  }
+
+  return (
+    <div className={`filter-select ${className}`}>
+      <div className="filter-select-head">
+        <input
+          type="search"
+          value={search}
+          placeholder={searchLabel}
+          aria-label={searchLabel}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+            if (e.key === "Enter") {
+              // Enter picks the first visible option rather than doing nothing,
+              // which is what a keyboard user expects from a listbox.
+              e.preventDefault();
+              if (visible.length > 0) choose(visible[0].id);
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="filter-select-toggle"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-label={`${listLabel}: ${selected ? selected.name : allLabel}`}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="filter-select-current" aria-hidden="true">
+            {selected ? selected.name : allLabel}
+          </span>
+          <span aria-hidden="true" className="filter-select-caret">
+            ▾
+          </span>
+        </button>
+      </div>
+
+      {open && (
+        <>
+          {/* Clicking elsewhere closes the list, so it never stays floating. */}
+          <div className="filter-select-backdrop" onClick={() => setOpen(false)} />
+          <ul className="filter-select-list" role="listbox" aria-label={listLabel}>
+            <li>
+              <button
+                type="button"
+                role="option"
+                aria-selected={value === null}
+                className={value === null ? "selected" : ""}
+                onClick={() => choose(null)}
+              >
+                {allLabel}
+              </button>
+            </li>
+            {visible.map((o) => (
+              <li key={o.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={o.id === value}
+                  className={o.id === value ? "selected" : ""}
+                  onClick={() => choose(o.id)}
+                >
+                  {o.name}
+                </button>
+              </li>
+            ))}
+            {visible.length === 0 && term !== "" && (
+              <li className="filter-select-empty">Κανένας πελάτης με αυτό το όνομα</li>
+            )}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-client and per-task pickers plus the status buttons. Colour is never the
+ * only cue: the selected option is also underlined and labelled as active.
  */
 export function WorklistFiltersBar({
   filters,
-  onClientQueryChange,
-  onTaskQueryChange,
   onStatusChange,
   onReset,
   isFiltered,
   shownCount,
   totalCount,
+  clientOptions,
+  taskOptions,
+  onClientSelect,
+  onTaskSelect,
 }: WorklistFiltersBarProps) {
   return (
     <div className="worklist-filters">
       <div className="worklist-filter-inputs">
-        <input
-          type="search"
-          placeholder="Αναζήτηση πελάτη..."
-          value={filters.clientQuery}
-          onChange={(e) => onClientQueryChange(e.target.value)}
-          aria-label="Φίλτρο πελάτη"
+        <ClientFilterSelect
+          value={filters.clientId}
+          options={clientOptions}
+          onChange={onClientSelect}
+          allLabel="Όλοι οι πελάτες"
+          searchLabel="Αναζήτηση πελάτη..."
+          listLabel="Φίλτρο πελάτη"
+          className="filter-client"
         />
-        <input
-          type="search"
-          placeholder="Αναζήτηση εργασίας..."
-          value={filters.taskQuery}
-          onChange={(e) => onTaskQueryChange(e.target.value)}
-          aria-label="Φίλτρο εργασίας"
+        <ClientFilterSelect
+          value={filters.taskTypeId}
+          options={taskOptions}
+          onChange={onTaskSelect}
+          allLabel="Όλες οι εργασίες"
+          searchLabel="Αναζήτηση εργασίας..."
+          listLabel="Φίλτρο εργασίας"
+          className="filter-task"
         />
       </div>
 
-      <div
-        className="status-filter"
-        role="group"
-        aria-label="Φίλτρο κατάστασης"
-      >
+      <div className="status-filter" role="group" aria-label="Φίλτρο κατάστασης">
         {(Object.keys(STATUS_FILTER_LABELS) as Array<WorklistFilters["status"]>).map(
           (status) => (
             <button
               key={status}
-              className={`status-filter-option ${
-                filters.status === status ? "active" : ""
-              }`}
+              className={`status-filter-option ${filters.status === status ? "active" : ""}`}
               onClick={() => onStatusChange(status)}
               aria-pressed={filters.status === status}
             >

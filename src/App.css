@@ -68,6 +68,13 @@ body {
   color: #1a1a2e;
 }
 
+.app-header-bar {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
 .app-nav {
   display: flex;
   gap: 8px;
@@ -83,6 +90,20 @@ body {
   font-family: inherit;
   color: #666;
   transition: all 0.2s;
+}
+
+/* The month controls keep the tab's metrics but get their own bordered block and
+   their own hue, so it is obvious at a glance that the arrow keys change the month
+   inside the current screen rather than switching screens. */
+.month-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid #c7d2d9;
+  border-left: 3px solid #7E9E9E;
+  border-radius: 10px;
+  background: #f4f8f8;
 }
 
 .app-nav button:hover {
@@ -109,18 +130,38 @@ body {
   justify-content: center;
 }
 
+/* Three columns: the client roster on the far left, the reference panels
+   (reminders, monthly summary) in a side column, and the worklist in the middle
+   where it gets the most room. */
 .dashboard-content {
   display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 20px;
+  grid-template-columns: 240px 300px minmax(0, 1fr);
+  gap: 16px;
   min-height: 500px;
+  align-items: start;
 }
 
 .dashboard-left {
   background: #fff;
   border-radius: 12px;
-  padding: 16px;
+  padding: 14px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.dashboard-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #f6f7f9;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.dashboard-side .reminders,
+.dashboard-side .monthly-summary {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .dashboard-right {
@@ -128,6 +169,22 @@ body {
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Below this width three columns stop being readable, so the side panels move
+   under the roster and the worklist keeps the full width. */
+@media (max-width: 1200px) {
+  .dashboard-content {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .dashboard-side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .dashboard-side > * {
+    flex: 1 1 260px;
+  }
 }
 
 /* ─── Month Picker ───────────────────────────────────────────────────────── */
@@ -140,14 +197,15 @@ body {
 }
 
 .month-nav {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #c7d2d9;
+  border-radius: 7px;
   background: #fff;
-  color: #27272a;
+  color: #3f5c5c;
   cursor: pointer;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  font-family: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,38 +213,40 @@ body {
 }
 
 .month-nav:hover {
-  border-color: #4f46e5;
-  color: #4f46e5;
+  border-color: #7E9E9E;
+  background: #e8f0f0;
+  color: #2f4a4a;
 }
 
 .month-display {
-  padding: 8px 20px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  padding: 7px 18px;
+  border: 1px solid #c7d2d9;
+  border-radius: 7px;
   background: #fff;
-  color: #1a1a2e;
+  color: #24403f;
   cursor: pointer;
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
   font-family: inherit;
-  min-width: 180px;
+  min-width: 170px;
   text-align: center;
 }
 
 .month-current {
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  padding: 7px 14px;
+  border: 1px solid #c7d2d9;
+  border-radius: 7px;
   background: #fff;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-family: inherit;
-  color: #666;
+  color: #3f5c5c;
 }
 
 .month-current:hover {
-  border-color: #4f46e5;
-  color: #4f46e5;
+  border-color: #7E9E9E;
+  background: #e8f0f0;
+  color: #2f4a4a;
 }
 
 .month-dropdown {
@@ -428,10 +488,42 @@ body {
   margin-top: 8px;
 }
 
-.client-progress-list h4 {
-  font-size: 0.95rem;
-  margin-bottom: 12px;
-  color: #1a1a2e;
+/* The per-client list is collapsible and starts closed: with 44 clients it is
+   long enough to push the worklist off screen, and the totals above it already
+   answer "how is the month going". */
+.client-progress-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.client-progress-toggle .section-heading {
+  margin-bottom: 0;
+}
+
+.client-progress-toggle:hover .section-heading {
+  background: #e2ecec;
+}
+
+.client-progress-toggle:focus-visible {
+  outline: 2px solid #7E9E9E;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.client-progress-items {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .client-progress-item {
@@ -682,24 +774,64 @@ body {
   border-top: 1px solid #eee;
 }
 
-.worklist h3 {
+/* Section titles: a full-width tinted bar so "Εργασίες μήνα" and "Πρόοδος ανά
+   πελάτη" read as headings rather than as another line of content. */
+.section-heading {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  font-size: 1.05rem;
-  margin-bottom: 12px;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-left: 4px solid #7E9E9E;
+  border-radius: 8px;
+  background: #eef3f3;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #24403f;
 }
 
 .worklist-period {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: #888;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5c7273;
 }
 
 .worklist-clients {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
+}
+
+/* Each client is its own card, and every other card is tinted so the eye can
+   follow a group down the list without counting. */
+.worklist-client {
+  border: 1px solid #e6e9ec;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.worklist-client.alt {
+  background: #f4f6f7;
+}
+
+/* A reminder that was clicked points at this card, so it pulses. The animation
+   is decorative: the card also keeps a solid outline, so the highlight survives
+   a printout and a reduced-motion setting. */
+.worklist-client.highlight {
+  border-color: #7E9E9E;
+  box-shadow: 0 0 0 2px rgba(126, 158, 158, 0.35);
+  animation: worklist-pulse 0.7s ease-in-out 3;
+}
+
+@keyframes worklist-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(126, 158, 158, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(126, 158, 158, 0.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .worklist-client.highlight { animation: none; }
 }
 
 .worklist-client-name {
@@ -712,7 +844,7 @@ body {
   border: none;
   background: none;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #1a1a2e;
   cursor: pointer;
@@ -748,9 +880,9 @@ body {
 
 .worklist-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 4px 10px;
   padding: 6px 8px;
   border-radius: 6px;
 }
@@ -764,12 +896,13 @@ body {
   color: #9ca3af;
 }
 
-.worklist-item label {
+.worklist-item-main {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .worklist-item input[type="checkbox"] {
@@ -790,6 +923,78 @@ body {
   font-size: 0.75rem;
   color: #16a34a;
   flex-shrink: 0;
+}
+
+/* ─── Fee, collection and invoice ─────────────────────────────────────────── */
+
+.task-payment {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px 8px 31px;
+  border-radius: 6px;
+  background: #fafbfc;
+}
+
+.task-payment-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+
+.task-payment-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: #444;
+  cursor: pointer;
+}
+
+.task-payment-field input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.task-payment-label {
+  color: #666;
+}
+
+.task-payment-amount {
+  width: 84px;
+  padding: 3px 6px;
+  border: 1px solid #d3d8dd;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.task-payment-amount:focus {
+  outline: 2px solid #7E9E9E;
+  outline-offset: 1px;
+}
+
+.task-payment-date {
+  padding: 3px 6px;
+  border: 1px solid #d3d8dd;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: #444;
+}
+
+.task-payment-hint {
+  font-size: 0.74rem;
+  color: #6b7280;
+}
+
+.task-payment-error {
+  font-size: 0.78rem;
+  color: #b91c1c;
 }
 
 /* ─── Backup ──────────────────────────────────────────────────────────────── */
@@ -916,6 +1121,125 @@ body {
   outline-offset: 1px;
 }
 
+/* ─── Per-client / per-task pickers ───────────────────────────────────────── */
+
+.filter-select {
+  position: relative;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.filter-select-head {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #d3d8dd;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.filter-select-head:focus-within {
+  outline: 2px solid #7E9E9E;
+  outline-offset: 1px;
+}
+
+.filter-select-head input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+  border: none;
+  background: transparent;
+}
+
+.filter-select-head input:focus {
+  outline: none;
+}
+
+.filter-select-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: none;
+  border-left: 1px solid #e2e6ea;
+  background: #f4f6f7;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #3f5c5c;
+  cursor: pointer;
+  max-width: 55%;
+}
+
+.filter-select-toggle:hover {
+  background: #e8f0f0;
+}
+
+.filter-select-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-select-caret {
+  flex-shrink: 0;
+}
+
+.filter-select-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.filter-select-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d3d8dd;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.filter-select-list li button {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+  text-align: left;
+  cursor: pointer;
+}
+
+.filter-select-list li button:hover {
+  background: #f0f4f4;
+}
+
+.filter-select-list li button.selected {
+  background: #e8f0f0;
+  font-weight: 700;
+  color: #24403f;
+}
+
+.filter-select-empty {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  color: #888;
+}
+
 .status-filter {
   display: flex;
   gap: 4px;
@@ -972,6 +1296,217 @@ body {
   margin: 6px 0 0;
   font-size: 0.78rem;
   color: #666;
+}
+
+/* ─── Reports ─────────────────────────────────────────────────────────────── */
+
+.reports-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reports-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid #e6e9ec;
+  border-radius: 10px;
+  background: #f8fafb;
+}
+
+.reports-custom-range {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.reports-custom-range label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #444;
+}
+
+.reports-custom-range select {
+  padding: 5px 8px;
+  border: 1px solid #d3d8dd;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+  background: #fff;
+}
+
+.reports-range-label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #5c7273;
+}
+
+.reports-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.report-total {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid #e6e9ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.report-total-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.report-total-value.paid {
+  color: #15803d;
+}
+
+.report-total-value.unpaid {
+  color: #b45309;
+}
+
+.report-total-label {
+  font-size: 0.76rem;
+  color: #777;
+}
+
+.report-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e6e9ec;
+  border-radius: 10px;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.report-table th {
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #5c7273;
+  background: #eef3f3;
+  border-bottom: 1px solid #dde4e4;
+}
+
+.report-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f2f3;
+  vertical-align: middle;
+}
+
+.report-client-row th {
+  background: #f4f8f8;
+  border-top: 1px solid #e2e9e9;
+}
+
+.report-client-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #24403f;
+  cursor: pointer;
+  text-align: left;
+}
+
+.report-client-toggle:hover {
+  color: #7E9E9E;
+}
+
+.report-caret {
+  font-size: 0.8rem;
+  color: #7E9E9E;
+}
+
+.report-service-row td {
+  background: #fcfdfe;
+}
+
+.report-service-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 26px;
+}
+
+.report-service-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.report-service-month {
+  font-size: 0.76rem;
+  color: #999;
+}
+
+.report-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.report-amount-muted {
+  font-size: 0.78rem;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-date {
+  color: #555;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Colour is never the only signal: the state is also spelled out, so the report
+   survives a black-and-white print and a colour-blind reader. */
+.report-paid,
+.report-invoiced {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.report-paid.yes {
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.report-paid.no {
+  background: #f1f2f3;
+  color: #6b7280;
+}
+
+.report-invoiced.yes {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.report-invoiced.no {
+  background: #f1f2f3;
+  color: #6b7280;
 }
 
 /* ─── Modal ──────────────────────────────────────────────────────────────── */
@@ -1178,10 +1713,35 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 0;
   border-radius: 8px;
   background: #f8f9fa;
   border-left: 3px solid transparent;
+}
+
+/* The whole reminder is one button, so the accountant can jump to the client it
+   is about. The inner layout is kept, so the row still reads the same. */
+.reminder-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.reminder-link:hover {
+  background: #eef2f3;
+}
+
+.reminder-link:focus-visible {
+  outline: 2px solid #7E9E9E;
+  outline-offset: 1px;
 }
 
 .reminder-item.overdue {
@@ -1189,9 +1749,17 @@ body {
   border-left-color: #dc2626;
 }
 
+.reminder-item.overdue .reminder-link:hover {
+  background: #fde8e8;
+}
+
 .reminder-item.due_soon {
   background: #fffbeb;
   border-left-color: #d97706;
+}
+
+.reminder-item.due_soon .reminder-link:hover {
+  background: #fdf3d7;
 }
 
 .reminder-body {
@@ -1426,6 +1994,34 @@ body {
 .btn-small:hover {
   border-color: #4f46e5;
   color: #4f46e5;
+}
+
+/* The one action that adds something, so it is green and carries its own
+   contrast: white on #15803d is 4.6:1, and the hover darkens rather than
+   lightens, so the label never ends up lighter than its background. */
+.btn-add-client {
+  padding: 6px 12px;
+  border: 1px solid #15803d;
+  border-radius: 6px;
+  background: #15803d;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-add-client:hover {
+  background: #166534;
+  border-color: #166534;
+  color: #fff;
+}
+
+.btn-add-client:focus-visible {
+  outline: 2px solid #15803d;
+  outline-offset: 2px;
 }
 
 .btn-danger {

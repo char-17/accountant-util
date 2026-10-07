@@ -17,26 +17,27 @@ interface UseWorklistFiltersResult {
   /** Unfiltered counts, shown only to describe what the filters are hiding. */
   totalCount: number;
   isFiltered: boolean;
-  setClientQuery: (value: string) => void;
-  setTaskQuery: (value: string) => void;
+  setClientId: (value: number | null) => void;
+  setTaskTypeId: (value: number | null) => void;
   setStatus: (value: WorklistFilters["status"]) => void;
   reset: () => void;
 }
 
 /**
- * Search and status filters for the monthly worklist. Filtering is pure and
- * derived, so changing a filter never re-queries the database.
+ * Per-client, per-task and status filters for the monthly worklist. Filtering is
+ * pure and derived, so changing a filter never re-queries the database.
  */
 export function useWorklistFilters(
   statuses: MonthlyStatusWithDetails[],
   year: number,
   month: number,
   /** The client picked in the dashboard list, or null for every client. */
-  selectedClientId: number | null = null
+  selectedClientId: number | null = null,
+  /** Lets the worklist's own client picker drive the dashboard selection. */
+  onSelectClient: (id: number | null) => void = () => {}
 ): UseWorklistFiltersResult {
   const [search, setSearch] = useState<Omit<WorklistFilters, "clientId">>({
-    clientQuery: DEFAULT_FILTERS.clientQuery,
-    taskQuery: DEFAULT_FILTERS.taskQuery,
+    taskTypeId: DEFAULT_FILTERS.taskTypeId,
     status: DEFAULT_FILTERS.status,
   });
 
@@ -58,20 +59,29 @@ export function useWorklistFilters(
     [filtered, year, month]
   );
 
-  const setClientQuery = useCallback((clientQuery: string) => {
-    setSearch((prev) => ({ ...prev, clientQuery }));
-  }, []);
+  // Picking a client in the worklist's own dropdown also moves the dashboard
+  // selection, otherwise the two controls would disagree about who is selected.
+  const setClientId = useCallback(
+    (clientId: number | null) => {
+      onSelectClient(clientId);
+    },
+    [onSelectClient]
+  );
 
-  const setTaskQuery = useCallback((taskQuery: string) => {
-    setSearch((prev) => ({ ...prev, taskQuery }));
+  const setTaskTypeId = useCallback((taskTypeId: number | null) => {
+    setSearch((prev) => ({ ...prev, taskTypeId }));
   }, []);
 
   const setStatus = useCallback((status: WorklistFilters["status"]) => {
     setSearch((prev) => ({ ...prev, status }));
   }, []);
 
-  // Clearing the selection is the caller's job: it owns selectedClientId.
-  const reset = useCallback(() => setSearch(DEFAULT_FILTERS), []);
+  // Clearing the filters also clears the dashboard selection, so "Καθαρισμός"
+  // genuinely returns the worklist to every client.
+  const reset = useCallback(() => {
+    setSearch(DEFAULT_FILTERS);
+    onSelectClient(null);
+  }, [onSelectClient]);
 
   return {
     filters,
@@ -79,8 +89,8 @@ export function useWorklistFilters(
     summary,
     totalCount: statuses.length,
     isFiltered: hasActiveFilters(filters),
-    setClientQuery,
-    setTaskQuery,
+    setClientId,
+    setTaskTypeId,
     setStatus,
     reset,
   };

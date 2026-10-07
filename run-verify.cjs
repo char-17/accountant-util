@@ -23,16 +23,16 @@ const VERIFY = [
   'verify-mutations.cjs',
   'verify-e2e-assignment.cjs',
   'verify-confirm-toggle.cjs',
+  'verify-money.cjs',
+  'verify-report.cjs',
+  'verify-payment.cjs',
 ];
 
 // Scripts that inspect the code instead of running it; they are audits, and one
 // of them deliberately reproduces a bug, so its "failure" is the expected pass.
 const AUDIT = ['audit-refresh.cjs', 'audit-contrast.cjs', 'audit-style.cjs'];
 
-// Dependency pins that cannot be expressed in package.json alone: the SheetJS
-// tarball is the fix for two high-severity advisories, and a relaxed pin would
-// bring them back silently.
-const PINS = ['verify-xlsx-version.cjs'];
+
 
 const results = [];
 
@@ -57,9 +57,7 @@ run('lint', 'npx', ['eslint', 'src']);
 for (const script of AUDIT) {
   if (fs.existsSync(path.join(root, script))) run(script, 'node', [script]);
 }
-for (const script of PINS) {
-  if (fs.existsSync(path.join(root, script))) run(script, 'node', [script]);
-}
+
 for (const script of VERIFY) {
   if (fs.existsSync(path.join(root, script))) run(script, 'node', [script]);
 }

@@ -35,7 +35,7 @@ const rows = [
   { id: 4, clientId: 11, taskTypeId: 3, year: 2026, month: 10, status: 'completed', clientName: 'BEBJA BLERIM',   taskName: 'ΒΕΡ', taskColor: '#C4A882' },
   { id: 5, clientId: 12, taskTypeId: 2, year: 2026, month: 10, status: 'pending',   clientName: 'APARTMENT NAVARINO', taskName: 'ΕΝΦΚΑ', taskColor: '#8B9DAD' },
 ];
-const base = { clientId: null, clientQuery: '', taskQuery: '', status: 'all' };
+const base = { clientId: null, taskTypeId: null, status: 'all' };
 const F = (o) => ({ ...base, ...o });
 
 console.log('1) unfiltered list passes everything through');
@@ -54,12 +54,12 @@ check('all rows belong to client 10', forClient.every((r) => r.clientId === 10))
 check('null clientId means every client', worklist.applyFilters(rows, F({ clientId: null })).length === 5);
 check('client with no rows yields empty', worklist.applyFilters(rows, F({ clientId: 999 })).length === 0);
 
-console.log('\n4) text search is case-insensitive');
-checkEq('lowercase client match', worklist.applyFilters(rows, F({ clientQuery: 'χατζιδης' })).length, 2);
-checkEq('uppercase client match', worklist.applyFilters(rows, F({ clientQuery: 'ΧΑΤΖΙΔΗΣ' })).length, 2);
-checkEq('partial task match', worklist.applyFilters(rows, F({ taskQuery: 'ενφκα' })).length, 2);
-checkEq('surrounding whitespace ignored', worklist.applyFilters(rows, F({ clientQuery: '  bebja  ' })).length, 2);
-checkEq('no match', worklist.applyFilters(rows, F({ clientQuery: 'zzz' })).length, 0);
+console.log('\n4) per-task picker narrows by task id');
+checkEq('task 1 only', worklist.applyFilters(rows, F({ taskTypeId: 1 })).length, 2);
+checkEq('task 2 only', worklist.applyFilters(rows, F({ taskTypeId: 2 })).length, 2);
+checkEq('task 3 only', worklist.applyFilters(rows, F({ taskTypeId: 3 })).length, 1);
+check('null taskTypeId means every task', worklist.applyFilters(rows, F({ taskTypeId: null })).length === 5);
+check('unknown task id yields empty', worklist.applyFilters(rows, F({ taskTypeId: 999 })).length === 0);
 
 console.log('\n5) filters combine with AND');
 checkEq(
@@ -68,21 +68,21 @@ checkEq(
   1
 );
 checkEq(
-  'task ΕΝΦΚΑ + client 10',
-  worklist.applyFilters(rows, F({ clientId: 10, taskQuery: 'ΕΝΦΚΑ' })).length,
+  'task 1 + client 10',
+  worklist.applyFilters(rows, F({ clientId: 10, taskTypeId: 1 })).length,
   1
 );
 checkEq(
   'contradictory filters give nothing',
-  worklist.applyFilters(rows, F({ clientId: 10, status: 'completed', taskQuery: 'ΕΝΦΚΑ' })).length,
+  worklist.applyFilters(rows, F({ clientId: 10, status: 'completed', taskTypeId: 2 })).length,
   0
 );
 
 console.log('\n6) hasActiveFilters reflects the real state');
 check('status != all', worklist.hasActiveFilters(F({ status: 'pending' })) === true);
 check('client selected', worklist.hasActiveFilters(F({ clientId: 11 })) === true);
-check('whitespace-only query is not a filter', worklist.hasActiveFilters(F({ clientQuery: '   ' })) === false);
-check('real query is a filter', worklist.hasActiveFilters(F({ clientQuery: 'a' })) === true);
+check('task selected', worklist.hasActiveFilters(F({ taskTypeId: 2 })) === true);
+check('no selection is not a filter', worklist.hasActiveFilters(base) === false);
 
 console.log('\n7) summarize counts the rows it is given');
 const all = worklist.summarize(rows, 2026, 10);
@@ -132,7 +132,7 @@ check('input rows unchanged', JSON.stringify(rows) === before);
 
 console.log('\n13) the list component matches the domain filter');
 // Every row the component would group must equal the domain's filtered set.
-const filtered = worklist.applyFilters(rows, F({ taskQuery: 'ενφκα', status: 'pending' }));
+const filtered = worklist.applyFilters(rows, F({ taskTypeId: 2, status: 'pending' }));
 const grouped = new Map();
 for (const r of filtered) {
   if (!grouped.has(r.clientId)) grouped.set(r.clientId, []);

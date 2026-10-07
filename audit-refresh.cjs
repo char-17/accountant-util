@@ -78,7 +78,8 @@ auditLinked('client created', 'handleClientCreated', ['refreshClients']);
 auditLinked('client deleted', 'handleClientDeleted',
   ['refreshClients', 'refreshStatus', 'refreshAssignments']);
 
-auditLinked('excel import', 'handleRefresh',
+// A restore replaces every table, so everything on screen must reload.
+auditLinked('backup restore', 'handleRefresh',
   ['refreshClients', 'refreshTasks', 'refreshStatus', 'refreshAssignments']);
 
 auditLinked('task created', 'handleTaskCreated', ['refreshTasks', 'refreshAssignments']);
@@ -108,7 +109,6 @@ const files = {
   'ClientTab.tsx': 'src/components/ClientTab.tsx',
   'TaskCatalog.tsx': 'src/components/TaskCatalog.tsx',
   'ClientList.tsx': 'src/components/ClientList.tsx',
-  'ExcelImport.tsx': 'src/components/ExcelImport.tsx',
 };
 
 let leaks = 0;

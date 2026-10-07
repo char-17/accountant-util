@@ -133,37 +133,19 @@ const noop = () => Promise.resolve();
 
 async function main() {
 
-console.log('1) typing in the filter fields calls back with the new value');
-{
-  const seen = { client: null, task: null };
-  const view = mount(
-    React.createElement(ui.WorklistFiltersBar, {
-      filters: ui.DEFAULT_FILTERS,
-      onClientQueryChange: (v) => { seen.client = v; },
-      onTaskQueryChange: (v) => { seen.task = v; },
-      onStatusChange: noop, onReset: noop,
-      isFiltered: false, shownCount: 3, totalCount: 3,
-    })
-  );
-  type(byLabel('Φίλτρο πελάτη'), 'ΧΑΤΖ');
-  checkEq('client query reported', seen.client, 'ΧΑΤΖ');
-  type(byLabel('Φίλτρο εργασίας'), 'ΦΠΑ');
-  checkEq('task query reported', seen.task, 'ΦΠΑ');
-  view.cleanup();
-}
-
-console.log('\n2) the status filter toggles exactly one option at a time');
+console.log('1) the status filter toggles exactly one option at a time');
 {
   let current = { ...ui.DEFAULT_FILTERS };
   const renderBar = () =>
     React.createElement(ui.WorklistFiltersBar, {
       filters: current,
-      onClientQueryChange: noop,
-      onTaskQueryChange: noop,
       onStatusChange: (v) => { current = { ...current, status: v }; },
       onReset: () => { current = { ...ui.DEFAULT_FILTERS }; },
       isFiltered: current.status !== 'all',
       shownCount: 3, totalCount: 3,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
+      onClientSelect: noop, onTaskSelect: noop,
     });
   const view = mount(renderBar());
 
@@ -189,9 +171,11 @@ console.log('\n3) the filter row disappears when nothing is filtered, reappears 
   const view = mount(
     React.createElement(ui.WorklistFiltersBar, {
       filters: ui.DEFAULT_FILTERS,
-      onClientQueryChange: noop, onTaskQueryChange: noop,
       onStatusChange: () => { filtered = true; }, onReset: noop,
       isFiltered: filtered, shownCount: 3, totalCount: 3,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
+      onClientSelect: noop, onTaskSelect: noop,
     })
   );
   check('no "n of m" line initially', !text().includes('από'));
@@ -204,21 +188,29 @@ console.log('\n4) ticking a task asks for confirmation instead of writing immedi
   const view = mount(
     React.createElement(ui.MonthlyWorklist, {
       statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-      onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
       onFilterStatusChange: noop, onFilterReset: noop,
+      onFilterClientSelect: noop, onFilterTaskSelect: noop,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: async (c, t, done) => { toggles.push({ c, t, done }); },
       onSelectClient: noop,
+      onOpenClient: noop,
+      onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
     })
   );
 
   check('no dialog before the click', !container.querySelector('.modal'));
-  const boxes = container.querySelectorAll('input[type="checkbox"]');
-  checkEq('one checkbox per row', boxes.length, 3);
+  // Each task has 3 checkboxes (status, Εισπραξη, Τιμολόγιο).
+  // The completion checkbox is the first one in each task row.
+  const taskRows = container.querySelectorAll('.worklist-item');
+  checkEq('three task rows', taskRows.length, 3);
+  // The pending ΕΝΦΚΑ row is the second task row (index 1).
+  const secondTaskCompletion = taskRows[1].querySelector('input[type="checkbox"]');
 
-  // The pending ΕΝΦΚΑ row.
+  // The pending ΕΝΦΚΑ row is the second task row.
   await act(async () => {
-    boxes[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    secondTaskCompletion.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   });
 
   checkEq('nothing was written yet', toggles.length, 0);
@@ -237,16 +229,22 @@ console.log('\n5) confirming writes exactly once and closes the dialog');
   const view = mount(
     React.createElement(ui.MonthlyWorklist, {
       statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-      onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
       onFilterStatusChange: noop, onFilterReset: noop,
+      onFilterClientSelect: noop, onFilterTaskSelect: noop,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: async (c, t, done) => { toggles.push({ c, t, done }); },
       onSelectClient: noop,
+      onOpenClient: noop,
+      onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
     })
   );
-  const boxes = container.querySelectorAll('input[type="checkbox"]');
+  // The pending ΕΝΦΚΑ row is the second task row.
+  const taskRows = container.querySelectorAll('.worklist-item');
+  const secondTaskCompletion = taskRows[1].querySelector('input[type="checkbox"]');
   await act(async () => {
-    boxes[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    secondTaskCompletion.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   });
 
   const confirmBtn = findAll((n) => n.tagName === 'BUTTON')
@@ -268,15 +266,19 @@ console.log('\n6) cancelling writes nothing');
   const view = mount(
     React.createElement(ui.MonthlyWorklist, {
       statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-      onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
       onFilterStatusChange: noop, onFilterReset: noop,
+      onFilterClientSelect: noop, onFilterTaskSelect: noop,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: async () => { toggles.push(1); }, onSelectClient: noop,
+      onOpenClient: noop, onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
     })
   );
+  const taskRows = container.querySelectorAll('.worklist-item');
+  const secondTaskCompletion = taskRows[1].querySelector('input[type="checkbox"]');
   await act(async () => {
-    container.querySelectorAll('input[type="checkbox"]')[1]
-      .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    secondTaskCompletion.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   });
   const cancel = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.trim() === 'Άκυρο');
   check('the cancel button is there', Boolean(cancel));
@@ -292,16 +294,20 @@ console.log('\n7) un-ticking a completed task warns in the other direction');
   const view = mount(
     React.createElement(ui.MonthlyWorklist, {
       statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-      onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
       onFilterStatusChange: noop, onFilterReset: noop,
+      onFilterClientSelect: noop, onFilterTaskSelect: noop,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: async (c, t, done) => { seen = done; }, onSelectClient: noop,
+      onOpenClient: noop, onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
     })
   );
+  // The first task row is already completed.
+  const taskRows = container.querySelectorAll('.worklist-item');
+  const firstTaskCompletion = taskRows[0].querySelector('input[type="checkbox"]');
   await act(async () => {
-    // The first row is already completed.
-    container.querySelectorAll('input[type="checkbox"]')[0]
-      .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    firstTaskCompletion.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
   });
   const modal = container.querySelector('.modal');
   check('dialog appeared', Boolean(modal));
@@ -324,10 +330,13 @@ console.log('\n8) clicking a client name opens its tab');
   const view = mount(
     React.createElement(ui.MonthlyWorklist, {
       statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-      onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
       onFilterStatusChange: noop, onFilterReset: noop,
+      onFilterClientSelect: noop, onFilterTaskSelect: noop,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: noop, onSelectClient: (id) => opened.push(id),
+      onOpenClient: noop, onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
     })
   );
   const headers = findAll((n) => n.classList?.contains('worklist-client-name'));
@@ -345,6 +354,8 @@ console.log('\n9) the export button runs the export and disables while it works'
     React.createElement(ui.ExportPanel, {
       summary: { year: 2026, month: 10, totalClients: 2, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
       filters: ui.DEFAULT_FILTERS,
+      clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+      taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       onExportCsv: async () => { exported++; },
       exporting: false,
     })
@@ -460,34 +471,51 @@ console.log('\n13) end-to-end: filter the rendered list the way a user does');
   let filters = { ...ui.DEFAULT_FILTERS };
   const visible = () => ui.applyFilters(statuses, filters);
 
+  const clientOptions = [
+    { id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' },
+    { id: 11, name: 'BEBJA BLERIM' },
+  ];
+  const taskOptions = [
+    { id: 1, name: 'ΦΠΑ' },
+    { id: 2, name: 'ΕΝΦΚΑ' },
+  ];
+
   const renderApp = () =>
     React.createElement(ui.WorklistFiltersBar, {
       filters,
-      onClientQueryChange: (v) => { filters = { ...filters, clientQuery: v }; },
-      onTaskQueryChange: (v) => { filters = { ...filters, taskQuery: v }; },
       onStatusChange: (v) => { filters = { ...filters, status: v }; },
+      onClientSelect: (v) => { filters = { ...filters, clientId: v }; },
+      onTaskSelect: (v) => { filters = { ...filters, taskTypeId: v }; },
       onReset: () => { filters = { ...ui.DEFAULT_FILTERS }; },
       isFiltered: true, shownCount: visible().length, totalCount: statuses.length,
+      clientOptions, taskOptions,
     });
   const view = mount(renderApp());
 
   checkEq('all rows to start with', visible().length, 3);
 
-  type(byLabel('Φίλτρο εργασίας'), 'ΦΠΑ');
+  // The per-task picker narrows by id, so picking ΦΠΑ leaves its two rows.
+  click(findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Όλες οι εργασίες')));
   view.rerender(renderApp());
-  checkEq('searching for ΦΠΑ leaves two rows', visible().length, 2);
+  const fpaOption = findAll((n) => n.tagName === 'BUTTON' && n.getAttribute('role') === 'option')
+    .find((b) => b.textContent.trim() === 'ΦΠΑ');
+  check('the picker offers the task', Boolean(fpaOption));
+  click(fpaOption);
+  view.rerender(renderApp());
+  checkEq('picking ΦΠΑ leaves two rows', visible().length, 2);
 
-  type(byLabel('Φίλτρο εργασίας'), '');
   click(findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.trim() === 'Εκκρεμείς'));
   view.rerender(renderApp());
-  checkEq('filtering by pending leaves two rows', visible().length, 2);
-  check('all of them are pending', visible().every((s) => s.status === 'pending'));
+  checkEq('filtering by pending leaves one row', visible().length, 1);
+  check('it is pending', visible().every((s) => s.status === 'pending'));
 
   click(findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.trim() === 'Καθαρισμός'));
   view.rerender(renderApp());
   checkEq('clearing restores every row', visible().length, 3);
   view.cleanup();
 }
+
+
 
 if (currentRoot) act(() => currentRoot.unmount());
 fs.unlinkSync(entry);

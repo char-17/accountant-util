@@ -45,11 +45,45 @@ export function useMonthlyStatus(db: Database | null, year: number, month: numbe
     await loadStatus();
   };
 
+  // Money writes go through the same reload as the status itself: the amount,
+  // the collection and the invoice all live on the same monthly row, so leaving
+  // them stale would show a wrong figure in the summary and the report at once.
+  const setAmount = async (clientId: number, taskTypeId: number, amount: number | null) => {
+    if (!db) return;
+    await statusRepo.setAmount(db, clientId, taskTypeId, year, month, amount);
+    await loadStatus();
+  };
+
+  const setPaid = async (
+    clientId: number,
+    taskTypeId: number,
+    isPaid: boolean,
+    paidAt: string | null
+  ) => {
+    if (!db) return;
+    await statusRepo.setPaid(db, clientId, taskTypeId, year, month, isPaid, paidAt);
+    await loadStatus();
+  };
+
+  const setInvoiced = async (
+    clientId: number,
+    taskTypeId: number,
+    isInvoiced: boolean,
+    invoicedAt: string | null
+  ) => {
+    if (!db) return;
+    await statusRepo.setInvoiced(db, clientId, taskTypeId, year, month, isInvoiced, invoicedAt);
+    await loadStatus();
+  };
+
   return {
     statuses,
     loading,
     markCompleted,
     markPending,
+    setAmount,
+    setPaid,
+    setInvoiced,
     refresh: loadStatus,
   };
 }

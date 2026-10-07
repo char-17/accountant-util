@@ -73,6 +73,15 @@ const MIGRATIONS = [
     FOREIGN KEY (assignment_id) REFERENCES client_task_assignments(id) ON DELETE CASCADE,
     UNIQUE(assignment_id, year, month)
   )`,
+
+  // --- Money: fee, collection and invoicing, per client+task+month --------
+  // Nullable amount: a month's row is seeded before anyone types anything, so a
+  // NOT NULL column would demand a value for work that has not been priced.
+  `ALTER TABLE monthly_task_status ADD COLUMN amount REAL`,
+  `ALTER TABLE monthly_task_status ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE monthly_task_status ADD COLUMN paid_at TEXT`,
+  `ALTER TABLE monthly_task_status ADD COLUMN is_invoiced INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE monthly_task_status ADD COLUMN invoiced_at TEXT`,
 ];
 
 /**

@@ -9,19 +9,25 @@ import type { MonthlyStatusWithDetails, MonthlySummary, TaskStatus } from "./typ
 
 export type StatusFilter = "all" | "pending" | "completed";
 
-/** The search fields offered above the worklist. `clientId` follows the dashboard selection. */
+/**
+ * The filters offered above the worklist.
+ *
+ * `clientId` follows the dashboard selection and is also set by the per-client
+ * picker; `taskTypeId` comes from the per-task picker. Both are ids rather than
+ * free text, so a partial name typed into a picker's search box narrows the
+ * option list without silently filtering rows by a different rule.
+ */
 export interface WorklistFilters {
   /** Restrict to one client; null means every client. */
   clientId: number | null;
-  clientQuery: string;
-  taskQuery: string;
+  /** Restrict to one task; null means every task. */
+  taskTypeId: number | null;
   status: StatusFilter;
 }
 
 export const DEFAULT_FILTERS: WorklistFilters = {
   clientId: null,
-  clientQuery: "",
-  taskQuery: "",
+  taskTypeId: null,
   status: "all",
 };
 
@@ -30,10 +36,6 @@ export const STATUS_FILTER_LABELS: Record<StatusFilter, string> = {
   pending: "Εκκρεμείς",
   completed: "Ολοκληρωμένες",
 };
-
-function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase("el-GR");
-}
 
 function matchesStatus(status: TaskStatus, filter: StatusFilter): boolean {
   if (filter === "all") return true;
@@ -46,14 +48,8 @@ export function matchesFilters(
   filters: WorklistFilters
 ): boolean {
   if (filters.clientId !== null && item.clientId !== filters.clientId) return false;
+  if (filters.taskTypeId !== null && item.taskTypeId !== filters.taskTypeId) return false;
   if (!matchesStatus(item.status, filters.status)) return false;
-
-  const clientQuery = normalize(filters.clientQuery);
-  if (clientQuery && !normalize(item.clientName).includes(clientQuery)) return false;
-
-  const taskQuery = normalize(filters.taskQuery);
-  if (taskQuery && !normalize(item.taskName).includes(taskQuery)) return false;
-
   return true;
 }
 
@@ -68,8 +64,7 @@ export function applyFilters(
 export function hasActiveFilters(filters: WorklistFilters): boolean {
   return (
     filters.clientId !== null ||
-    normalize(filters.clientQuery) !== "" ||
-    normalize(filters.taskQuery) !== "" ||
+    filters.taskTypeId !== null ||
     filters.status !== "all"
   );
 }

@@ -21,8 +21,7 @@
     "@tauri-apps/plugin-sql": "^2.5.0",
     "better-sqlite3": "^13.0.3",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

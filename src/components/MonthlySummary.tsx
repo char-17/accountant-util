@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { MonthlySummary as MonthlySummaryType } from "../domain/types";
 
 interface MonthlySummaryProps {
@@ -8,9 +9,22 @@ interface MonthlySummaryProps {
   isFiltered?: boolean;
   /** Unfiltered totals, kept for the "x hidden" note. */
   totalTasks?: number;
+  /**
+   * Whether the per-client progress list is open. Starts closed: with 44 clients
+   * the list is long enough to push the worklist out of view, and the totals
+   * above it already answer "how is the month going".
+   */
+  defaultExpanded?: boolean;
 }
 
-export function MonthlySummary({ summary, isFiltered, totalTasks }: MonthlySummaryProps) {
+export function MonthlySummary({
+  summary,
+  isFiltered,
+  totalTasks,
+  defaultExpanded = false,
+}: MonthlySummaryProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
   if (!summary) {
     return <div className="summary-empty">Επιλέξτε μήνα για σύνοψη</div>;
   }
@@ -43,10 +57,7 @@ export function MonthlySummary({ summary, isFiltered, totalTasks }: MonthlySumma
       </div>
 
       <div className="progress-bar">
-        <div
-          className="progress-fill"
-          style={{ width: `${completionRate}%` }}
-        />
+        <div className="progress-fill" style={{ width: `${completionRate}%` }} />
         <span className="progress-text">{completionRate}%</span>
       </div>
 
@@ -58,23 +69,37 @@ export function MonthlySummary({ summary, isFiltered, totalTasks }: MonthlySumma
 
       {summary.clientProgress.length > 0 && (
         <div className="client-progress-list">
-          <h4>Πρόοδος ανά πελάτη</h4>
-          {summary.clientProgress.map((cp) => (
-            <div key={cp.clientId} className="client-progress-item">
-              <span className="client-name">{cp.clientName}</span>
-              <div className="mini-progress">
-                <div
-                  className="mini-progress-fill"
-                  style={{
-                    width: `${cp.totalTasks > 0 ? (cp.completedTasks / cp.totalTasks) * 100 : 0}%`,
-                  }}
-                />
-              </div>
-              <span className="progress-label">
-                {cp.completedTasks}/{cp.totalTasks}
-              </span>
+          <button
+            className="client-progress-toggle"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+          >
+            <span className="section-heading">Πρόοδος ανά πελάτη</span>
+            <span aria-hidden="true" className="report-caret">
+              {expanded ? "▾" : "▸"}
+            </span>
+          </button>
+
+          {expanded && (
+            <div className="client-progress-items">
+              {summary.clientProgress.map((cp) => (
+                <div key={cp.clientId} className="client-progress-item">
+                  <span className="client-name">{cp.clientName}</span>
+                  <div className="mini-progress">
+                    <div
+                      className="mini-progress-fill"
+                      style={{
+                        width: `${cp.totalTasks > 0 ? (cp.completedTasks / cp.totalTasks) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="progress-label">
+                    {cp.completedTasks}/{cp.totalTasks}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

@@ -13,6 +13,11 @@ const STATUS_QUERY = `
     m.status,
     m.completed_at AS completedAt,
     m.note,
+    m.amount,
+    (m.is_paid = 1)      AS isPaid,
+    m.paid_at            AS paidAt,
+    (m.is_invoiced = 1)  AS isInvoiced,
+    m.invoiced_at        AS invoicedAt,
     m.created_at  AS createdAt,
     m.updated_at  AS updatedAt,
     c.name        AS clientName,
@@ -31,6 +36,25 @@ export async function getMonthlyStatus(
   return db.select<MonthlyStatusWithDetails[]>(
     `${STATUS_QUERY} WHERE m.year = $1 AND m.month = $2 ORDER BY c.name, t.name`,
     [year, month]
+  );
+}
+
+/**
+ * Every status row inside a range of months, used by the reports view. The range
+ * is inclusive on both ends and always within one year; the caller resolves the
+ * range from the chosen period.
+ */
+export async function getStatusInRange(
+  db: Database,
+  year: number,
+  fromMonth: number,
+  toMonth: number
+): Promise<MonthlyStatusWithDetails[]> {
+  return db.select<MonthlyStatusWithDetails[]>(
+    `${STATUS_QUERY}
+     WHERE m.year = $1 AND m.month BETWEEN $2 AND $3
+     ORDER BY c.name, t.name, m.month`,
+    [year, fromMonth, toMonth]
   );
 }
 
@@ -75,6 +99,10 @@ export async function setTaskPending(
   year: number,
   month: number
 ): Promise<void> {
+  // The money columns are deliberately left alone. Reverting a month to pending
+  // is a correction of the *status*, not a request to forget a fee that was
+  // already typed in; clearing it here would destroy data the moment a user
+  // mis-clicked the completion checkbox.
   await db.execute(
     `INSERT INTO monthly_task_status
        (client_id, task_type_id, year, month, status, completed_at, note)
@@ -86,6 +114,86 @@ export async function setTaskPending(
        note = NULL,
        updated_at = datetime('now')`,
     [clientId, taskTypeId, year, month]
+  );
+}
+
+/** Writes the fee for one month's row. Passing null clears it. */
+export async function setAmount(
+  db: Database,
+  clientId: number,
+  taskTypeId: number,
+  year: number,
+  month: number,
+  amount: number | null
+): Promise<void> {
+  await db.execute(
+    `INSERT INTO monthly_task_status (client_id, task_type_id, year, month, amount)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT(client_id, task_type_id, year, month)
+     DO UPDATE SET amount = $5, updated_at = datetime('now')`,
+    [clientId, taskTypeId, year, month, amount]
+  );
+}
+
+/**
+ * Records or withdraws the collection. An amount is required to mark a row as
+ * paid, because "Εισπραγμένο" with no number cannot be reported on. The check
+ * lives here as well as in the UI: this is the write path, and a value that
+ * arrives from anywhere else still has to satisfy the same rule.
+ */
+export async function setPaid(
+  db: Database,
+  clientId: number,
+  taskTypeId: number,
+  year: number,
+  month: number,
+  isPaid: boolean,
+  paidAt: string | null
+): Promise<void> {
+  if (isPaid) {
+    const row = await db.select<Array<{ amount: number | null }>>(
+      `SELECT amount FROM monthly_task_status
+       WHERE client_id = $1 AND task_type_id = $2 AND year = $3 AND month = $4`,
+      [clientId, taskTypeId, year, month]
+    );
+    if (!row[0] || row[0].amount === null) {
+      throw new Error("Συμπληρώστε πρώτα το ποσό για να σημειωθεί ως εισπραγμένο.");
+    }
+  }
+
+  await db.execute(
+    `INSERT INTO monthly_task_status
+       (client_id, task_type_id, year, month, is_paid, paid_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT(client_id, task_type_id, year, month)
+     DO UPDATE SET
+       is_paid = $5,
+       paid_at = $6,
+       updated_at = datetime('now')`,
+    [clientId, taskTypeId, year, month, isPaid ? 1 : 0, isPaid ? paidAt : null]
+  );
+}
+
+/** Records or withdraws the issued invoice, with its optional date. */
+export async function setInvoiced(
+  db: Database,
+  clientId: number,
+  taskTypeId: number,
+  year: number,
+  month: number,
+  isInvoiced: boolean,
+  invoicedAt: string | null
+): Promise<void> {
+  await db.execute(
+    `INSERT INTO monthly_task_status
+       (client_id, task_type_id, year, month, is_invoiced, invoiced_at)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT(client_id, task_type_id, year, month)
+     DO UPDATE SET
+       is_invoiced = $5,
+       invoiced_at = $6,
+       updated_at = datetime('now')`,
+    [clientId, taskTypeId, year, month, isInvoiced ? 1 : 0, isInvoiced ? invoicedAt : null]
   );
 }
 
@@ -162,6 +270,33 @@ export async function seedMonthFromAssignments(
     [year, month, firstDay, lastDay]
   );
   return result.rowsAffected;
+}
+
+/**
+ * The client/task/month triples already completed inside a set of months.
+ *
+ * Reminders are derived from assignments and deadlines, which know nothing about
+ * whether the accountant has already done the work. This is what lets a finished
+ * task drop out of the reminder list instead of nagging forever.
+ */
+export async function getCompletedKeys(
+  db: Database,
+  year: number,
+  months: number[]
+): Promise<Set<string>> {
+  if (months.length === 0) return new Set();
+
+  // Placeholders are generated from the array length, never from its contents,
+  // so the values still travel as bind parameters.
+  const placeholders = months.map((_, i) => `$${i + 2}`).join(", ");
+  const rows = await db.select<Array<{ clientId: number; taskTypeId: number; month: number }>>(
+    `SELECT client_id AS clientId, task_type_id AS taskTypeId, month
+     FROM monthly_task_status
+     WHERE year = $1 AND status = 'completed' AND month IN (${placeholders})`,
+    [year, ...months]
+  );
+
+  return new Set(rows.map((r) => `${r.clientId}:${r.taskTypeId}:${r.month}`));
 }
 
 /** First and last day of a month as ISO dates. */

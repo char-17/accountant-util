@@ -14,6 +14,14 @@ interface RemindersProps {
   onDesktopEnabledChange: (enabled: boolean) => void;
   desktopPermission: "granted" | "denied" | "default";
   onRequestDesktopPermission: () => void;
+  /**
+   * Status rows of the months a reminder can point at. A task the accountant has
+   * already completed drops out of the list, because a reminder for finished work
+   * is noise, not information.
+   */
+  completedKeys: Set<string>;
+  /** Called with the client whose work should be highlighted in the worklist. */
+  onFocusClient: (clientId: number) => void;
 }
 
 interface ReminderItem {
@@ -34,6 +42,8 @@ export function Reminders({
   onDesktopEnabledChange,
   desktopPermission,
   onRequestDesktopPermission,
+  completedKeys,
+  onFocusClient,
 }: RemindersProps) {
   const now = useMemo(() => new Date(), []);
 
@@ -52,9 +62,14 @@ export function Reminders({
         } satisfies ReminderItem;
       })
       .filter((x): x is ReminderItem => x !== null)
+      // Work already recorded as completed for this deadline's month is not
+      // outstanding any more, so it is not a reminder.
+      .filter(
+        (x) => !completedKeys.has(`${x.assignment.clientId}:${x.assignment.taskTypeId}:${deadlineMonth(x.dueOn)}`)
+      )
       .filter((x) => x.state === "overdue" || x.state === "due_soon")
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
-  }, [assignments, now]);
+  }, [assignments, now, completedKeys]);
 
   const overdueCount = items.filter((i) => i.state === "overdue").length;
 
@@ -70,7 +85,7 @@ export function Reminders({
       </label>
       {desktopPermission === "default" && (
         <button className="btn-small" onClick={onRequestDesktopPermission}>
-          Επίτρεψη ειδοποιήσεων
+          Επίτρεψη ειδοποιήσεις
         </button>
       )}
       {desktopPermission === "denied" && (
@@ -104,25 +119,39 @@ export function Reminders({
       {desktopControls}
       <ul className="reminder-list">
         {items.map((item) => (
+          // A button rather than a div: the reminder is clickable, so it has to
+          // be reachable by keyboard and announced as activatable.
           <li key={item.assignment.id} className={`reminder-item ${item.state}`}>
-            <span
-              className="task-color-dot"
-              style={{ backgroundColor: item.assignment.taskColor }}
-              aria-hidden="true"
-            />
-            <div className="reminder-body">
-              <span className="reminder-client">{item.assignment.clientName}</span>
-              <span className="reminder-task">{item.assignment.taskName}</span>
-            </div>
-            <div className="reminder-meta">
-              <span className={`reminder-when ${item.state}`}>{item.label}</span>
-              <span className="reminder-period">
-                {PERIODICITY_LABELS[item.assignment.periodicity]} · {item.dueOn}
-              </span>
-            </div>
+            <button
+              className="reminder-link"
+              onClick={() => onFocusClient(item.assignment.clientId)}
+              title={`Εργασίες μήνα για ${item.assignment.clientName}`}
+            >
+              <span
+                className="task-color-dot"
+                style={{ backgroundColor: item.assignment.taskColor }}
+                aria-hidden="true"
+              />
+              <div className="reminder-body">
+                <span className="reminder-client">{item.assignment.clientName}</span>
+                <span className="reminder-task">{item.assignment.taskName}</span>
+              </div>
+              <div className="reminder-meta">
+                <span className={`reminder-when ${item.state}`}>{item.label}</span>
+                <span className="reminder-period">
+                  {PERIODICITY_LABELS[item.assignment.periodicity]} · {item.dueOn}
+                </span>
+              </div>
+            </button>
           </li>
         ))}
       </ul>
     </div>
   );
+}
+
+/** The month number of an ISO date, used to match a deadline to its status row. */
+function deadlineMonth(dueOn: string): number {
+  const m = /^(\d{4})-(\d{2})/.exec(dueOn);
+  return m ? Number(m[2]) : 0;
 }

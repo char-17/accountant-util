@@ -1,20 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { TaskType } from "./domain/types";
 import { useDatabase } from "./hooks/useDatabase";
 import { useClients } from "./hooks/useClients";
 import { useTasks } from "./hooks/useTasks";
 import { useMonthlyStatus } from "./hooks/useMonthlyStatus";
 import { useAssignments } from "./hooks/useAssignments";
+import { useCompletedKeys } from "./hooks/useCompletedKeys";
+import { useReports } from "./hooks/useReports";
 import { MonthPicker } from "./components/MonthPicker";
 import { ClientList } from "./components/ClientList";
 import { MonthlySummary } from "./components/MonthlySummary";
 import { ClientTab } from "./components/ClientTab";
 import { TaskCatalog } from "./components/TaskCatalog";
-import { ExcelImport } from "./components/ExcelImport";
 import { ExportPanel } from "./components/ExportPanel";
 import { BackupPanel } from "./components/BackupPanel";
 import { Reminders } from "./components/Reminders";
 import { MonthlyWorklist } from "./components/MonthlyWorklist";
+import { ReportsView } from "./components/ReportsView";
 import { Toaster } from "./components/Toaster";
 import { useToasts } from "./hooks/useToasts";
 import { useWorklistFilters } from "./hooks/useWorklistFilters";
@@ -24,7 +26,7 @@ import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
 import { currentDeadline, reminderState, describeDeadline } from "./domain/recurrence";
 import "./App.css";
 
-type View = "dashboard" | "tasks" | "import";
+type View = "dashboard" | "tasks" | "reports";
 
 function App() {
   const {
@@ -38,6 +40,9 @@ function App() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<View>("dashboard");
   const [showClientTab, setShowClientTab] = useState(false);
+  // Which client's card in the worklist is pulsing, and the timer that ends it.
+  const [highlightClientId, setHighlightClientId] = useState<number | null>(null);
+  const highlightTimer = useRef<number | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
@@ -57,15 +62,73 @@ function App() {
     statuses,
     markCompleted,
     markPending,
+    setAmount,
+    setPaid,
+    setInvoiced,
     refresh: refreshStatus,
   } = useMonthlyStatus(db, year, month);
   const { assignments, refresh: refreshAssignments } = useAssignments(db);
 
-  // Search and status filters for the worklist. Derived, not queried, so typing
-  // in the filter boxes never touches the database.
   // Selecting a client in the left list narrows the worklist to that client,
-  // which is what "επιλογή πελάτη ενημερώνει τη σύνοψη δεξιά" asks for.
-  const filters = useWorklistFilters(statuses, year, month, selectedClientId);
+  // which is what "επιλογή πελάτη ενημερώνει τη σύνοψη δεξιά" asks for. The worklist's
+  // own per-client filter drives the same value, so the two controls cannot drift.
+  const handleSelectClient = (id: number | null) => {
+    setSelectedClientId(id);
+  };
+
+  const filters = useWorklistFilters(statuses, year, month, selectedClientId, handleSelectClient);
+
+  // The pickers need the full list, not the filtered rows, so the accountant can
+  // switch to a client whose work is currently filtered out.
+  const clientOptions = useMemo(
+    () => clients.map((c) => ({ id: c.id, name: c.name })),
+    [clients]
+  );
+  const taskOptions = useMemo(
+    () => tasks.map((t) => ({ id: t.id, name: t.name })),
+    [tasks]
+  );
+
+  // A reminder points at a client in the month's worklist: select them and pulse
+  // their card so the eye lands on it. The pulse is cleared by a timer so it can
+  // never sit on the wrong card afterwards.
+  const focusClientInWorklist = (id: number) => {
+    setSelectedClientId(id);
+    setHighlightClientId(id);
+    if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(() => setHighlightClientId(null), 2600);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
+    };
+  }, []);
+
+  // Reminders can point at the current or an adjacent month, so the completed
+  // lookup covers the deadline months of every active assignment rather than the
+  // month on screen alone.
+  const reminderMonths = useMemo(() => {
+    const now = new Date();
+    const months = new Set<number>([now.getMonth() + 1]);
+    for (const a of assignments) {
+      if (!a.isActive) continue;
+      const d = currentDeadline(a, now);
+      if (d) {
+        const m = Number(/^\d{4}-(\d{2})/.exec(d.dueOn)?.[1] ?? 0);
+        if (m >= 1 && m <= 12) months.add(m);
+      }
+    }
+    return [...months];
+  }, [assignments]);
+
+  const { keys: completedKeys, refresh: refreshCompletedKeys } = useCompletedKeys(
+    db,
+    new Date().getFullYear(),
+    reminderMonths
+  );
+
+  const reports = useReports(db, year, month);
 
   const [desktopNotifications, setDesktopNotifications] = useState(true);
   const desktop = useDesktopNotifications(desktopNotifications);
@@ -94,14 +157,17 @@ function App() {
   };
 
   // Mirror the in-app reminder list into Windows notifications. The key
-  // includes the due date so a new period notifies again.
+  // includes the due date so a new period notifies again, and completed work is
+  // left out so a finished task does not keep popping up a Windows toast.
   useEffect(() => {
     const due = assignments.filter((a) => {
       if (!a.isActive) return false;
       const d = currentDeadline(a, new Date());
       if (!d) return false;
       const s = reminderState(d, new Date(), a.reminderDays);
-      return s === "overdue" || s === "due_soon";
+      if (s !== "overdue" && s !== "due_soon") return false;
+      const m = Number(/^\d{4}-(\d{2})/.exec(d.dueOn)?.[1] ?? 0);
+      return !completedKeys.has(`${a.clientId}:${a.taskTypeId}:${m}`);
     });
 
     void desktop.notify(
@@ -112,14 +178,9 @@ function App() {
         return `${a.clientName} — ${a.taskName} (${d ? describeDeadline(d) : ""})`;
       }
     );
-  }, [assignments, desktop]);
+  }, [assignments, desktop, completedKeys]);
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) || null;
-
-  // Selecting a client only previews them; opening the tab is a separate action.
-  const handleSelectClient = (id: number) => {
-    setSelectedClientId(id);
-  };
 
   const handleOpenClient = (id: number) => {
     setSelectedClientId(id);
@@ -174,6 +235,8 @@ function App() {
     refreshTasks();
     refreshStatus();
     refreshAssignments();
+    refreshCompletedKeys();
+    reports.refresh();
   };
 
   // A restore replaces every table, so everything on screen has to reload.
@@ -230,6 +293,48 @@ function App() {
         failure: "Αποτυχία ενημέρωσης κατάστασης",
       }
     );
+    // Completing a task must also retire its reminder, so the reminder list is
+    // refreshed from the same event rather than on the next launch.
+    refreshCompletedKeys();
+  };
+
+  // Money writes are per-row and frequent; the toast is enough feedback, and a
+  // failure is also shown inline by the row itself.
+  const handleSetAmount = async (clientId: number, taskTypeId: number, amount: number | null) => {
+    await toasts.run(
+      async () => {
+        await setAmount(clientId, taskTypeId, amount);
+      },
+      { success: "", failure: "Αποτυχία αποθήκευσης ποσού" }
+    );
+  };
+
+  const handleSetPaid = async (
+    clientId: number,
+    taskTypeId: number,
+    isPaid: boolean,
+    paidAt: string | null
+  ) => {
+    await toasts.run(
+      async () => {
+        await setPaid(clientId, taskTypeId, isPaid, paidAt);
+      },
+      { success: "", failure: "Αποτυχία ενημέρωσης είσπραξης" }
+    );
+  };
+
+  const handleSetInvoiced = async (
+    clientId: number,
+    taskTypeId: number,
+    isInvoiced: boolean,
+    invoicedAt: string | null
+  ) => {
+    await toasts.run(
+      async () => {
+        await setInvoiced(clientId, taskTypeId, isInvoiced, invoicedAt);
+      },
+      { success: "", failure: "Αποτυχία ενημέρωσης τιμολογίου" }
+    );
   };
 
   const handleTaskCreated = async (data: Pick<TaskType, "name" | "color" | "description">) => {
@@ -284,39 +389,44 @@ function App() {
 
       <header className="app-header">
         <h1>Accountant Util</h1>
-        <nav className="app-nav">
-          <button
-            className={activeView === "dashboard" ? "active" : ""}
-            onClick={() => setActiveView("dashboard")}
-          >
-            Dashboard
-          </button>
-          <button
-            className={activeView === "tasks" ? "active" : ""}
-            onClick={() => setActiveView("tasks")}
-          >
-            Εργασίες
-          </button>
-          <button
-            className={activeView === "import" ? "active" : ""}
-            onClick={() => setActiveView("import")}
-          >
-            Εισαγωγή Excel
-          </button>
-        </nav>
+        <div className="app-header-bar">
+          <nav className="app-nav" aria-label="Κύριες λειτουργίες">
+            <button
+              className={activeView === "dashboard" ? "active" : ""}
+              onClick={() => setActiveView("dashboard")}
+            >
+              Dashboard
+            </button>
+            <button
+              className={activeView === "tasks" ? "active" : ""}
+              onClick={() => setActiveView("tasks")}
+            >
+              Εργασίες
+            </button>
+            <button
+              className={activeView === "reports" ? "active" : ""}
+              onClick={() => setActiveView("reports")}
+            >
+              Αναφορές
+            </button>
+          </nav>
+
+          {/* Month navigation sits on the same line as the tabs but keeps its
+              own bordered block, so the two read as different kinds of control:
+              one changes the screen, the other changes the month inside it. */}
+          <div className="month-nav-group">
+            <MonthPicker
+              year={year}
+              month={month}
+              onChange={(y, m) => setCurrentDate(new Date(y, m - 1, 1))}
+            />
+          </div>
+        </div>
       </header>
 
       <main className="app-main">
         {activeView === "dashboard" && (
           <div className="dashboard">
-            <div className="dashboard-header">
-              <MonthPicker
-                year={year}
-                month={month}
-                onChange={(y, m) => setCurrentDate(new Date(y, m - 1, 1))}
-              />
-            </div>
-
             <div className="dashboard-content">
               <div className="dashboard-left">
                 <ClientList
@@ -331,13 +441,18 @@ function App() {
                 />
               </div>
 
-              <div className="dashboard-right">
+              {/* Reminders and the month's summary are reference panels, not
+                  the work itself, so they sit in a side column outside the main
+                  panel instead of competing with it for the same width. */}
+              <div className="dashboard-side">
                 <Reminders
                   assignments={assignments}
                   desktopEnabled={desktopNotifications}
                   onDesktopEnabledChange={setDesktopNotifications}
                   desktopPermission={desktop.permission}
                   onRequestDesktopPermission={desktop.askForPermission}
+                  completedKeys={completedKeys}
+                  onFocusClient={focusClientInWorklist}
                 />
                 <MonthlySummary
                   summary={filters.summary}
@@ -346,23 +461,35 @@ function App() {
                   isFiltered={filters.isFiltered}
                   totalTasks={filters.totalCount}
                 />
+              </div>
+
+              <div className="dashboard-right">
                 <MonthlyWorklist
                   statuses={filters.filtered}
                   totalCount={filters.totalCount}
                   filters={filters.filters}
                   isFiltered={filters.isFiltered}
-                  onFilterClientQueryChange={filters.setClientQuery}
-                  onFilterTaskQueryChange={filters.setTaskQuery}
                   onFilterStatusChange={filters.setStatus}
+                  onFilterClientSelect={filters.setClientId}
+                  onFilterTaskSelect={filters.setTaskTypeId}
+                  clientOptions={clientOptions}
+                  taskOptions={taskOptions}
                   onFilterReset={filters.reset}
                   year={year}
                   month={month}
                   onToggle={handleToggleStatus}
-                  onSelectClient={handleOpenClient}
+                  onSelectClient={handleSelectClient}
+                  onOpenClient={handleOpenClient}
+                  highlightClientId={highlightClientId}
+                  onSetAmount={handleSetAmount}
+                  onSetPaid={handleSetPaid}
+                  onSetInvoiced={handleSetInvoiced}
                 />
                 <ExportPanel
                   summary={filters.summary}
                   filters={filters.filters}
+                  clientOptions={clientOptions}
+                  taskOptions={taskOptions}
                   onExportCsv={handleExportCsv}
                   exporting={exporter.exporting}
                 />
@@ -386,8 +513,19 @@ function App() {
           />
         )}
 
-        {activeView === "import" && (
-          <ExcelImport db={db} onImportComplete={handleRefresh} />
+        {activeView === "reports" && (
+          <ReportsView
+            groups={reports.groups}
+            loading={reports.loading}
+            year={year}
+            month={month}
+            period={reports.period}
+            onPeriodChange={reports.setPeriod}
+            customFrom={reports.customFrom}
+            customTo={reports.customTo}
+            onCustomRangeChange={reports.setCustomRange}
+            isEmpty={reports.isEmpty}
+          />
         )}
       </main>
 

@@ -5,17 +5,31 @@ import type { WorklistFilters } from "../domain/worklist";
 interface ExportPanelProps {
   summary: MonthlySummary;
   filters: WorklistFilters;
+  /** Used to name the selected client/task in the export scope note. */
+  clientOptions?: Array<{ id: number; name: string }>;
+  taskOptions?: Array<{ id: number; name: string }>;
   onExportCsv: () => Promise<void>;
   exporting: boolean;
 }
 
 /** Human-readable summary of what the export will contain. */
-function describeScope(filters: WorklistFilters): string | undefined {
+function describeScope(
+  filters: WorklistFilters,
+  clientOptions: Array<{ id: number; name: string }>,
+  taskOptions: Array<{ id: number; name: string }>
+): string | undefined {
   const parts: string[] = [];
 
-  if (filters.clientId !== null) parts.push("συγκεκριμένος πελάτης");
-  if (filters.clientQuery.trim()) parts.push(`πελάτης: "${filters.clientQuery.trim()}"`);
-  if (filters.taskQuery.trim()) parts.push(`εργασία: "${filters.taskQuery.trim()}"`);
+  // The pickers hold ids; naming them keeps the exported file traceable without
+  // the accountant having to remember which id was which.
+  if (filters.clientId !== null) {
+    const name = clientOptions.find((c) => c.id === filters.clientId)?.name;
+    parts.push(name ? `πελάτης: "${name}"` : "συγκεκριμένος πελάτης");
+  }
+  if (filters.taskTypeId !== null) {
+    const name = taskOptions.find((t) => t.id === filters.taskTypeId)?.name;
+    parts.push(name ? `εργασία: "${name}"` : "συγκεκριμένη εργασία");
+  }
   if (filters.status !== "all") parts.push(STATUS_FILTER_LABELS[filters.status]);
 
   return parts.length > 0 ? parts.join(", ") : undefined;
@@ -28,10 +42,12 @@ function describeScope(filters: WorklistFilters): string | undefined {
 export function ExportPanel({
   summary,
   filters,
+  clientOptions = [],
+  taskOptions = [],
   onExportCsv,
   exporting,
 }: ExportPanelProps) {
-  const scope = describeScope(filters);
+  const scope = describeScope(filters, clientOptions, taskOptions);
 
   return (
     <div className="export-panel">

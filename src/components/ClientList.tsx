@@ -37,10 +37,10 @@ export function ClientList({
           aria-label="Αναζήτηση πελάτη"
         />
         <button
-          className="btn-small btn-primary"
+          className="btn-add-client"
           onClick={() => setIsAdding(true)}
         >
-          + Νέος
+          + Νέος πελάτης
         </button>
       </div>
 

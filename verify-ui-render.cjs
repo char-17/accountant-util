@@ -50,7 +50,19 @@ const { renderToStaticMarkup } = require('react-dom/server');
 
 // Call sites pass an already-created element, so render only serialises it.
 const render = (element) => renderToStaticMarkup(element);
-const text = (html) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+// Entities are decoded as well as tags stripped: an escaped quote in the markup
+// is still a quote to the person reading it, and a test that compares the raw
+// markup would fail on something the user never sees.
+const text = (html) =>
+  html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 const attrsOf = (html, needle) => {
   const i = html.indexOf(needle);
   if (i === -1) return null;
@@ -72,15 +84,26 @@ const statuses = [
 ];
 const noop = () => Promise.resolve();
 
-console.log('1) the filter bar renders both searches and all three status options');
+const clientOptions = [
+  { id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' },
+  { id: 11, name: 'BEBJA BLERIM' },
+];
+const taskOptions = [
+  { id: 1, name: 'ΦΠΑ' },
+  { id: 2, name: 'ΕΝΦΚΑ' },
+];
+
+console.log('1) the filter bar renders both pickers and all three status options');
 const barHtml = render(React.createElement(ui.WorklistFiltersBar, {
   filters: ui.DEFAULT_FILTERS,
-  onClientQueryChange: noop, onTaskQueryChange: noop,
   onStatusChange: noop, onReset: noop,
   isFiltered: false, shownCount: 3, totalCount: 3,
+  clientOptions, taskOptions, onClientSelect: noop, onTaskSelect: noop,
 }));
-check('client search present', barHtml.includes('Αναζήτηση πελάτη'));
-check('task search present', barHtml.includes('Αναζήτηση εργασίας'));
+check('client picker search present', barHtml.includes('Αναζήτηση πελάτη'));
+check('task picker search present', barHtml.includes('Αναζήτηση εργασίας'));
+check('the client picker names its list', barHtml.includes('Φίλτρο πελάτη'));
+check('the task picker names its list', barHtml.includes('Φίλτρο εργασίας'));
 check('"Όλες" option', barHtml.includes('Όλες'));
 check('"Εκκρεμείς" option', barHtml.includes('Εκκρεμείς'));
 check('"Ολοκληρωμένες" option', barHtml.includes('Ολοκληρωμένες'));
@@ -92,22 +115,24 @@ check('and it is "Όλες"', /aria-pressed="true"[^>]*>Όλες</.test(barHtml)
 
 console.log('\n2) the selected status is announced, not just tinted');
 const barFiltered = render(React.createElement(ui.WorklistFiltersBar, {
-  filters: { ...ui.DEFAULT_FILTERS, status: 'pending', clientQuery: 'ΧΑΤΖ' },
-  onClientQueryChange: noop, onTaskQueryChange: noop,
+  filters: { ...ui.DEFAULT_FILTERS, status: 'pending', clientId: 10 },
   onStatusChange: noop, onReset: noop,
   isFiltered: true, shownCount: 1, totalCount: 3,
+  clientOptions, taskOptions, onClientSelect: noop, onTaskSelect: noop,
 }));
 check('the active filter is marked pressed', barFiltered.includes('aria-pressed="true"'));
-check('the query is in the search box value', barFiltered.includes('value="ΧΑΤΖ"'));
+check('the selected client is named in the picker', barFiltered.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
 check('the count reads "1 από 3 εργασίες"', text(barFiltered).includes('1 από 3 εργασίες'), `- got: ${text(barFiltered)}`);
 check('a clear button appears', barFiltered.includes('Καθαρισμός'));
 
 console.log('\n3) the worklist shows the period and groups by client');
 const listHtml = render(React.createElement(ui.MonthlyWorklist, {
   statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-  onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
   onFilterStatusChange: noop, onFilterReset: noop,
-  year: 2026, month: 10, onToggle: noop, onSelectClient: noop,
+  onFilterClientSelect: noop, onFilterTaskSelect: noop,
+  clientOptions, taskOptions,
+  year: 2026, month: 10, onToggle: noop, onSelectClient: noop, onOpenClient: noop,
+  onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
 }));
 check('period is displayed', listHtml.includes('10/2026'));
 check('first client name shown', listHtml.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
@@ -116,23 +141,29 @@ check('progress shown for the first client', /1\/2/.test(text(listHtml)), `- got
 check('the checkbox reflects the completed row', (listHtml.match(/checked=""/g) || []).length === 1);
 check('completed work shows its date', listHtml.includes('completed-at') || /\d+\/\d+\/\d{4}/.test(listHtml));
 check('filter bar is included above the list', listHtml.includes('Αναζήτηση πελάτη'));
+check('each client sits in its own card', (listHtml.match(/worklist-client[ "]/g) || []).length === 2);
+check('the fee and collection fields are offered', listHtml.includes('Εισπραξη') && listHtml.includes('Ποσό'));
 
 console.log('\n4) the worklist distinguishes "empty month" from "nothing matched"');
 const emptyMonth = render(React.createElement(ui.MonthlyWorklist, {
   statuses: [], totalCount: 0, filters: ui.DEFAULT_FILTERS, isFiltered: false,
-  onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
   onFilterStatusChange: noop, onFilterReset: noop,
-  year: 2026, month: 10, onToggle: noop, onSelectClient: noop,
+  onFilterClientSelect: noop, onFilterTaskSelect: noop,
+  clientOptions, taskOptions,
+  year: 2026, month: 10, onToggle: noop, onSelectClient: noop, onOpenClient: noop,
+  onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
 }));
 check('empty month explains what to do', emptyMonth.includes('Δεν υπάρχουν εργασίες'));
 check('empty month offers no filter reset', !emptyMonth.includes('Καθαρισμός'));
 
 const nothingMatched = render(React.createElement(ui.MonthlyWorklist, {
-  statuses: [], totalCount: 7, filters: { ...ui.DEFAULT_FILTERS, taskQuery: 'zzz' },
+  statuses: [], totalCount: 7, filters: { ...ui.DEFAULT_FILTERS, taskTypeId: 2 },
   isFiltered: true,
-  onFilterClientQueryChange: noop, onFilterTaskQueryChange: noop,
   onFilterStatusChange: noop, onFilterReset: noop,
-  year: 2026, month: 10, onToggle: noop, onSelectClient: noop,
+  onFilterClientSelect: noop, onFilterTaskSelect: noop,
+  clientOptions, taskOptions,
+  year: 2026, month: 10, onToggle: noop, onSelectClient: noop, onOpenClient: noop,
+  onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
 }));
 check('empty result says the filters excluded everything', nothingMatched.includes('δεν ταιριάζει με τα φίλτρα'));
 check('and offers a way out', nothingMatched.includes('Καθαρισμός φίλτρων'));
@@ -151,9 +182,12 @@ const summary = render(React.createElement(ui.MonthlySummary, {
   year: 2026, month: 10,
 }));
 checkEq('completion rate is 1 of 3 = 33%', text(summary).includes('33%'), true);
-check('per-client progress is listed', summary.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ') && summary.includes('BEBJA BLERIM'));
 check('labels are in Greek', summary.includes('Ολοκληρωμένες') && summary.includes('Εκκρεμείς'));
 check('no filter note when unfiltered', !summary.includes('αποκρύπτονται'));
+// The per-client list starts closed, so the names are behind the toggle.
+check('per-client progress starts closed', !summary.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
+check('the toggle names the section', summary.includes('Πρόοδος ανά πελάτη'));
+check('the toggle exposes its state', summary.includes('aria-expanded="false"'));
 
 const summaryFiltered = render(React.createElement(ui.MonthlySummary, {
   summary: {
@@ -170,9 +204,21 @@ console.log('\n6) the export panel reflects the visible rows');
 const exportHtml = render(React.createElement(ui.ExportPanel, {
   summary: { year: 2026, month: 10, totalClients: 2, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
   filters: ui.DEFAULT_FILTERS, onExportCsv: noop, exporting: false,
+  clientOptions, taskOptions,
 }));
 check('row count shown', exportHtml.includes('3 εργασίες'));
 check('CSV action present', exportHtml.includes('Λήψη CSV'));
+
+console.log('\n7) the export scope names the selected client instead of an id');
+const exportNamed = render(React.createElement(ui.ExportPanel, {
+  summary: { year: 2026, month: 10, totalClients: 2, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
+  filters: { ...ui.DEFAULT_FILTERS, clientId: 10, taskTypeId: 2 },
+  onExportCsv: noop, exporting: false,
+  clientOptions, taskOptions,
+}));
+// The markup escapes the quotes, so the readable text is checked instead.
+check('the client is named', text(exportNamed).includes('πελάτης: "ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ"'));
+check('the task is named', text(exportNamed).includes('εργασία: "ΕΝΦΚΑ"'));
 check('print action present', exportHtml.includes('Εκτύπωση'));
 check('no filter detail when unfiltered', !exportHtml.includes('φίλτρα:'));
 
@@ -212,7 +258,7 @@ check('both messages appear', toastHtml.includes('Οι αλλαγές αποθη
 check('the close control has a name', /aria-label="Κλείσιμο"/.test(toastHtml));
 checkEq('nothing renders with no toasts', render(React.createElement(ui.Toaster, { toasts: [], onDismiss: noop })), '');
 
-console.log('\n9) the month picker is operable from the keyboard');
+console.log('\n8) the month picker is operable from the keyboard');
 const monthHtml = render(React.createElement(ui.MonthPicker, { year: 2026, month: 10, onChange: noop }));
 check('previous month is labelled', monthHtml.includes('aria-label="Προηγούμενος μήνας"'));
 check('next month is labelled', monthHtml.includes('aria-label="Επόμενος μήνας"'));
@@ -221,7 +267,7 @@ check('the dropdown state is exposed', monthHtml.includes('aria-expanded="false"
 check('the jump-to-today button explains itself', monthHtml.includes('title="Επιστροφή στον τρέχοντα μήνα"'));
 check('arrows are not the only label', !/>←</.test(monthHtml.replace(/aria-label="[^"]*"/g, '')) || true);
 
-console.log('\n10) the client list announces its search box');
+console.log('\n9) the client list announces its search box');
 const clientListHtml = render(React.createElement(ui.ClientList, {
   clients: [{ id: 1, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', createdAt: '', updatedAt: '' }],
   selectedClientId: null, onSelectClient: noop,
@@ -233,7 +279,7 @@ check('the client is listed', clientListHtml.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣ
 check('the add button is there', clientListHtml.includes('+ Νέος'));
 check('the double-click hint is discoverable', clientListHtml.includes('Άνοιγμα καρτέλας'));
 
-console.log('\n11) the task catalogue lists the tasks with their colour');
+console.log('\n10) the task catalogue lists the tasks with their colour');
 const catalogHtml = render(React.createElement(ui.TaskCatalog, {
   tasks: [
     { id: 1, name: 'ΦΠΑ', color: '#7B8D6E', isActive: true, createdAt: '', updatedAt: '' },
