@@ -2626,10 +2626,26 @@ body {
   color: var(--info-text);
 }
 
+/* Where the client tab's action row is portalled to. It is separated from the
+   assignments above it by a rule rather than by space alone, because the row is
+   about the panel as a whole - it saves the client and deletes them - and the
+   assignments below it are a different job. */
+.client-tab-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .form-actions {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* In the footer the row is the bottom edge of the panel, so it gets the space
+   below it rather than the 8px it carried inside a form. */
+.client-tab-footer .form-actions {
+  margin-top: 0;
 }
 
 /* Pushes the delete button to the far right of the action row. */

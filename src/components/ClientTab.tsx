@@ -32,6 +32,10 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
   const [newDueDay, setNewDueDay] = useState("28");
   const [newReminderDays, setNewReminderDays] = useState("5");
   const [assignmentError, setAssignmentError] = useState("");
+  // Where ClientForm's action row is portalled to. Null until this component's
+  // own footer box has mounted, which is why the row appears on the second
+  // render rather than the first.
+  const [actionsTarget, setActionsTarget] = useState<HTMLDivElement | null>(null);
 
   // Stable, so the effect below can depend on it honestly instead of silencing
   // the hooks rule.
@@ -103,8 +107,14 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
         </button>
       </div>
 
+      {/* The action row lives at the foot of this panel, below the assignments,
+          rather than in the middle of the form. It is held in state by the form
+          and portalled here, so this only has to own the empty box it lands in -
+          a callback ref, because the portal target has to exist before the form
+          first renders, and a plain ref would still be null at that point. */}
       <ClientForm
         key={client.id}
+        actionsTarget={actionsTarget}
         submitLabel="Αποθήκευση αλλαγών"
         resetOnSuccess={false}
         initialData={{
@@ -233,6 +243,9 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
           )}
         </div>
       </div>
+
+      {/* The buttons land here, at the foot of the panel. */}
+      <div className="client-tab-footer" ref={setActionsTarget} />
     </div>
   );
 }

@@ -47,6 +47,7 @@ export { MonthlyWorklist } from "./src/components/MonthlyWorklist";
 export { FileMenu } from "./src/components/FileMenu";
 export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
+export { ClientForm } from "./src/components/ClientForm";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
 `,
   'utf8'
@@ -559,6 +560,65 @@ console.log('\n12) the client list reports selection and asks for a new client')
   checkEq('with the typed name', created?.name, 'ΝΕΟΣ ΠΕΛΑΤΗΣ');
   check('the dialog closed after success', !container.querySelector('.client-create-modal'));
   view.cleanup();
+}
+
+console.log('\n12b) the form can render its action row outside the form, and still submit');
+{
+  // The client tab puts its buttons at the foot of the panel. That only works if
+  // the row survives outside the <form> AND the submit button still reaches it,
+  // which is what the `form` attribute is for - without it, clicking save does
+  // nothing at all and the panel silently stops saving.
+  let saved = null;
+  let cancelled = 0;
+  const holder = document.createElement('div');
+
+  const view = mount(
+    React.createElement(
+      'div',
+      null,
+      React.createElement(ui.ClientForm, {
+        submitLabel: 'Αποθήκευση αλλαγών',
+        initialData: { name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' },
+        onSubmit: async (d) => { saved = d; },
+        onCancel: () => { cancelled++; },
+        actionsTarget: holder,
+      })
+    )
+  );
+
+  // The holder is attached to the document, not to the React root: a portal
+  // target does not have to be inside the tree that renders it, which is the
+  // whole point - it can live anywhere in the panel.
+  document.body.appendChild(holder);
+  await act(async () => {});
+
+  const actionRow = holder.querySelector('.form-actions');
+  check('the action row rendered into the target', Boolean(actionRow));
+  check('it is a child of the target', Boolean(actionRow && holder.contains(actionRow)));
+
+  const form = container.querySelector('form.client-form');
+  check('the form is a separate element', Boolean(form));
+  check('and the row is not a child of it',
+    Boolean(form && actionRow && !form.contains(actionRow)), '- the row must leave the form');
+
+  // The row lives in the holder, so it has to be looked up there - findAll
+  // walks the React root, which no longer contains it.
+  const saveBtn = holder.querySelector('button[type="submit"]');
+  check('the save button is in the portalled row', Boolean(saveBtn));
+  check('it points back at the form',
+    saveBtn?.getAttribute('form') === form?.getAttribute('id') && Boolean(form?.getAttribute('id')),
+    `- a submit button outside a form needs the form attribute (button="${saveBtn?.getAttribute('form')}", form id="${form?.getAttribute('id')}")`);
+
+  await act(async () => { saveBtn.click(); });
+  check('clicking save from outside the form still saves', Boolean(saved));
+  checkEq('with the loaded name', saved?.name, 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ');
+
+  const cancelBtn = holder.querySelector('button.btn-secondary');
+  await act(async () => { cancelBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  checkEq('and cancel still works from there', cancelled, 1);
+
+  view.cleanup();
+  holder.remove();
 }
 
 console.log('\n13) end-to-end: filter the rendered list the way a user does');
