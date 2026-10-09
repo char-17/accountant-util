@@ -403,70 +403,75 @@ body {
   gap: 8px;
 }
 
-/* Inside the shared cluster frame these read as one control, so they carry no
-   border of their own - the group supplies the edge. */
+/* The arrows and the month name are one stepper: same fill, same treatment, so
+   the eye reads them as a single control that happens to have three parts. */
+.month-nav,
+.month-display {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-subtle);
+  /* Explicit, because a background here would otherwise inherit the page's
+     grey and the label would lose contrast. */
+  color: var(--accent-700);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
 .month-nav {
   width: 32px;
   height: 32px;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  background: transparent;
   color: var(--accent-700);
-  cursor: pointer;
   font-size: 1.05rem;
-  font-family: inherit;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 
-.month-nav:hover {
-  background: var(--surface-hover);
-  color: var(--text-strong);
+.month-nav:hover,
+.month-display:hover {
+  background: var(--surface);
+  border-color: var(--accent-200);
+  color: var(--accent-900);
+  box-shadow: var(--shadow-sm);
 }
 
 .month-display {
   padding: 7px 16px;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  background: transparent;
   color: var(--accent-800);
-  cursor: pointer;
   font-size: 0.9rem;
   font-weight: 700;
-  font-family: inherit;
   min-width: 168px;
   text-align: center;
-  transition: background-color var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 
-.month-display:hover {
-  background: var(--surface-hover);
-  color: var(--text-strong);
-}
-
-/* "Τρέχων" sits next to the month name and is the way back to the present,
-   so it is given the same weight as the date rather than reading as a caption. */
+/* The arrows and the month name are one control - a stepper. "Τρέχων" is not:
+   it is a jump back to the present, so it gets its own filled surface and a
+   divider, otherwise all three flatten into one strip and the eye cannot tell
+   where "now" is. */
 .month-current {
-  padding: 7px 15px;
-  border: 1px solid transparent;
+  padding: 7px 16px;
+  margin-left: 4px;
+  border: 1px solid var(--accent-200);
   border-radius: var(--r-md);
-  background: transparent;
+  background: var(--accent-50);
   cursor: pointer;
   font-size: 0.98rem;
   font-weight: 700;
   font-family: inherit;
   color: var(--accent-700);
   transition: background-color var(--t-fast) var(--ease),
-    color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+    border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
 }
 
 .month-current:hover {
-  background: var(--surface-hover);
-  color: var(--text-strong);
+  background: var(--accent-100);
+  border-color: var(--accent-500);
+  color: var(--accent-900);
+  box-shadow: var(--shadow-sm);
 }
 
 .month-dropdown {

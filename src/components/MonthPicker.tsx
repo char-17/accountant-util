@@ -53,7 +53,7 @@ export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
         →
       </button>
       <button className="month-current" onClick={goToCurrentMonth} title="Επιστροφή στον τρέχοντα μήνα">
-        Τρέχων
+        Τρέχων μήνας
       </button>
 
       {isOpen && (
