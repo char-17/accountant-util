@@ -182,30 +182,28 @@ export function ReportsView({
             </div>
           </div>
 
-          <div className="reports-table-section">
-            <div className="report-table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Πελάτης / Υπηρεσία</th>
-                    <th scope="col">Εισπραξη</th>
-                    <th scope="col">Έκδοση Τιμολογίου</th>
-                    <th scope="col">Ποσό</th>
-                    <th scope="col">Ημερομηνία Είσπραξης</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map((group) => (
-                    <ReportGroupRow
-                      key={group.clientId}
-                      group={group}
-                      expanded={expanded}
-                      onToggle={() => setExpanded((v) => !v)}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th scope="col">Πελάτης / Υπηρεσία</th>
+                  <th scope="col">Εισπραξη</th>
+                  <th scope="col">Έκδοση Τιμολογίου</th>
+                  <th scope="col">Ποσό</th>
+                  <th scope="col">Ημερομηνία Είσπραξης</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((group) => (
+                  <ReportGroupRow
+                    key={group.clientId}
+                    group={group}
+                    expanded={expanded}
+                    onToggle={() => setExpanded((v) => !v)}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       )}

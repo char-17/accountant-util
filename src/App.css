@@ -1642,16 +1642,12 @@ body {
   color: var(--accent-700);
 }
 
-/* Capped so the table does not stretch to 2000px on a wide monitor, where the
-   eye loses the row it is reading. */
+/* auto-fit lets the four totals spread to whatever width the window gives,
+   so no fixed column count and no measure cap. */
 .reports-totals {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
-}
-
-.reports-table-section {
-  max-width: 1400px;
 }
 
 .report-total {
@@ -2514,9 +2510,6 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--r-2xl);
   box-shadow: var(--shadow-md);
-  /* Cap the measure: a form and a list of tasks stop being scannable when
-     they stretch the full width of a wide monitor. */
-  max-width: 1400px;
 }
 
 .task-catalog-header {
