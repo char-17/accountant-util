@@ -50,12 +50,17 @@
   --danger-strong: #b91c1c;
   --danger-text: #991b1b;
   --danger-soft: #fef2f2;
+  /* One step deeper than the soft fill, for hover. A panel row that carries a
+     state cannot hover to a neutral grey: the tint would go the moment the
+     pointer landed on the row, which is the wrong moment to lose the signal. */
+  --danger-soft-hover: #fde8e8;
   --danger-border: #fecaca;
 
   --warning: #d97706;
   --warning-text: #b45309;
   --warning-text-strong: #92400e;
   --warning-soft: #fffbeb;
+  --warning-soft-hover: #fef3c7;
   --warning-border: #fde68a;
 
   --success: #16a34a;
@@ -2050,20 +2055,28 @@ body {
 
 /* ─── Reminders ──────────────────────────────────────────────────────────── */
 
+/* No frame of its own, and none of the bottom border and margin it used to
+   carry: the aside is already a card and it spaces its two children, so a
+   separator here would draw a line inside someone else's card. What the panel
+   does need is the internal rhythm the aside does not give it - heading,
+   notification strip and list are three separate things. */
 .reminders {
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 
+/* The heading carries the count, so the two are one line at different weights
+   rather than a badge glued to the type. */
 .reminders h3 {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 1.02rem;
+  font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  margin-bottom: 12px;
+  color: var(--text-strong);
 }
 
 .reminder-count {
@@ -2084,21 +2097,30 @@ body {
   background: var(--danger);
 }
 
+/* One list surface, not a stack of cards. A row in this column is about 250px
+   wide; wrapping each one in its own border meant the accountant read a column
+   of frames and had to decode every one of them, which is the opposite of
+   triage. Now there is a single quiet card and the only loud thing inside it
+   is the urgency. `overflow: hidden` so a tinted row's corners follow the
+   card's radius instead of squaring off over it. */
 .reminder-list {
   list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
 }
 
+/* Recessed like the roster's search field: this is a settings strip, not
+   content, so it sits below the surface rather than as a second white card on
+   the band. */
 .reminder-desktop-controls {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
-  padding: 9px 12px;
-  background: var(--surface);
+  padding: 8px 12px;
+  background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
 }
@@ -2107,7 +2129,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text);
   cursor: pointer;
 }
@@ -2116,68 +2138,88 @@ body {
   cursor: pointer;
 }
 
+/* The checkbox does get a UA ring, but an explicit one is what the rest of the
+   app uses, and the strip is small enough that the ring is easy to lose. */
+.reminder-toggle input:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+}
+
 .reminder-permission-note {
   font-size: 0.78rem;
   color: var(--warning-text-strong);
 }
 
+/* The li is structural: it carries the separator and nothing paints on it, so
+   the row's whole appearance belongs to the button that fills it. The button
+   is the item's only child, so the row is exactly as tall as the button. */
 .reminder-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0;
-  border-radius: var(--r-md);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
-  background: var(--surface);
-  transition: border-color var(--t-fast) var(--ease);
+}
+
+/* One hairline between rows, the same job the 2px gap does in the roster. */
+.reminder-item + .reminder-item {
+  border-top: 1px solid var(--border);
 }
 
 /* The whole reminder is one button, so the accountant can jump to the client it
-   is about. The inner layout is kept, so the row still reads the same. */
+   is about. The inner layout is kept, so the row still reads the same. No
+   radius of its own: the list's corners do the rounding, so the fill and the
+   hover reach the card's edge instead of stopping short of it. */
 .reminder-link {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 9px 12px;
   border: none;
   background: none;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  border-radius: var(--r-md);
+  /* Explicit, like .month-display: a button that sets its own background must
+     say what colour its label is, not inherit the UA's. */
+  color: var(--text-strong);
+  transition: background-color var(--t-fast) var(--ease);
 }
 
 .reminder-link:hover {
-  background: var(--accent-50);
+  background: var(--surface-hover);
 }
 
+/* Inside the list, not outside it: the list clips its corners, so an outward
+   ring would be cut in half on the first and last row. */
 .reminder-link:focus-visible {
   outline: 2px solid var(--accent-600);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.reminder-item.overdue {
+/* Urgency in three cues that each survive greyscale: the tint, the spine and
+   the deadline label set in bold (see .reminder-when below). The spine is an
+   inset shadow on the button - the same idiom the roster's selected row uses -
+   so the row's content stays flush with the card's edge instead of stepping
+   in 3px. It has to live on the button rather than the li because a parent's
+   background paints below its child's: on the li, the hover fill would wash
+   the spine off the row at the moment the accountant is looking at it. */
+.reminder-item.overdue .reminder-link {
   background: var(--danger-soft);
-  border-color: var(--danger-border);
-  border-left-color: var(--danger);
+  box-shadow: inset 3px 0 0 var(--danger);
 }
 
-.reminder-item.overdue .reminder-link:hover {
-  background: var(--danger-soft);
-  filter: brightness(0.98);
-}
-
-.reminder-item.due_soon {
+.reminder-item.due_soon .reminder-link {
   background: var(--warning-soft);
-  border-color: var(--warning-border);
-  border-left-color: var(--warning);
+  box-shadow: inset 3px 0 0 var(--warning);
+}
+
+/* A step deeper into the row's own family, not a neutral grey: the accountant
+   reads this list top to bottom and a hovered row should not change rank. */
+.reminder-item.overdue .reminder-link:hover {
+  background: var(--danger-soft-hover);
 }
 
 .reminder-item.due_soon .reminder-link:hover {
-  background: var(--warning-soft);
-  filter: brightness(0.98);
+  background: var(--warning-soft-hover);
 }
 
 .reminder-body {
@@ -2185,45 +2227,69 @@ body {
   min-width: 0;
 }
 
+/* Client above task, and the client carries the weight. The row used to lead
+   with the task name and print the client in --text-faint at 0.78rem: the
+   faintest, smallest thing in the panel was the person the reminder is about,
+   and jumping to that person is the whole point of clicking the row. */
 .reminder-client {
   display: block;
-  font-size: 0.78rem;
-  color: var(--text-faint);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-strong);
 }
 
 .reminder-task {
   display: block;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--text-soft);
 }
 
+/* `flex: 0 1 auto` and the cap, where it used to be `flex-shrink: 0`. The
+   deadline phrase is 18-22 Greek characters and took more than half the row,
+   leaving the client name about seventy pixels to wrap into four lines beside
+   a one-line column. Both sides now wrap, and the cap is what guarantees the
+   client keeps at least half the row when the phrase is at its longest. */
 .reminder-meta {
+  flex: 0 1 auto;
+  max-width: 46%;
   text-align: right;
-  flex-shrink: 0;
 }
 
 .reminder-when {
   display: block;
   font-size: 0.82rem;
-  font-weight: 600;
+  /* Bold, so the one thing being triaged is the boldest thing in the row. */
+  font-weight: 700;
 }
 
+/* --danger-text, not --danger: the label sits on --danger-soft, where --danger
+   is 4.4:1 - just under the 4.5:1 floor for text this size. --danger-text
+   holds 7.6:1 on that same fill and reads as the same red, one step darker. */
 .reminder-when.overdue {
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
+/* --warning-text-strong for the same reason, and because it is what still
+   clears 4.5:1 on the hover fill the warning family darkens into. */
 .reminder-when.due_soon {
-  color: var(--warning-text);
+  color: var(--warning-text-strong);
 }
 
+/* Not --text-faint, which is 2.6:1 on white at this size. --text-soft holds
+   7.3:1 on the calm card and above 6.2:1 on either state tint; the line stays
+   secondary through its size rather than through a grey nobody can read. */
 .reminder-period {
   display: block;
-  font-size: 0.72rem;
-  color: var(--text-faint);
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+/* Scoped for the same reason the roster scopes its own: the shared empty
+   message is deliberately faint and five other components rely on it, while
+   here it is the panel's only content and has to be readable. */
+.reminders .empty-message {
+  color: var(--text-muted);
+  padding: 28px 12px;
 }
 
 .deadline-badge {
