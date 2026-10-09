@@ -2383,8 +2383,70 @@ body {
   width: 62px;
 }
 
+/* ─── Add-assignment row ──────────────────────────────────────────────────
+   A grid of labelled fields, not a flex line of five controls. As one row the
+   two selects floored at their longest option's width and could not shrink past
+   it, so the row overflowed the panel and the add button wrapped onto a line of
+   its own. minmax(0, 1fr) lets the tracks take less than their content, which
+   is the whole reason this is a grid now. */
 .add-assignment {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.assignment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.assignment-field label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.assignment-field select,
+.assignment-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+.assignment-field select:focus,
+.assignment-field input:focus {
+  border-color: var(--accent-500);
+  box-shadow: 0 0 0 3px var(--accent-100);
+}
+
+/* The number fields take a day and a count, not a paragraph. */
+.assignment-field input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.assignment-add-btn {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+/* One column once two no longer fit comfortably; the number fields especially
+   are unreadable at half width. */
+@media (max-width: 560px) {
+  .add-assignment {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .assignment-actions {
@@ -2970,21 +3032,6 @@ body {
 .client-assignments h3 {
   font-size: 1.1rem;
   margin-bottom: 12px;
-}
-
-.add-assignment {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.add-assignment select {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
-  font-family: inherit;
-  font-size: 0.9rem;
 }
 
 .assignment-list {

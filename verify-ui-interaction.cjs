@@ -48,6 +48,7 @@ export { FileMenu } from "./src/components/FileMenu";
 export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
 export { ClientForm } from "./src/components/ClientForm";
+export { ClientTab } from "./src/components/ClientTab";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
 `,
   'utf8'
@@ -650,6 +651,86 @@ console.log('\n12c) the remove button is a drawn icon, not a glyph, and still na
     /stroke="currentColor"/.test(btn?.[0] || ''),
     '- a fixed colour would ignore the hover state');
 }
+console.log('\n12d) the add-assignment control: state, wiring, and the click itself');
+{
+  // Reported as "the button stopped working". Everything here is checked against
+  // the real component, with a stub db, because the failure modes are
+  // different: a button that is disabled because no task is picked, a button
+  // that is enabled but never reaches the repository, and a repository call
+  // that throws all look identical from the outside.
+  let selects = [];
+  let inserts = [];
+  const db = {
+    select: async (sql) => {
+      selects.push(sql);
+      return [];
+    },
+    execute: async (sql, params) => {
+      inserts.push({ sql, params });
+      return { lastInsertId: 7, rowsAffected: 1 };
+    },
+  };
+
+  const tasks = [
+    { id: 1, name: 'ΦΠΑ', description: null, color: '#8B9DAD', isActive: true, createdAt: '', updatedAt: '' },
+    { id: 2, name: 'ΕΝΦΚΑ', description: null, color: '#7B8D6E', isActive: true, createdAt: '', updatedAt: '' },
+  ];
+  const client = { id: 1, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', createdAt: '', updatedAt: '' };
+
+  const view = mount(
+    React.createElement(ui.ClientTab, {
+      db, client, tasks,
+      onClose: () => {}, onUpdate: () => {},
+      onDelete: async () => {},
+      onSaveClient: async () => {},
+    })
+  );
+  await act(async () => {});
+
+  const addBtn = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Προσθήκη εργασίας'));
+  check('the add button is rendered', Boolean(addBtn));
+  check('it starts disabled because no task is picked', addBtn.disabled === true,
+    '- it must not be clickable with an empty selection');
+
+  // Every field is labelled now, so the controls can be found by name rather
+  // than by position - which is what broke silently before.
+  const taskSelect = container.querySelector('#na-task');
+  check('the task picker is present and labelled', Boolean(taskSelect));
+  check('the periodicity picker too', Boolean(container.querySelector('#na-period')));
+  check('and both number fields', Boolean(container.querySelector('#na-due')) && Boolean(container.querySelector('#na-remind')));
+  check('the fields are laid out as a grid, not a single line',
+    Boolean(container.querySelector('.add-assignment')));
+  check('the task picker offers the available tasks', Boolean(taskSelect));
+  checkEq('with both tasks listed', taskSelect?.querySelectorAll('option').length, 3);
+  check('and a placeholder first',
+    taskSelect?.querySelector('option')?.value === '', 'the empty option must be first');
+
+  // Pick a task the way a user does, then click.
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    setter.call(taskSelect, '2');
+    taskSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+  });
+  check('the button enables once a task is chosen', addBtn.disabled === false);
+
+  const insertsBefore = inserts.length;
+  await act(async () => { addBtn.click(); });
+  check('clicking it reaches the database', inserts.length > insertsBefore,
+    'the click did not produce an INSERT');
+
+  const insert = inserts[inserts.length - 1];
+  check('the insert is into the assignments table',
+    /INSERT INTO client_task_assignments/.test(insert?.sql || ''), `got: ${insert?.sql}`);
+  check('it carries the chosen task, as a number',
+    insert?.params?.[1] === 2, `got: ${JSON.stringify(insert?.params)}`);
+  check('and the client', insert?.params?.[0] === 1);
+
+  check('no error was surfaced', !container.querySelector('.error-banner'),
+    `- the panel showed: ${container.querySelector('.error-banner')?.textContent || ''}`);
+
+  view.cleanup();
+}
+
 
 console.log('\n13) end-to-end: filter the rendered list the way a user does');
 {

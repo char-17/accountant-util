@@ -158,64 +158,76 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
       <div className="client-assignments">
         <h3>Εργασίες πελάτη</h3>
 
+        {/* Two rows of labelled fields with a full-width action, rather than
+            five controls in a line. As one flex row the two selects could not
+            shrink below their longest option, so the row overflowed the panel
+            and the button wrapped onto a line of its own. */}
         <div className="add-assignment">
-          <select
-            value={newTaskTypeId}
-            onChange={(e) => setNewTaskTypeId(e.target.value ? Number(e.target.value) : "")}
-            aria-label="Επιλογή εργασίας για ανάθεση"
-          >
-            <option value="">Επιλέξτε εργασία...</option>
-            {availableTasks.map((task) => (
-              <option key={task.id} value={task.id}>
-                {task.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={newPeriodicity}
-            onChange={(e) => setNewPeriodicity(e.target.value as Periodicity)}
-            aria-label="Περιοδικότητα"
-            className="compact-select"
-          >
-            {(Object.keys(PERIODICITY_LABELS) as Periodicity[]).map((p) => (
-              <option key={p} value={p}>{PERIODICITY_LABELS[p]}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            className="compact-input"
-            min={1}
-            max={31}
-            value={newDueDay}
-            onChange={(e) => setNewDueDay(e.target.value)}
-            aria-label="Ημέρα λήξης"
-            title="Ημέρα του μήνα που λήγει η εργασία"
-          />
-          <input
-            type="number"
-            className="compact-input"
-            min={0}
-            max={90}
-            value={newReminderDays}
-            onChange={(e) => setNewReminderDays(e.target.value)}
-            aria-label="Ειδοποίηση πριν"
-            title="Πόσες μέρες πριν τη λήξη να εμφανιστεί ειδοποίηση"
-          />
-          {/* Primary, like "Αποθήκευση αλλαγών" below. Adding an assignment is
-              the action this panel is for, and it used to be the only
-              committing control rendered as a small secondary button. */}
+          <div className="assignment-field">
+            <label htmlFor="na-task">Εργασία</label>
+            <select
+              id="na-task"
+              value={newTaskTypeId}
+              onChange={(e) => setNewTaskTypeId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">Επιλέξτε εργασία...</option>
+              {availableTasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="assignment-field">
+            <label htmlFor="na-period">Περιοδικότητα</label>
+            <select
+              id="na-period"
+              value={newPeriodicity}
+              onChange={(e) => setNewPeriodicity(e.target.value as Periodicity)}
+            >
+              {(Object.keys(PERIODICITY_LABELS) as Periodicity[]).map((p) => (
+                <option key={p} value={p}>{PERIODICITY_LABELS[p]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="assignment-field">
+            <label htmlFor="na-due">Ημέρα λήξης</label>
+            <input
+              id="na-due"
+              type="number"
+              min={1}
+              max={31}
+              value={newDueDay}
+              onChange={(e) => setNewDueDay(e.target.value)}
+              title="Ημέρα του μήνα που λήγει η εργασία"
+            />
+          </div>
+
+          <div className="assignment-field">
+            <label htmlFor="na-remind">Ειδοποίηση πριν (μέρες)</label>
+            <input
+              id="na-remind"
+              type="number"
+              min={0}
+              max={90}
+              value={newReminderDays}
+              onChange={(e) => setNewReminderDays(e.target.value)}
+              title="Πόσες μέρες πριν τη λήξη να εμφανιστεί ειδοποίηση"
+            />
+          </div>
+
+          {/* Primary, like "Αποθήκευση αλλαγών" below: adding an assignment is
+              what this panel is for. */}
           <button
-            className="btn-primary"
+            className="btn-primary assignment-add-btn"
             onClick={handleAddAssignment}
             disabled={!newTaskTypeId}
           >
-            Προσθήκη
+            Προσθήκη εργασίας
           </button>
         </div>
-        <p className="assignment-hint">
-          Ημέρα λήξης: <strong>{newDueDay || "-"}</strong> · Ειδοποίηση:{" "}
-          <strong>{newReminderDays === "" ? "-" : newReminderDays}</strong> μέρες πριν
-        </p>
 
         {assignmentError && <div className="error-banner">{assignmentError}</div>}
 
