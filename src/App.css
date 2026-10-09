@@ -1339,6 +1339,21 @@ body {
     margin: 0;
   }
 
+  /* The report and task screens are cards on screen; on paper the frame is
+     noise, and the screen margin would waste a slice of the page. */
+  .reports-view,
+  .task-catalog {
+    display: block;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
   .worklist-item,
   .client-progress-item {
     break-inside: avoid;
@@ -2486,10 +2501,22 @@ body {
 
 /* ─── Task Catalog ───────────────────────────────────────────────────────── */
 
+/* Same framing as .reports-view: .app-main has no horizontal padding, so a
+   single full-width column has to carry its own card or it touches both
+   window edges. */
 .task-catalog {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  margin: 0 20px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--shadow-md);
+  /* Cap the measure: a form and a list of tasks stop being scannable when
+     they stretch the full width of a wide monitor. */
+  max-width: 1400px;
 }
 
 .task-catalog-header {
@@ -2682,6 +2709,11 @@ body {
   /* The report card tightens with the window instead of holding 20px of
      margin on each side, which is a third of the width at this size. */
   .reports-view {
+    margin: 0 12px;
+    padding: 16px;
+  }
+
+  .task-catalog {
     margin: 0 12px;
     padding: 16px;
   }
