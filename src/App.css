@@ -503,73 +503,205 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* The popover hangs off the month button, not off the four-control strip: this
+   wrapper is the positioning context, so the card is centred under the button
+   that opened it and its notch points at that button's centre. As a sibling of
+   the button it could only be centred on the whole strip, which put the month
+   name to the left of the middle. A flex context with no width of its own, so
+   the trigger lays out exactly as it did before the popover existed. */
+.month-display-wrap {
+  position: relative;
+  display: flex;
+}
+
+/* The popover: one floating card with --shadow-lg, the depth step the other
+   dropdown in the app uses (.filter-select-list), not the modal's --shadow-xl.
+   A notch at the top, aimed at the trigger, is what makes it read as attached
+   rather than floating under the header.
+
+   The width is a deliberate number, not a min-width. Twelve Greek month names
+   are the constraint: Φεβρουάριος is the longest of them (not Σεπτέμβριος),
+   at 83-84px in Arial and Segoe UI at 0.85rem, and 91-92px bold - which is what
+   the selected cell sets. At 384px the three tracks come out 116px each, of
+   which 98px is the text box, so the longest name has room in every cell and
+   not only in the one it happens to sit in. A min-width let the box be sized by
+   its longest word instead: at 13.6px it happened to just fit, and on a narrower
+   window it grew past its own frame. */
 .month-dropdown {
   position: absolute;
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 8px;
+  margin-top: 6px;
+  width: 384px;
+  max-width: calc(100vw - 32px);
+  padding: 10px;
   background: var(--surface);
   color: var(--text-strong);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
-  padding: 16px;
   box-shadow: var(--shadow-lg);
   z-index: 100;
-  min-width: 320px;
-  max-width: calc(100vw - 32px);
+  /* Fade and lift on open, so the card reads as arriving rather than blinking
+     into place. The independent `translate` property, not `transform`: the card
+     is already using `transform` to centre itself under the trigger, and the
+     two compose. --t-base, like the toast. */
+  animation: month-dropdown-in var(--t-base) var(--ease);
+}
+
+/* The notch: a 10px square rotated 45°, drawn in the card's own fill and the
+   card's own hairline, sitting half above the card's top edge so it bridges the
+   6px gap and meets the trigger's bottom edge. Two borders, not four: the lower
+   two would cut a line across the card's face. */
+.month-dropdown::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--surface);
+  /* Nothing renders in here, but a rule that paints its own fill says what
+     colour its content is anyway - the same reason .month-display is explicit. */
+  color: var(--surface);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  pointer-events: none;
+}
+
+@keyframes month-dropdown-in {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 
 .month-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 12px;
+  /* minmax(0, 1fr), not 1fr: a bare 1fr floors the track at the label's
+     min-content width, and Φεβρουάριος is a single unbreakable word. That is
+     what let the grid push past the card's own padding before. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
+/* Borderless by default. Twelve individually bordered cells inside an already
+   bordered card is a column of frames, the same mistake the client roster had:
+   the accountant decodes twelve boxes before reading a single month name. The
+   fill does the separating, and the reserved transparent border means the
+   selected cell can take a real one without the grid shifting. */
 .month-option {
-  padding: 8px;
-  border: 1px solid var(--border);
+  padding: 9px 8px;
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--text-strong);
   cursor: pointer;
-  font-size: 0.85rem;
   font-family: inherit;
-  transition: background-color var(--t-base) var(--ease),
-    border-color var(--t-base) var(--ease), color var(--t-base) var(--ease),
-    box-shadow var(--t-base) var(--ease), transform var(--t-base) var(--ease);
+  font-size: 0.85rem;
+  /* One line per month, always: a wrapped Greek month name is unrecognisable,
+     and the width above is sized so it never has to. */
+  white-space: nowrap;
+  text-align: center;
+  transition: background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-.month-option:hover {
-  border-color: var(--accent-600);
+/* Hover is the fill, like every other row in the app. The old hover was a
+   border-colour change only, which on a white cell was the only thing that
+   moved. Excluded when selected: a selected month must not lose its state at
+   the moment the pointer lands on it. */
+.month-option:hover:not(.active) {
+  background: var(--surface-hover);
 }
 
+.month-option.active:hover {
+  background: var(--accent-100);
+}
+
+/* Selected in three cues, none of them the fill alone: the accent tint, a real
+   border against twelve transparent ones, and the weight jump. The old
+   solid --accent-600 block was the loudest thing in the header and carried its
+   state by colour only; this is the same language the roster's selected row and
+   the status filter already use. --accent-900 on --accent-50 is 10.2:1, and
+   9.3:1 on the --accent-100 hover step. */
 .month-option.active {
-  background: var(--accent-600);
-  color: var(--surface);
-  border-color: var(--accent-600);
+  background: var(--accent-50);
+  border-color: var(--accent-500);
+  color: var(--accent-900);
+  font-weight: 700;
 }
 
+/* Inside the cell: the cells sit 6px apart, so an outward ring would be clipped
+   by its neighbours and the first and last rows would collide with the card's
+   own padding. Same reasoning as .reminder-link. */
+.month-option:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: -2px;
+}
+
+/* The year strip is a different kind of control, and it says so by being a
+   different kind of surface: recessed to --surface-muted with its own hairline,
+   where the month grid above is white cells on the card. The old version was a
+   border-top and two bordered white buttons on the same white, which is how it
+   came to read as a thirteenth and fourteenth month. */
 .year-nav {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  gap: 8px;
+  margin-top: 10px;
+  padding: 6px 8px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
 }
 
+/* Ghost buttons on the recessed strip: no border of their own, so they cannot
+   be mistaken for cells. --accent-700 on --surface-muted is 7.3:1. */
 .year-nav button {
-  padding: 6px 12px;
-  border: 1px solid var(--border-strong);
+  flex: none;
+  padding: 5px 10px;
+  border: 1px solid transparent;
   border-radius: var(--r-sm);
-  background: var(--surface);
+  background: transparent;
+  color: var(--accent-700);
   cursor: pointer;
   font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
+.year-nav button:hover {
+  background: var(--accent-50);
+  border-color: var(--accent-200);
+  color: var(--accent-900);
+}
+
+.year-nav button:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+}
+
+/* The caption takes the slack between the two buttons so the year stays centred
+   under the card. --text-soft, not --text-muted: on the recessed strip
+   --text-muted is 4.4:1, just under the floor, and --text-soft holds 6.8:1. */
 .year-nav span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.82rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
 }
 
 /* ─── Client List ────────────────────────────────────────────────────────── */
@@ -1175,12 +1307,18 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .worklist-client.highlight { animation: none; }
 
+  /* The popover's entrance is the only thing in it that moves, so opting it out
+     takes the whole animation away rather than shortening it. */
+  .month-dropdown { animation: none; }
+
   /* The client panel only animates colour, but it opts out with the rest of
      the app rather than being the one surface that still moves. */
   .panel-collapse-toggle,
   .client-search input,
   .client-item,
-  .btn-add-client {
+  .btn-add-client,
+  .month-option,
+  .year-nav button {
     transition: none;
   }
 }
@@ -2886,6 +3024,14 @@ body {
     padding: 8px 10px;
   }
 
+  /* Stacked, the month controls take the row, and the row is now split between
+     the trigger and the popover's positioning wrapper - the flexible slot moves
+     to the wrapper, and the button keeps filling whatever it gets. */
+  .month-display-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
   .month-display {
     flex: 1;
     min-width: 0;
@@ -2901,5 +3047,21 @@ body {
   .task-catalog {
     margin: 0 12px;
     padding: 16px;
+  }
+}
+
+/* The one width where the popover is the widest thing in the header and no
+   longer fits under its own trigger: 384px centred on a control that ends up
+   near the right edge leaves the window at about 500px. Three columns drop to
+   two - six rows instead of four, but every month name keeps more room than it
+   needs (a two-column cell is 120px, of which 102px is text) and the card comes
+   back inside the viewport. */
+@media (max-width: 500px) {
+  .month-dropdown {
+    width: 268px;
+  }
+
+  .month-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

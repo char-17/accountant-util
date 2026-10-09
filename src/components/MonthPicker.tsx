@@ -40,51 +40,60 @@ export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
       <button className="month-nav" onClick={goToPrevMonth} aria-label="Προηγούμενος μήνας" title="Προηγούμενος μήνας">
         ←
       </button>
-      <button
-        className="month-display"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-        aria-haspopup="true"
-        aria-label={`Επιλογή μήνα: ${MONTHS[month - 1]} ${year}`}
-      >
-        {MONTHS[month - 1]} {year}
-      </button>
+      {/* The popover lives inside this wrapper rather than beside the button: CSS
+          can only position an absolutely positioned element against an
+          ancestor, so a dropdown that stays a sibling of the trigger can only be
+          aimed at the whole stepper - centred between four controls, with the
+          month name off to one side - or at a hardcoded offset that drifts the
+          moment the arrow or the label changes width. The wrapper carries no
+          styling of its own; it is a positioning context for the popover. */}
+      <div className="month-display-wrap">
+        <button
+          className="month-display"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+          aria-haspopup="true"
+          aria-label={`Επιλογή μήνα: ${MONTHS[month - 1]} ${year}`}
+        >
+          {MONTHS[month - 1]} {year}
+        </button>
+
+        {isOpen && (
+          <div className="month-dropdown">
+            <div className="month-grid">
+              {MONTHS.map((name, idx) => (
+                <button
+                  key={idx}
+                  className={`month-option ${idx + 1 === month ? "active" : ""}`}
+                  onClick={() => {
+                    onChange(year, idx + 1);
+                    setIsOpen(false);
+                  }}
+                  aria-pressed={idx + 1 === month}
+                  title={`${name} ${year}`}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div className="year-nav">
+              <button onClick={() => onChange(year - 1, month)} aria-label={`Έτος ${year - 1}`}>
+                ← {year - 1}
+              </button>
+              <span aria-live="polite">Επιλεγμένο έτος: {year}</span>
+              <button onClick={() => onChange(year + 1, month)} aria-label={`Έτος ${year + 1}`}>
+                {year + 1} →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       <button className="month-nav" onClick={goToNextMonth} aria-label="Επόμενος μήνας" title="Επόμενος μήνας">
         →
       </button>
       <button className="month-current" onClick={goToCurrentMonth} title="Επιστροφή στον τρέχοντα μήνα">
         Τρέχων μήνας
       </button>
-
-      {isOpen && (
-        <div className="month-dropdown">
-          <div className="month-grid">
-            {MONTHS.map((name, idx) => (
-              <button
-                key={idx}
-                className={`month-option ${idx + 1 === month ? "active" : ""}`}
-                onClick={() => {
-                  onChange(year, idx + 1);
-                  setIsOpen(false);
-                }}
-                aria-pressed={idx + 1 === month}
-                title={`${name} ${year}`}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          <div className="year-nav">
-            <button onClick={() => onChange(year - 1, month)} aria-label={`Έτος ${year - 1}`}>
-              ← {year - 1}
-            </button>
-            <span aria-live="polite">Επιλεγμένο έτος: {year}</span>
-            <button onClick={() => onChange(year + 1, month)} aria-label={`Έτος ${year + 1}`}>
-              {year + 1} →
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
