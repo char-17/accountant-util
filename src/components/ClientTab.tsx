@@ -201,8 +201,11 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
             aria-label="Ειδοποίηση πριν"
             title="Πόσες μέρες πριν τη λήξη να εμφανιστεί ειδοποίηση"
           />
+          {/* Primary, like "Αποθήκευση αλλαγών" below. Adding an assignment is
+              the action this panel is for, and it used to be the only
+              committing control rendered as a small secondary button. */}
           <button
-            className="btn-small"
+            className="btn-primary"
             onClick={handleAddAssignment}
             disabled={!newTaskTypeId}
           >

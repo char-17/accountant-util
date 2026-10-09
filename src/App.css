@@ -2816,8 +2816,12 @@ body {
   font-family: inherit;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: background var(--t-base) var(--ease), box-shadow var(--t-base) var(--ease),
-    transform var(--t-fast) var(--ease);
+  /* The label is a single word in every use here. Without this it wraps to two
+     lines in the narrow row of assignment controls. */
+  white-space: nowrap;
+  transition: background-color var(--t-base) var(--ease),
+    border-color var(--t-base) var(--ease),
+    box-shadow var(--t-base) var(--ease), transform var(--t-fast) var(--ease);
 }
 
 .btn-primary:hover {
