@@ -335,7 +335,11 @@ body {
 .dashboard-left:not(.collapsed) {
   position: sticky;
   top: calc(var(--header-h) + 12px);
-  width: 240px;
+  /* 280px rather than the 240px it started at. Greek client names and their
+     email addresses are long, and the row ellipsises: every extra 40px is
+     roughly four more characters before the name is cut. The worklist is the
+     widest share of the grid either way. */
+  width: 280px;
   max-height: calc(100vh - var(--header-h) - 32px);
 }
 
@@ -426,7 +430,7 @@ body {
     grid-template-columns: auto minmax(0, 1fr);
   }
   .dashboard-left:not(.collapsed) {
-    width: 220px;
+    width: 250px;
   }
   .dashboard-aside {
     grid-column: 1 / -1;
@@ -782,26 +786,18 @@ body {
   color: var(--text-strong);
 }
 
-/* Bands of three: the first three rows plain, the next three on a tint, and so
-   on. nth-child(6n+4) through (6n+6) is one group of three out of every two -
-   a single :nth-child(3n) would stripe every third row instead of grouping
-   them, which reads as a rendering fault rather than as structure. Done in CSS
-   because the grouping is positional: it must survive filtering, which changes
-   how many rows there are and would renumber anything computed in JSX. */
-.client-item:nth-child(6n + 4),
-.client-item:nth-child(6n + 5),
-.client-item:nth-child(6n + 6) {
+/* Alternate rows, one on and one off. Done in CSS rather than by index from
+   the map because it has to survive filtering: the search narrows the list, so
+   anything computed in JSX would renumber itself on every keystroke and the
+   stripe would appear to shift as the accountant types. */
+.client-item:nth-child(even) {
   background: var(--accent-100);
-  border-color: var(--accent-200);
 }
 
 /* The band must never outrank the selection, and a selected row's own hover is
    handled below. */
-.client-item:nth-child(6n + 4):hover:not(.selected),
-.client-item:nth-child(6n + 5):hover:not(.selected),
-.client-item:nth-child(6n + 6):hover:not(.selected) {
+.client-item:nth-child(even):hover:not(.selected) {
   background: var(--accent-200);
-  border-color: var(--accent-200);
 }
 
 .client-items {
@@ -824,8 +820,13 @@ body {
    weight change: strip the colour and the selection is still legible.
 
    Name above email, not beside it. The row used to be a flex line with the two
-   spans at either end, so in a 240px column both were cut to roughly a dozen
-   characters and the email became noise. One line, ellipsis on the whole width. */
+   spans at either end, so in a narrow column both were cut to roughly a dozen
+   characters and the email became noise. One line, ellipsis on the whole width.
+
+   No border: the rows are separated by their fill alone, and a box around
+   every name turned the roster into a stack of frames. The border stays
+   `transparent` rather than `none` so that turning the selection on or off does
+   not reflow the text by a pixel. */
 .client-item {
   display: flex;
   flex-direction: column;
@@ -833,21 +834,20 @@ body {
   gap: 2px;
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid var(--accent-100);
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   background: var(--accent-50);
   cursor: pointer;
   user-select: none;
   transition: background-color var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+    box-shadow var(--t-fast) var(--ease);
 }
 
 /* The hover step is two shades deeper than the base row, not one: one step
-   deeper is already the band's own fill, so a hovered unbanded row would look
-   identical to a banded one that is not hovered. */
+   deeper is already the alternate row's own fill, so a hovered row would look
+   identical to the row above and below it. */
 .client-item:hover:not(.selected) {
   background: var(--accent-200);
-  border-color: var(--accent-200);
 }
 
 /* Selected reads in three cues, not one: a spine on the leading edge, the name
@@ -856,15 +856,13 @@ body {
    against green is exactly the pair a red-green difference cannot read, so the
    colour alone would not be carrying the state.
 
-   The band selectors above carry :nth-child, which outranks a plain class, so
-   the fill is restated per band; otherwise a selected row inside a band would
-   render in the band's blue. */
+   The band selector above carries :nth-child, which outranks a plain class, so
+   the fill is restated here; otherwise a selected row sitting on an alternate
+   row would render in the alternate row's blue. */
 .client-item.selected,
-.client-item.selected:nth-child(6n + 4),
-.client-item.selected:nth-child(6n + 5),
-.client-item.selected:nth-child(6n + 6) {
+.client-item.selected:nth-child(even) {
   background: var(--success-soft);
-  border-color: var(--success-border);
+  border-color: transparent;
   box-shadow: inset 3px 0 0 var(--success-strong);
 }
 
