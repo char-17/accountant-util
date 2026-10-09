@@ -27,7 +27,7 @@ export function ClientList({
   const [isAdding, setIsAdding] = useState(false);
 
   return (
-    <div className="client-list">
+    <div className="client-list" id="client-list-panel">
       <div className="client-search">
         <input
           type="search"

@@ -40,6 +40,11 @@ function App() {
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<View>("dashboard");
   const [showClientTab, setShowClientTab] = useState(false);
+  // The client roster is collapsed by default: the accountant's actual work is
+  // the month's worklist in the centre, and with 44 clients the roster is long
+  // enough to push it out of view. The chosen client is remembered either way,
+  // so collapsing never clears the filter.
+  const [clientsCollapsed, setClientsCollapsed] = useState(true);
   // Which client's card in the worklist is pulsing, and the timer that ends it.
   const [highlightClientId, setHighlightClientId] = useState<number | null>(null);
   const highlightTimer = useRef<number | null>(null);
@@ -395,7 +400,7 @@ function App() {
               className={activeView === "dashboard" ? "active" : ""}
               onClick={() => setActiveView("dashboard")}
             >
-              Dashboard
+              Κεντρική
             </button>
             <button
               className={activeView === "tasks" ? "active" : ""}
@@ -428,17 +433,32 @@ function App() {
         {activeView === "dashboard" && (
           <div className="dashboard">
             <div className="dashboard-content">
-              <div className="dashboard-left">
-                <ClientList
-                  clients={clients}
-                  selectedClientId={selectedClientId}
-                  onSelectClient={handleSelectClient}
-                  onSearchChange={setSearchQuery}
-                  searchQuery={searchQuery}
-                  onCreate={handleClientCreated}
-                  onOpenClient={handleOpenClient}
-                  loading={clientsLoading}
-                />
+              <div className={`dashboard-left ${clientsCollapsed ? "collapsed" : ""}`}>
+                <button
+                  className="panel-collapse-toggle"
+                  onClick={() => setClientsCollapsed((v) => !v)}
+                  aria-expanded={!clientsCollapsed}
+                  aria-controls="client-list-panel"
+                  title={clientsCollapsed ? "Εμφάνιση πελατών" : "Απόκρυψη πελατών"}
+                >
+                  <span className="panel-collapse-caret" aria-hidden="true">
+                    {clientsCollapsed ? "▸" : "▾"}
+                  </span>
+                  <span className="panel-collapse-label">Πελάτες</span>
+                </button>
+
+                {!clientsCollapsed && (
+                  <ClientList
+                    clients={clients}
+                    selectedClientId={selectedClientId}
+                    onSelectClient={handleSelectClient}
+                    onSearchChange={setSearchQuery}
+                    searchQuery={searchQuery}
+                    onCreate={handleClientCreated}
+                    onOpenClient={handleOpenClient}
+                    loading={clientsLoading}
+                  />
+                )}
               </div>
 
               {/* The month's worklist is the page the accountant works on,
