@@ -727,8 +727,27 @@ console.log('\n12d) the add-assignment control: state, wiring, and the click its
 
   const addBtn = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Προσθήκη εργασίας'));
   check('the add button is rendered', Boolean(addBtn));
-  check('it starts disabled because no task is picked', addBtn.disabled === true,
-    '- it must not be clickable with an empty selection');
+  check('it is marked unavailable with no task picked',
+    addBtn.getAttribute('aria-disabled') === 'true');
+  check('but it is NOT natively disabled, so it can explain itself',
+    addBtn.disabled === false,
+    '- a disabled button takes no focus, so a keyboard user could never find out why');
+  check('and the tooltip says what to do first',
+    (addBtn.getAttribute('title') || '').includes('Επιλέξτε πρώτα'),
+    `- got: ${addBtn.getAttribute('title')}`);
+
+  // Clicking it while unavailable must say why, and must not write anything.
+  const insertsBeforeHint = inserts.length;
+  await act(async () => { addBtn.click(); });
+  check('clicking it explains what is missing',
+    (container.querySelector('.assignment-hint-banner')?.textContent || '').includes('Επιλέξτε πρώτα'),
+    '- the refusal has to be visible, not silent');
+  check('the hint is announced, not just drawn',
+    container.querySelector('.assignment-hint-banner')?.getAttribute('role') === 'status');
+  check('and nothing was written', inserts.length === insertsBeforeHint);
+  check('focus moved to the field that would fix it',
+    document.activeElement?.id === 'na-task',
+    `- the cursor should land on the picker, got: ${document.activeElement?.tagName}`);
 
   // Every field is labelled now, so the controls can be found by name rather
   // than by position - which is what broke silently before.
@@ -749,7 +768,8 @@ console.log('\n12d) the add-assignment control: state, wiring, and the click its
     setter.call(taskSelect, '2');
     taskSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
   });
-  check('the button enables once a task is chosen', addBtn.disabled === false);
+  check('the button becomes available once a task is chosen',
+    addBtn.getAttribute('aria-disabled') === 'false');
 
   const insertsBefore = inserts.length;
   await act(async () => { addBtn.click(); });

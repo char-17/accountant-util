@@ -1222,6 +1222,21 @@ body {
   font-size: 0.85rem;
 }
 
+/* Guidance, not failure: "pick a task first" is not an error, and painting it
+   red would train the eye to ignore this banner - which is also where real
+   failures land. */
+.assignment-hint-banner {
+  background: var(--info-soft);
+  border: 1px solid var(--info-soft);
+  color: var(--info-text);
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .success-banner {
   background: var(--success-soft);
   border: 1px solid var(--success-border);
@@ -2461,6 +2476,27 @@ body {
 .assignment-add-btn {
   grid-column: 1 / -1;
   justify-self: start;
+}
+
+/* aria-disabled rather than disabled, so the button still answers a hover and
+   a click - but it must read as unavailable while doing so. Desaturated, one
+   step flatter, and the hover is suppressed so nothing looks actionable. */
+.btn-primary[aria-disabled="true"] {
+  background: var(--border-strong);
+  border-color: var(--border-strong);
+  color: var(--surface);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.btn-primary[aria-disabled="true"]:hover {
+  background: var(--border-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-primary[aria-disabled="true"]:active {
+  transform: none;
 }
 
 /* One column once two no longer fit comfortably; the number fields especially

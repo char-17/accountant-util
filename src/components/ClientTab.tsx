@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import type { Client, TaskType } from "../domain/types";
 import * as assignmentRepo from "../persistence/assignmentRepo";
@@ -37,6 +37,11 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
   // so it asks first - and it says what survives, not just what does not.
   const [assignmentPendingDelete, setAssignmentPendingDelete] = useState<ClientTaskWithTask | null>(null);
   const [deletingAssignment, setDeletingAssignment] = useState(false);
+  // Guidance shown when the add button is used before a task is chosen. Kept
+  // apart from assignmentError because it is not a failure.
+  const [addHint, setAddHint] = useState("");
+  // The task picker, so a refused add can put the cursor where the fix is.
+  const taskPickerRef = useRef<HTMLSelectElement>(null);
   // Where ClientForm's action row is portalled to. Null until this component's
   // own footer box has mounted, which is why the row appears on the second
   // render rather than the first.
@@ -65,7 +70,13 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
   }
 
   async function handleAddAssignment() {
-    if (!newTaskTypeId) return;
+    if (!newTaskTypeId) {
+      // The button stays clickable so it can say why, rather than being dead.
+      setAddHint("Επιλέξτε πρώτα μια εργασία από την πρώτη επιλογή.");
+      taskPickerRef.current?.focus();
+      return;
+    }
+    setAddHint("");
     setAssignmentError("");
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -167,8 +178,13 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
             <label htmlFor="na-task">Εργασία</label>
             <select
               id="na-task"
+              ref={taskPickerRef}
               value={newTaskTypeId}
-              onChange={(e) => setNewTaskTypeId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => {
+                setNewTaskTypeId(e.target.value ? Number(e.target.value) : "");
+                // The hint has done its job the moment the problem is solved.
+                setAddHint("");
+              }}
             >
               <option value="">Επιλέξτε εργασία...</option>
               {availableTasks.map((task) => (
@@ -218,18 +234,35 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
             />
           </div>
 
-          {/* Primary, like "Αποθήκευση αλλαγών" below: adding an assignment is
-              what this panel is for. */}
+          {/* aria-disabled rather than disabled. A disabled button takes no
+              focus, so anyone using the keyboard or a screen reader could
+              reach the row, find the button dead, and never learn why. This one
+              stays focusable and explains itself: the tooltip on hover, and a
+              click that says what is missing and puts the cursor on the field. */}
           <button
             className="btn-primary assignment-add-btn"
             onClick={handleAddAssignment}
-            disabled={!newTaskTypeId}
+            aria-disabled={!newTaskTypeId}
+            title={
+              newTaskTypeId
+                ? "Προσθέτει την εργασία στον πελάτη"
+                : "Επιλέξτε πρώτα μια εργασία από την πρώτη επιλογή"
+            }
           >
             Προσθήκη εργασίας
           </button>
         </div>
 
-        {assignmentError && <div className="error-banner">{assignmentError}</div>}
+        {addHint && (
+          <p className="assignment-hint-banner" role="status">
+            <span aria-hidden="true">ⓘ</span>
+            {addHint}
+          </p>
+        )}
+
+        {assignmentError && (
+          <div className="error-banner" role="alert">{assignmentError}</div>
+        )}
 
         <div className="assignment-list">
           {assignments.length === 0 ? (
