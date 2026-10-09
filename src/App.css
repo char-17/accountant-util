@@ -1063,11 +1063,19 @@ body {
   text-align: right;
 }
 
-/* ─── Client Tab ─────────────────────────────────────────────────────────── */
+/* ─── Client Tab ─────────────────────────────────────────────────────────────
+   A three-part column inside a height-bounded panel: the header and the
+   buttons hold their place, and the assignments - the only part that grows
+   without limit - takes the leftover height and scrolls on its own. */
 
 .client-tab {
   display: flex;
   flex-direction: column;
+  /* min-height: 0 is what lets this shrink below its content. Without it a
+     flex child refuses to be smaller than what is inside it, and the panel's
+     max-height above is simply ignored. */
+  flex: 1;
+  min-height: 0;
   gap: 20px;
 }
 
@@ -1075,6 +1083,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex: none;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
@@ -1147,9 +1156,12 @@ body {
   opacity: 0.5;
 }
 
+/* The form and the buttons hold their place while the assignment list scrolls,
+   so neither may be squeezed out of the panel by a long list. */
 .client-form {
   display: flex;
   flex-direction: column;
+  flex: none;
   gap: 16px;
 }
 
@@ -1222,16 +1234,20 @@ body {
 
 /* ─── Client tab overlay ─────────────────────────────────────────────────── */
 
+/* The panel scrolls itself rather than the overlay. With the overlay scrolling,
+   a long assignment list pushed the client's name, the form and the close
+   button off the top, and the panel's own buttons off the bottom - so the only
+   way back to either was to scroll the page and lose the other. */
 .client-tab-overlay {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 32px 20px;
+  padding: 24px 20px;
   z-index: 900;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .client-tab-panel {
@@ -1240,8 +1256,14 @@ body {
   border-radius: var(--r-2xl);
   width: 100%;
   max-width: 680px;
+  /* Bounded to the window, and a flex column so the section between the header
+     and the buttons can take the leftover height and scroll inside it. */
+  max-height: calc(100vh - 48px);
   padding: 26px;
   box-shadow: var(--shadow-xl);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ─── Toasts ─────────────────────────────────────────────────────────────── */
@@ -2749,6 +2771,7 @@ body {
    about the panel as a whole - it saves the client and deletes them - and the
    assignments below it are a different job. */
 .client-tab-footer {
+  flex: none;
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
@@ -3023,15 +3046,30 @@ body {
 
 /* ─── Client Assignments ─────────────────────────────────────────────────── */
 
+/* The one part of the panel that grows without limit, so it is the one part
+   that scrolls. The heading stays put while the list moves under it: an
+   "Ergasies pelati" that scrolled away with its list would say nothing about
+   how much was left below. */
 .client-assignments {
   margin-top: 8px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for the scrollbar so it never sits on the last row's edge. */
+  padding-right: 4px;
 }
 
 .client-assignments h3 {
   font-size: 1.1rem;
   margin-bottom: 12px;
+  position: sticky;
+  top: 0;
+  /* Opaque, or the list would show through the heading while passing under it. */
+  background: var(--surface);
+  padding: 4px 0 8px;
+  margin-top: -4px;
 }
 
 .assignment-list {

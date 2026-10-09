@@ -651,6 +651,44 @@ console.log('\n12c) the remove button is a drawn icon, not a glyph, and still na
     /stroke="currentColor"/.test(btn?.[0] || ''),
     '- a fixed colour would ignore the hover state');
 }
+console.log('\n12e) the client panel scrolls itself, not the page');
+{
+  // The scroll used to be on the overlay, which meant a long assignment list
+  // pushed the client's name, the form and the buttons off screen. These are the
+  // declarations that make the panel hold its shape instead.
+  const css = require('fs').readFileSync(path.join(__dirname, 'src', 'App.css'), 'utf8')
+    // Comments sit between rules, so they have to go before a selector can be
+    // matched at the start of one.
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  const rule = (selector) => {
+    const escaped = selector.replace(/\./g, '\\.');
+    const m = css.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`));
+    return m ? m[1] : '';
+  };
+
+  const overlay = rule('.client-tab-overlay');
+  check('the overlay does not scroll',
+    /overflow:\s*hidden/.test(overlay) && !/overflow-y:\s*auto/.test(overlay),
+    `- got: ${overlay.trim().replace(/\s+/g, ' ')}`);
+
+  const panel = rule('.client-tab-panel');
+  check('the panel is bounded to the window', /max-height:\s*calc\(100vh/.test(panel));
+  check('and is a flex column', /display:\s*flex/.test(panel) && /flex-direction:\s*column/.test(panel));
+  check('and clips its own overflow', /overflow:\s*hidden/.test(panel));
+
+  const assignments = rule('.client-assignments');
+  check('the assignments section is the scroller', /overflow-y:\s*auto/.test(assignments));
+  check('and it is allowed to shrink', /min-height:\s*0/.test(assignments),
+    '- without this the flex child refuses to be smaller than its content');
+  check('and it takes the leftover height', /flex:\s*1 1 auto/.test(assignments));
+
+  check('the header holds its place', /flex:\s*none/.test(rule('.client-tab-header')));
+  check('the form holds its place', /flex:\s*none/.test(rule('.client-form')));
+  check('the action row holds its place', /flex:\s*none/.test(rule('.client-tab-footer')));
+  check('and the column itself can shrink', /min-height:\s*0/.test(rule('.client-tab')));
+}
+
 console.log('\n12d) the add-assignment control: state, wiring, and the click itself');
 {
   // Reported as "the button stopped working". Everything here is checked against
