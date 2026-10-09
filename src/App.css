@@ -791,7 +791,8 @@ body {
 .client-item:nth-child(6n + 4),
 .client-item:nth-child(6n + 5),
 .client-item:nth-child(6n + 6) {
-  background: var(--surface-muted);
+  background: var(--accent-100);
+  border-color: var(--accent-200);
 }
 
 /* The band must never outrank the selection, and a selected row's own hover is
@@ -799,14 +800,8 @@ body {
 .client-item:nth-child(6n + 4):hover:not(.selected),
 .client-item:nth-child(6n + 5):hover:not(.selected),
 .client-item:nth-child(6n + 6):hover:not(.selected) {
-  background: var(--surface-hover);
-}
-
-.client-item.selected,
-.client-item.selected:nth-child(6n + 4),
-.client-item.selected:nth-child(6n + 5),
-.client-item.selected:nth-child(6n + 6) {
-  background: var(--accent-50);
+  background: var(--accent-200);
+  border-color: var(--accent-200);
 }
 
 .client-items {
@@ -820,7 +815,15 @@ body {
   gap: 2px;
 }
 
-/* Name above email, not beside it. The row used to be a flex line with the two
+/* Light blue for the roster, light green for the row that was clicked. Both
+   are steps of the existing ramps rather than literal blues and greens, so they
+   sit in the same families as every other tinted surface in the app.
+
+   Blue against green is the one pairing a red-green colour difference cannot
+   separate, which is why the selected row also carries a 3px spine and a
+   weight change: strip the colour and the selection is still legible.
+
+   Name above email, not beside it. The row used to be a flex line with the two
    spans at either end, so in a 240px column both were cut to roughly a dozen
    characters and the email became noise. One line, ellipsis on the whole width. */
 .client-item {
@@ -830,35 +833,50 @@ body {
   gap: 2px;
   min-width: 0;
   padding: 8px 10px;
-  border: 1px solid transparent;
+  border: 1px solid var(--accent-100);
   border-radius: var(--r-md);
+  background: var(--accent-50);
   cursor: pointer;
   user-select: none;
   transition: background-color var(--t-fast) var(--ease),
     border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 
-/* The hover step is the one reserved for hover; --surface-muted is the recessed
-   fill and using it here made a hovered row indistinguishable from a well. */
+/* The hover step is two shades deeper than the base row, not one: one step
+   deeper is already the band's own fill, so a hovered unbanded row would look
+   identical to a banded one that is not hovered. */
 .client-item:hover:not(.selected) {
-  background: var(--surface-hover);
+  background: var(--accent-200);
+  border-color: var(--accent-200);
 }
 
 /* Selected reads in three cues, not one: a spine on the leading edge, the name
-   at display weight, and the accent fill. Any one of the three survives
-   greyscale or a colour-vision difference, which the fill alone did not. */
-.client-item.selected {
-  background: var(--accent-50);
-  box-shadow: inset 3px 0 0 var(--accent-600);
+   at display weight, and the green fill. Any one of the three survives
+   greyscale or a colour-vision difference, which is what matters here - blue
+   against green is exactly the pair a red-green difference cannot read, so the
+   colour alone would not be carrying the state.
+
+   The band selectors above carry :nth-child, which outranks a plain class, so
+   the fill is restated per band; otherwise a selected row inside a band would
+   render in the band's blue. */
+.client-item.selected,
+.client-item.selected:nth-child(6n + 4),
+.client-item.selected:nth-child(6n + 5),
+.client-item.selected:nth-child(6n + 6) {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+  box-shadow: inset 3px 0 0 var(--success-strong);
 }
 
 .client-item.selected .client-name {
   font-weight: 700;
-  color: var(--accent-900);
+  color: var(--success-text);
 }
 
 .client-item.selected .client-email {
-  color: var(--accent-700);
+  /* --success-text, not --success-strong: 4.79:1 against this green is inside
+     the floor but with nothing to spare for a 0.8rem secondary line. */
+  color: var(--success-text);
 }
 
 .client-name {
