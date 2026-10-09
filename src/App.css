@@ -1101,9 +1101,9 @@ body {
 }
 
 /* The remove button on an assignment. Danger-coloured on hover rather than at
-   rest: it sits on every row all the time, and a permanently red cross turns
-   the list into a wall of warnings. The colour arrives on hover and on focus,
-   and the row also names the action in its title and accessible name, so it is
+   rest: it sits on every row all the time, and a permanently red bin turns the
+   list into a wall of warnings. The colour arrives on hover and on focus, and
+   the row also names the action in its title and accessible name, so it is
    never the glyph alone carrying the meaning. */
 .icon-btn {
   display: inline-flex;
@@ -1111,17 +1111,23 @@ body {
   justify-content: center;
   width: 26px;
   height: 26px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: none;
   color: var(--text-faint);
-  font-family: inherit;
-  font-size: 0.8rem;
-  line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
   transition: background-color var(--t-fast) var(--ease),
     color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+/* The bin is drawn with currentColor, so it needs no colour of its own - but
+   it does need to be told not to grow past the button. */
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .icon-btn:hover:not(:disabled) {

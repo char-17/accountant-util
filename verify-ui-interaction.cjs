@@ -621,6 +621,36 @@ console.log('\n12b) the form can render its action row outside the form, and sti
   holder.remove();
 }
 
+console.log('\n12c) the remove button is a drawn icon, not a glyph, and still named');
+{
+  // The bin is an SVG, so its text content is empty. That is the case where a
+  // button can end up carrying no name at all, and a nameless button is
+  // announced as just "button" by a screen reader.
+  const src = require('fs').readFileSync(
+    path.join(__dirname, 'src', 'components', 'ClientTab.tsx'), 'utf8'
+  );
+  const btn = src.match(/<button[\s\S]*?className="icon-btn delete-btn"[\s\S]*?<\/button>/);
+  check('the remove button exists in the markup', Boolean(btn));
+  check('it carries an accessible name', /aria-label=/.test(btn?.[0] || ''),
+    '- an icon-only button needs a name');
+  check('and a tooltip for sighted users', /title=/.test(btn?.[0] || ''));
+  check('the name mentions the task, not just "remove"',
+    /aria-label=\{`Αφαίρεση της εργασίας/.test(btn?.[0] || ''),
+    '- the row it sits on is not enough; the name has to carry it too');
+  check('the icon is drawn as an SVG, not an emoji',
+    /<svg/.test(btn?.[0] || ''),
+    '- an emoji renders in its own colours and ignores the hover state');
+  check('the drawn icon is the only thing inside the button',
+    /<svg[\s\S]*?<\/svg>\s*<\/button>/.test(btn?.[0] || ''),
+    '- any stray text inside would make the icon-only naming ambiguous');
+  check('the SVG is hidden from assistive tech',
+    /aria-hidden="true"/.test(btn?.[0] || ''),
+    '- the button already has the name; the shape must not double it');
+  check('and the SVG inherits the button colour',
+    /stroke="currentColor"/.test(btn?.[0] || ''),
+    '- a fixed colour would ignore the hover state');
+}
+
 console.log('\n13) end-to-end: filter the rendered list the way a user does');
 {
   // Wires the filter state to the list exactly as App.tsx does.
