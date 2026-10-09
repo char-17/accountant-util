@@ -269,7 +269,8 @@ body {
 }
 
 /* The header doubles as the expand control, so it stays visible and clickable
-   while the panel is collapsed. */
+   while the panel is collapsed. `user-select` because a stray double click on
+   it should not drop a text selection over the roster. */
 .panel-collapse-toggle {
   display: flex;
   align-items: center;
@@ -283,8 +284,10 @@ body {
   font-family: inherit;
   font-size: 0.9rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
   text-align: left;
   cursor: pointer;
+  user-select: none;
   transition: background-color var(--t-fast) var(--ease),
     border-color var(--t-fast) var(--ease);
 }
@@ -305,8 +308,15 @@ body {
   font-size: 0.8rem;
 }
 
+/* Expanded: the roster keeps a fixed width AND a height cap. Without the cap
+   the panel grew to the length of the whole client list, pushed the worklist
+   off the bottom of the window and left scrolling back to the selected row as
+   the only way to recover; capped, the list scrolls inside the panel and the
+   month stays on screen. The 180px is the window minus the sticky header, the
+   month picker row and the bottom breathing room. */
 .dashboard-left:not(.collapsed) {
   width: 240px;
+  max-height: calc(100vh - 180px);
 }
 
 /* Collapsed: only the header survives. The label runs vertically instead of
@@ -331,11 +341,25 @@ body {
   color: var(--text-muted);
 }
 
+/* The control is the roster's only header, so its separation from the list
+   below comes from the list's side of the gap. The collapsed rail has nothing
+   under it and keeps none. */
+.dashboard-left:not(.collapsed) .panel-collapse-toggle {
+  margin-bottom: 12px;
+  flex: none;
+}
+
 /* Panels: a hairline border does the edge definition and the shadow only adds
    lift. Without the border the shadow alone has to carry both, which is why
-   every surface used to look equally flat. */
+   every surface used to look equally flat.
+
+   This one is a column, so the roster below it can be the only thing that
+   scrolls and the header above it can stay put. */
 .dashboard-left {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
   overflow-wrap: break-word;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -549,7 +573,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 100%;
+  /* `height: 100%` never resolved against anything - the panel had no
+     definite height - so the list grew with its content instead of filling
+     the capped panel and scrolling. */
+  flex: 1;
+  min-height: 0;
 }
 
 /* Stacked: the search box sits above the "+ Νέος πελάτης" button, one per row.
@@ -557,28 +585,38 @@ body {
    without either truncating the placeholder or shrinking the button. */
 .client-search {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 8px;
   align-items: stretch;
 }
 
+/* Recessed: the field is a well cut into the panel, not another white card on
+   a white card, so the border can drop to the soft step. It lifts back to the
+   surface while focused, when it is meant to be read. */
 .client-search input {
   width: 100%;
   min-width: 0;
-  padding: 10px 14px;
-  border: 1px solid var(--border-strong);
+  padding: 9px 12px;
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: var(--surface);
+  background: var(--surface-muted);
   color: var(--text);
   font-size: 0.9rem;
   font-family: inherit;
   outline: none;
-  transition: border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+  transition: background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
+}
+
+.client-search input::placeholder {
+  color: var(--text-soft);
 }
 
 /* A focus ring everywhere, not just a border-colour change: the ring is what
    makes the field look focused rather than merely tinted. */
 .client-search input:focus {
+  background: var(--surface);
   border-color: var(--accent-500);
   box-shadow: 0 0 0 3px var(--accent-100);
 }
@@ -594,36 +632,59 @@ body {
 
 .client-items {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  /* Tighter than the 4px it used to carry: the roster is scanned, not read,
+     and the vertical padding on each row does most of the separating. */
+  gap: 2px;
 }
 
+/* Name above email, not beside it. The row used to be a flex line with the two
+   spans at either end, so in a 240px column both were cut to roughly a dozen
+   characters and the email became noise. One line, ellipsis on the whole width. */
 .client-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
   border-radius: var(--r-md);
   cursor: pointer;
+  user-select: none;
   transition: background-color var(--t-fast) var(--ease),
-    border-color var(--t-fast) var(--ease);
-  border: 1px solid transparent;
+    border-color var(--t-fast) var(--ease), box-shadow var(--t-fast) var(--ease);
 }
 
-.client-item:hover {
-  background: var(--surface-muted);
+/* The hover step is the one reserved for hover; --surface-muted is the recessed
+   fill and using it here made a hovered row indistinguishable from a well. */
+.client-item:hover:not(.selected) {
+  background: var(--surface-hover);
 }
 
+/* Selected reads in three cues, not one: a spine on the leading edge, the name
+   at display weight, and the accent fill. Any one of the three survives
+   greyscale or a colour-vision difference, which the fill alone did not. */
 .client-item.selected {
   background: var(--accent-50);
-  border-color: var(--accent-600);
+  box-shadow: inset 3px 0 0 var(--accent-600);
+}
+
+.client-item.selected .client-name {
+  font-weight: 700;
+  color: var(--accent-900);
+}
+
+.client-item.selected .client-email {
+  color: var(--accent-700);
 }
 
 .client-name {
   display: block;
+  min-width: 0;
   font-weight: 600;
   font-size: 0.95rem;
   color: var(--text-strong);
@@ -632,14 +693,25 @@ body {
   white-space: nowrap;
 }
 
+/* --text-soft, not --text-muted: the row can sit on white or on the hover
+   fill, and --text-muted falls to roughly 4.1:1 on the fill. --text-soft holds
+   7.3:1 on white and 6.3:1 on the fill; the hierarchy still holds through the
+   weight and the size, not through a near-invisible grey. */
 .client-email {
   display: block;
+  min-width: 0;
   font-size: 0.8rem;
-  color: var(--text-faint);
-  margin-top: 2px;
+  color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The shared empty message is deliberately faint elsewhere; inside the roster
+   it is the panel's only content, so it gets the readable step. */
+.client-list .empty-message {
+  color: var(--text-muted);
+  padding: 32px 16px;
 }
 
 .empty-message {
@@ -1097,6 +1169,15 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .worklist-client.highlight { animation: none; }
+
+  /* The client panel only animates colour, but it opts out with the rest of
+     the app rather than being the one surface that still moves. */
+  .panel-collapse-toggle,
+  .client-search input,
+  .client-item,
+  .btn-add-client {
+    transition: none;
+  }
 }
 
 .worklist-client-name {
@@ -2668,9 +2749,26 @@ body {
   }
 
   /* Stacked, the roster is a full-width band, so it must stop claiming a
-     fixed 240px/220px and follow the column. */
+     fixed 240px/220px and follow the column. It keeps its own scroll either
+     way, so the worklist underneath is not pushed off the page. */
   .dashboard-left,
   .dashboard-left:not(.collapsed) {
+    width: auto;
+  }
+
+  /* Full-width band: the search field and the add button finally fit on one
+     row, which is the only breakpoint where they do. */
+  .client-search {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .client-search input {
+    flex: 1 1 auto;
+  }
+
+  .client-search .btn-add-client {
+    flex: none;
     width: auto;
   }
 
