@@ -2397,6 +2397,15 @@ body {
   padding-left: 12px;
 }
 
+/* The bin gets room of its own rather than sharing the row's 14px. Setting a
+   task to inactive and removing it outright are not two of a kind, and sitting
+   them a button-width apart makes them read as a pair you toggle between. The
+   margin rather than a second gap, because the gap also separates the badge
+   from the toggle and that pair does want the tighter spacing. */
+.assignment-actions .delete-btn {
+  margin-left: 6px;
+}
+
 .assignment-info {
   min-width: 0;
   flex: 1;
