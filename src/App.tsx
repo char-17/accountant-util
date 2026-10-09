@@ -393,7 +393,6 @@ function App() {
       )}
 
       <header className="app-header">
-        <h1>Accountant Util</h1>
         <div className="app-header-bar">
           <nav className="app-nav" aria-label="Κύριες λειτουργίες">
             <button
@@ -424,6 +423,27 @@ function App() {
               year={year}
               month={month}
               onChange={(y, m) => setCurrentDate(new Date(y, m - 1, 1))}
+            />
+          </div>
+
+          {/* Export and backup moved up from the bottom of the worklist. They
+              act on the month rather than on the screen, and sitting at the far
+              end of a long list meant the accountant scrolled past every task to
+              reach them. They are inline here rather than in a drop-down so the
+              month they act on stays visible next to the month picker. */}
+          <div className="app-header-menu">
+            <ExportPanel
+              summary={filters.summary}
+              filters={filters.filters}
+              clientOptions={clientOptions}
+              taskOptions={taskOptions}
+              onExportCsv={handleExportCsv}
+              exporting={exporter.exporting}
+            />
+            <BackupPanel
+              onBackup={handleBackup}
+              onRestore={handleRestore}
+              busy={backup.busy}
             />
           </div>
         </div>
@@ -485,19 +505,6 @@ function App() {
                   onSetAmount={handleSetAmount}
                   onSetPaid={handleSetPaid}
                   onSetInvoiced={handleSetInvoiced}
-                />
-                <ExportPanel
-                  summary={filters.summary}
-                  filters={filters.filters}
-                  clientOptions={clientOptions}
-                  taskOptions={taskOptions}
-                  onExportCsv={handleExportCsv}
-                  exporting={exporter.exporting}
-                />
-                <BackupPanel
-                  onBackup={handleBackup}
-                  onRestore={handleRestore}
-                  busy={backup.busy}
                 />
               </div>
 

@@ -99,6 +99,13 @@
   --t-base: 0.2s;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* ── Chrome ──────────────────────────────────────────────────────────────
+     The sticky header's height, as one number. The client panel is both sticky
+     and height-capped under that header, so it needs the same figure twice: the
+     offset it pins at and the space it leaves itself. Measured, not guessed -
+     padding 14+16 plus the tallest thing in the bar (a 34px control row). */
+  --header-h: 76px;
+
   /* ── Type ────────────────────────────────────────────────────────────── */
 
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
@@ -185,18 +192,15 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.app-header h1 {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--text-strong);
-}
-
+/* The h1 "Accountant Util" was removed from the markup in favour of a menu
+   bar that carries the export and backup actions, so it no longer renders. The
+   bar now spans the header on its own and the menu pushes to the right. */
 .app-header-bar {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 20px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 /* The screen tabs and the month arrows are two control clusters, so they share
@@ -313,15 +317,25 @@ body {
   font-size: 0.8rem;
 }
 
-/* Expanded: the roster keeps a fixed width AND a height cap. Without the cap
-   the panel grew to the length of the whole client list, pushed the worklist
-   off the bottom of the window and left scrolling back to the selected row as
-   the only way to recover; capped, the list scrolls inside the panel and the
-   month stays on screen. The 180px is the window minus the sticky header, the
-   month picker row and the bottom breathing room. */
+/* Expanded: the roster is sized to the window and pinned under the sticky
+   header. Two separate problems, two separate fixes:
+
+   The cap - without it the panel grew to the length of the whole client list,
+   pushed the worklist off the bottom of the window and left scrolling back to
+   the selected row as the only way to recover.
+
+   The sticky - capped but not pinned, the panel still scrolled away with the
+   page, and a roster you have to scroll back up to reach is not a roster you
+   can use while reading the list beside it. `top` is the header's own height
+   because the header is sticky too, and the two must not overlap.
+
+   --header-h is declared next to the header rules so both the offset here and
+   the cap read the same number instead of two guesses that drift apart. */
 .dashboard-left:not(.collapsed) {
+  position: sticky;
+  top: calc(var(--header-h) + 12px);
   width: 240px;
-  max-height: calc(100vh - 180px);
+  max-height: calc(100vh - var(--header-h) - 32px);
 }
 
 /* Collapsed: only the header survives. The label runs vertically instead of
@@ -765,6 +779,33 @@ body {
 .client-create-modal h3 {
   font-size: 1.05rem;
   color: var(--text-strong);
+}
+
+/* Bands of three: the first three rows plain, the next three on a tint, and so
+   on. nth-child(6n+4) through (6n+6) is one group of three out of every two -
+   a single :nth-child(3n) would stripe every third row instead of grouping
+   them, which reads as a rendering fault rather than as structure. Done in CSS
+   because the grouping is positional: it must survive filtering, which changes
+   how many rows there are and would renumber anything computed in JSX. */
+.client-item:nth-child(6n + 4),
+.client-item:nth-child(6n + 5),
+.client-item:nth-child(6n + 6) {
+  background: var(--surface-muted);
+}
+
+/* The band must never outrank the selection, and a selected row's own hover is
+   handled below. */
+.client-item:nth-child(6n + 4):hover:not(.selected),
+.client-item:nth-child(6n + 5):hover:not(.selected),
+.client-item:nth-child(6n + 6):hover:not(.selected) {
+  background: var(--surface-hover);
+}
+
+.client-item.selected,
+.client-item.selected:nth-child(6n + 4),
+.client-item.selected:nth-child(6n + 5),
+.client-item.selected:nth-child(6n + 6) {
+  background: var(--accent-50);
 }
 
 .client-items {
@@ -1371,6 +1412,43 @@ body {
   gap: 4px;
 }
 
+/* Each task row carries the section heading's own tint, so a row and the
+   title above it read as one group instead of the rows sitting on bare white
+   under a coloured bar. The gradient runs the same direction as the heading's
+   so the eye reads them as a continuous block. */
+.worklist-item {
+  background: linear-gradient(90deg, var(--accent-50), var(--surface-subtle) 60%);
+  border-color: var(--accent-100);
+}
+
+.worklist-item:hover {
+  background: linear-gradient(90deg, var(--accent-100), var(--accent-50) 60%);
+  border-color: var(--accent-200);
+}
+
+/* A completed row drops back to a neutral tint: the accent now means "still
+   open", and a finished task in the same blue would say the opposite. */
+.worklist-item.done {
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+
+.worklist-item.done:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+/* The per-task colour dot sits between the checkbox and the task name, and it
+   is the only thing in the row that distinguishes one task type from another.
+   Given a border it stops reading as a stray pixel at 10px, and it survives a
+   greyscale print, which a bare fill does not. */
+.worklist-item .task-color-dot {
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
 .worklist-item {
   display: flex;
   flex-wrap: wrap;
@@ -1497,14 +1575,9 @@ body {
 /* ─── Backup ──────────────────────────────────────────────────────────────── */
 
 .backup-panel {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.backup-panel h3 {
-  font-size: 1rem;
-  margin-bottom: 6px;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .backup-hint {
@@ -1521,15 +1594,52 @@ body {
 
 /* ─── Export ──────────────────────────────────────────────────────────────── */
 
+/* Export and backup now live in the header menu rather than at the foot of the
+   worklist. They lose their section rules - a 20px top margin and a rule above
+   them made sense when they were stacked under a list; here they are two inline
+   clusters in a bar. The h3 becomes a small caps label for the same reason. */
 .export-panel {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.export-panel h3 {
-  font-size: 1rem;
-  margin-bottom: 6px;
+.export-panel h3,
+.backup-panel h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.backup-panel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* The scope note and the backup paragraph were blocks of body copy under a
+   heading. In a one-line bar there is no room for either, so they are dropped
+   from the bar and carried by the buttons' tooltips instead - the export count
+   and filter note are on the CSV button, the backup explanation on its own. */
+.app-header-menu .export-scope,
+.app-header-menu .backup-hint {
+  display: none;
+}
+
+.app-header-menu {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
 }
 
 .export-scope {
@@ -3017,6 +3127,21 @@ body {
      between them and the month controls take it entirely. */
   .app-header-bar {
     gap: 10px;
+  }
+
+  /* The menu bar is the widest thing in the header and it is optional weight,
+     so on a narrow window it drops to its own full-width row below the tabs
+     instead of competing with them for the same line. The left border and the
+     auto margin go with it - they were separating it in a row it no longer
+     shares. */
+  .app-header-menu {
+    margin-left: 0;
+    padding-left: 0;
+    padding-top: 10px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    justify-content: space-between;
+    flex-wrap: wrap;
   }
 
   .app-nav button {

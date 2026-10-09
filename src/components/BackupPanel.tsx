@@ -19,7 +19,12 @@ export function BackupPanel({ onBackup, onRestore, busy }: BackupPanelProps) {
         ολοκληρώσεων. Μπορείτε να το κρατήσετε σε ασφαλές μέρος.
       </p>
       <div className="backup-actions">
-        <button className="btn-small" onClick={onBackup} disabled={disabled}>
+        <button
+          className="btn-small"
+          onClick={onBackup}
+          disabled={disabled}
+          title="Το αντίγραφο περιέχει όλους τους πελάτες, τις εργασίες και το ιστορικό ολοκληρώσεων. Μπορείτε να το κρατήσετε σε ασφαλές μέρος."
+        >
           {busy === "backup" ? "Δημιουργία..." : "Δημιουργία αντιγράφου"}
         </button>
         <button
