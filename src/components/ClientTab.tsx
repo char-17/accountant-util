@@ -32,6 +32,11 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
   const [newDueDay, setNewDueDay] = useState("28");
   const [newReminderDays, setNewReminderDays] = useState("5");
   const [assignmentError, setAssignmentError] = useState("");
+  // Which assignment is pending deletion, and whether the write is in flight.
+  // Deleting an assignment is the one action here that removes a row outright,
+  // so it asks first - and it says what survives, not just what does not.
+  const [assignmentPendingDelete, setAssignmentPendingDelete] = useState<ClientTaskWithTask | null>(null);
+  const [deletingAssignment, setDeletingAssignment] = useState(false);
   // Where ClientForm's action row is portalled to. Null until this component's
   // own footer box has mounted, which is why the row appears on the second
   // render rather than the first.
@@ -91,6 +96,26 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
       onUpdate();
     } catch (err) {
       setAssignmentError(toMessage(err));
+    }
+  }
+
+  async function handleDeleteAssignment() {
+    if (!assignmentPendingDelete) return;
+    const target = assignmentPendingDelete;
+    setAssignmentError("");
+    setDeletingAssignment(true);
+    try {
+      await assignmentRepo.deleteAssignment(db, target.id);
+      setAssignmentPendingDelete(null);
+      await loadAssignments();
+      // The reminders rendered in the far-right panel belonged to this
+      // assignment, so they go too and the parent has to redraw them.
+      onUpdate();
+    } catch (err) {
+      setAssignmentError(toMessage(err));
+      setAssignmentPendingDelete(null);
+    } finally {
+      setDeletingAssignment(false);
     }
   }
 
@@ -236,6 +261,15 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
                     >
                       {assignment.isActive ? "Ενεργή" : "Ανενεργή"}
                     </button>
+                    <button
+                      className="icon-btn delete-btn"
+                      onClick={() => setAssignmentPendingDelete(assignment)}
+                      disabled={deletingAssignment}
+                      title={`Αφαίρεση της εργασίας «${assignment.taskName}» από τον πελάτη`}
+                      aria-label={`Αφαίρεση της εργασίας ${assignment.taskName}`}
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               );
@@ -243,6 +277,63 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
           )}
         </div>
       </div>
+
+      {/* Confirmation for removing an assignment outright. Deactivating is the
+          reversible option and it sits next to this one; this deletes the row,
+          so the dialog spells out that the history stays and only the
+          recurring job and its reminders go. */}
+      {assignmentPendingDelete && (
+        <div className="modal-backdrop" onClick={() => !deletingAssignment && setAssignmentPendingDelete(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Αφαίρεση εργασίας"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Αφαίρεση εργασίας</h3>
+            <p>
+              Θα αφαιρεθεί η εργασία <strong>{assignmentPendingDelete.taskName}</strong> από τον{" "}
+              {assignmentPendingDelete.clientName}.
+            </p>
+            <div className="modal-warning">
+              Η εργασία δεν θα εμφανιστεί ξανά στους μήνες που έρχονται και οι
+              ειδοποιήσεις της θα διαγραφούν. Οι ολοκληρωμένες εργασίες, τα ποσά
+              και οι εισπράξεις των προηγούμενων μηνών{" "}
+              <strong>δεν χάνονται</strong> και μένουν στην αναφορά.
+            </div>
+            <div className="form-actions">
+              <button
+                className="btn-danger"
+                onClick={handleDeleteAssignment}
+                disabled={deletingAssignment}
+              >
+                {deletingAssignment ? "Διαγραφή..." : "Ναι, αφαίρεση"}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => setAssignmentPendingDelete(null)}
+                disabled={deletingAssignment}
+              >
+                Άκυρο
+              </button>
+              <button
+                className="btn-secondary btn-push-right"
+                onClick={() => {
+                  // Deactivating is the reversible answer, so it is offered
+                  // here rather than making the user undo this afterwards.
+                  void handleToggleAssignment(assignmentPendingDelete.id, true);
+                  setAssignmentPendingDelete(null);
+                }}
+                disabled={deletingAssignment}
+                title="Κράτηση της εργασίας, απλώς χωρίς να παράγεται πλέον"
+              >
+                Απενεργοποίηση αντί
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* The buttons land here, at the foot of the panel. */}
       <div className="client-tab-footer" ref={setActionsTarget} />

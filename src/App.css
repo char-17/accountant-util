@@ -1100,6 +1100,47 @@ body {
   color: var(--text-strong);
 }
 
+/* The remove button on an assignment. Danger-coloured on hover rather than at
+   rest: it sits on every row all the time, and a permanently red cross turns
+   the list into a wall of warnings. The colour arrives on hover and on focus,
+   and the row also names the action in its title and accessible name, so it is
+   never the glyph alone carrying the meaning. */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger-strong);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+}
+
+.icon-btn:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .client-form {
   display: flex;
   flex-direction: column;

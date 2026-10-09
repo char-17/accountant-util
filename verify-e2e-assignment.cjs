@@ -133,6 +133,49 @@ check('new client work appears', finalRows.length === 3, `got ${finalRows.length
 check('new client is listed',
   finalRows.some((r) => r.clientName === 'ΠΕΛΑΤΗΣ Β' && r.taskName === 'ΕΡΓΑΣΙΑ ΝΕΑ'));
 
+console.log('\nStep 7: removing an assignment stops future months but keeps the history');
+{
+  // This is the behaviour the confirmation dialog promises, so it is asserted
+  // rather than assumed. Deleting the row must NOT wipe the completed months:
+  // monthly_task_status points at the client and the task, not at the
+  // assignment, so the report keeps what was already done.
+  const target = db.prepare(`
+    SELECT a.id, a.task_type_id FROM client_task_assignments a
+    JOIN clients c ON a.client_id = c.id
+    WHERE c.name = 'ΠΕΛΑΤΗΣ Α' AND a.task_type_id = ?
+  `).get(taskId);
+
+  const historyBefore = db.prepare(
+    'SELECT COUNT(*) AS c FROM monthly_task_status WHERE client_id = ? AND task_type_id = ?'
+  ).get(clientId, taskId).c;
+  check('the assignment to remove has history', historyBefore > 0, `got ${historyBefore}`);
+
+  db.prepare('DELETE FROM client_task_assignments WHERE id = ?').run(target.id);
+  check('the assignment row is gone',
+    db.prepare('SELECT COUNT(*) AS c FROM client_task_assignments WHERE id = ?').get(target.id).c === 0);
+
+  const historyAfter = db.prepare(
+    'SELECT COUNT(*) AS c FROM monthly_task_status WHERE client_id = ? AND task_type_id = ?'
+  ).get(clientId, taskId).c;
+  check('the month history survives the delete', historyAfter === historyBefore,
+    `${historyBefore} -> ${historyAfter}`);
+
+  // Re-seeding after the delete must not resurrect it as open work. The row it
+  // already had stays, because that month really was done - so the assertion is
+  // about pending specifically, not about the task disappearing from the list.
+  seed();
+  const afterDelete = worklist();
+  const rowsForIt = afterDelete.filter(
+    (r) => r.clientName === 'ΠΕΛΑΤΗΣ Α' && r.taskName === 'ΕΡΓΑΣΙΑ ΝΕΑ'
+  );
+  check('no pending row is created for it',
+    !rowsForIt.some((r) => r.status === 'pending'),
+    `a deleted assignment must not be re-seeded, got: ${JSON.stringify(rowsForIt)}`);
+  check('the completed month is still listed',
+    rowsForIt.some((r) => r.status === 'completed'),
+    'the history has to remain visible and reportable');
+}
+
 db.close();
 require('fs').unlinkSync(tmp);
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
