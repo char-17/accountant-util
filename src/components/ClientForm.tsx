@@ -16,18 +16,12 @@ interface ClientFormProps {
 
 type FormState = {
   name: string;
-  email: string;
-  phone: string;
-  address: string;
   taxId: string;
   notes: string;
 };
 
 const EMPTY: FormState = {
   name: "",
-  email: "",
-  phone: "",
-  address: "",
   taxId: "",
   notes: "",
 };
@@ -92,9 +86,6 @@ export function ClientForm({
     try {
       await onSubmit({
         name: form.name,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        address: form.address || undefined,
         taxId: form.taxId || undefined,
         notes: form.notes || undefined,
       });
@@ -126,42 +117,6 @@ export function ClientForm({
           required
         />
         {errorFor("name") && <span className="error-message">{errorFor("name")}</span>}
-      </div>
-
-      {/* Email and phone each get a full row: at the modal's width the two
-          together left the phone field too narrow to read a number into. */}
-      <div className="form-group">
-        <label htmlFor="cf-email">Email</label>
-        <input
-          id="cf-email"
-          type="email"
-          value={form.email}
-          onChange={(e) => set("email")(e.target.value)}
-          className={errorFor("email") ? "error" : ""}
-        />
-        {errorFor("email") && <span className="error-message">{errorFor("email")}</span>}
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="cf-phone">Τηλέφωνο</label>
-        <input
-          id="cf-phone"
-          type="text"
-          value={form.phone}
-          onChange={(e) => set("phone")(e.target.value)}
-          className={errorFor("phone") ? "error" : ""}
-        />
-        {errorFor("phone") && <span className="error-message">{errorFor("phone")}</span>}
-      </div>
-
-      <div className="form-group">
-        <label htmlFor="cf-address">Διεύθυνση</label>
-        <input
-          id="cf-address"
-          type="text"
-          value={form.address}
-          onChange={(e) => set("address")(e.target.value)}
-        />
       </div>
 
       <div className="form-group">

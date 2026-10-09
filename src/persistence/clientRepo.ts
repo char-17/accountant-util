@@ -5,9 +5,6 @@ import type { Client } from "../domain/types";
 const CLIENT_COLUMNS = `
   id,
   name,
-  email,
-  phone,
-  address,
   tax_id AS taxId,
   notes,
   created_at AS createdAt,
@@ -19,9 +16,12 @@ export async function getAllClients(db: Database): Promise<Client[]> {
 }
 
 export async function searchClients(db: Database, query: string): Promise<Client[]> {
+  // The name is the only thing left to match on. It used to also search the
+  // email and phone columns, which is why this is worth noting: the search box
+  // no longer finds a client by any field but their name.
   return db.select<Client[]>(
     `SELECT ${CLIENT_COLUMNS} FROM clients
-     WHERE name LIKE $1 OR email LIKE $1 OR phone LIKE $1
+     WHERE name LIKE $1
      ORDER BY name`,
     [`%${query}%`]
   );
@@ -40,13 +40,10 @@ export async function createClient(
   data: Omit<Client, "id" | "createdAt" | "updatedAt">
 ): Promise<number> {
   const result = await db.execute(
-    `INSERT INTO clients (name, email, phone, address, tax_id, notes)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
+    `INSERT INTO clients (name, tax_id, notes)
+     VALUES ($1, $2, $3)`,
     [
       data.name.trim(),
-      data.email?.trim() || null,
-      data.phone?.trim() || null,
-      data.address?.trim() || null,
       data.taxId?.trim() || null,
       data.notes?.trim() || null,
     ]
@@ -62,18 +59,12 @@ export async function updateClient(
   await db.execute(
     `UPDATE clients SET
        name = COALESCE($1, name),
-       email = COALESCE($2, email),
-       phone = COALESCE($3, phone),
-       address = COALESCE($4, address),
-       tax_id = COALESCE($5, tax_id),
-       notes = COALESCE($6, notes),
+       tax_id = COALESCE($2, tax_id),
+       notes = COALESCE($3, notes),
        updated_at = datetime('now')
-     WHERE id = $7`,
+     WHERE id = $4`,
     [
       data.name?.trim() || null,
-      data.email === undefined ? null : data.email?.trim() || null,
-      data.phone === undefined ? null : data.phone?.trim() || null,
-      data.address === undefined ? null : data.address?.trim() || null,
       data.taxId === undefined ? null : data.taxId?.trim() || null,
       data.notes === undefined ? null : data.notes?.trim() || null,
       id,

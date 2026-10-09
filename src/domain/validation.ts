@@ -14,14 +14,6 @@ export function validateClient(client: Partial<Client>): ValidationError[] {
     errors.push({ field: "name", message: "Το όνομα είναι υποχρεωτικό" });
   }
 
-  if (client.email && !isValidEmail(client.email)) {
-    errors.push({ field: "email", message: "Μη έγκυρο email" });
-  }
-
-  if (client.phone && !isValidPhone(client.phone)) {
-    errors.push({ field: "phone", message: "Μη έγκυρο τηλέφωνο" });
-  }
-
   return errors;
 }
 
@@ -84,14 +76,6 @@ export function validateMonthlyStatus(
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function isValidPhone(phone: string): boolean {
-  return /^[+]?[\d\s()-]{7,15}$/.test(phone);
-}
 
 function isValidColor(color: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(color);

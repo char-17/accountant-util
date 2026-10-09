@@ -87,7 +87,6 @@ export function ClientList({
               title="Άνοιγμα καρτέλας με διπλό κλικ"
             >
               <span className="client-name">{client.name}</span>
-              {client.email && <span className="client-email">{client.email}</span>}
             </div>
           ))
         )}

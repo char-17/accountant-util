@@ -871,32 +871,15 @@ body {
   color: var(--success-text);
 }
 
-.client-item.selected .client-email {
-  /* --success-text, not --success-strong: 4.79:1 against this green is inside
-     the floor but with nothing to spare for a 0.8rem secondary line. */
-  color: var(--success-text);
-}
-
+/* The row carries a name and nothing else now: the email line went with the
+   field it showed. It keeps the ellipsis because Greek names are long enough
+   to overflow a 280px column on their own. */
 .client-name {
   display: block;
   min-width: 0;
   font-weight: 600;
   font-size: 0.95rem;
   color: var(--text-strong);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* --text-soft, not --text-muted: the row can sit on white or on the hover
-   fill, and --text-muted falls to roughly 4.1:1 on the fill. --text-soft holds
-   7.3:1 on white and 6.3:1 on the fill; the hierarchy still holds through the
-   weight and the size, not through a near-invisible grey. */
-.client-email {
-  display: block;
-  min-width: 0;
-  font-size: 0.8rem;
-  color: var(--text-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

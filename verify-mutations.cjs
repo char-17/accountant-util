@@ -25,8 +25,8 @@ function main() {
   let clientId;
   try {
     clientId = db.prepare(
-      'INSERT INTO clients (name, email, phone, address, tax_id, notes) VALUES (?,?,?,?,?,?)'
-    ).run(`T${stamp}`, 'a@b.gr', '2101234567', 'Ερμού 1', '123456789', 'note').lastInsertRowid;
+      'INSERT INTO clients (name, tax_id, notes) VALUES (?,?,?)'
+    ).run(`T${stamp}`, '123456789', 'note').lastInsertRowid;
     check('insert returns an id', clientId > 0);
   } catch (e) { check('insert returns an id', false, e.message); }
 

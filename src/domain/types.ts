@@ -7,9 +7,6 @@ export type { Periodicity };
 export interface Client {
   id: number;
   name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
   taxId?: string; // ΑΦΜ
   notes?: string;
   createdAt: string;

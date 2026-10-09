@@ -54,7 +54,7 @@ const backupPath = path.join(tmp, 'backup.db');
 
 const SCHEMA = `
   CREATE TABLE clients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
-    email TEXT, phone TEXT, address TEXT, tax_id TEXT, notes TEXT,
+    tax_id TEXT, notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')));
   CREATE TABLE task_types (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,

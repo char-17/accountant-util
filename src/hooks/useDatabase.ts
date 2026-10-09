@@ -6,9 +6,6 @@ const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    address TEXT,
     tax_id TEXT,
     notes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -85,10 +82,57 @@ const MIGRATIONS = [
 ];
 
 /**
+ * Columns removed from the clients table.
+ *
+ * The CREATE TABLE above only describes a database being built for the first
+ * time; on an existing one it is a no-op, so these have to be dropped
+ * explicitly or every launch would keep carrying three unused columns.
+ *
+ * The order matters: a column is only dropped once nothing selects it, so this
+ * runs after the repository queries have been cut down.
+ */
+const DROPPED_CLIENT_COLUMNS = ["email", "phone", "address"] as const;
+
+/** True when the clients table has the named column. */
+async function hasColumn(database: Database, column: string): Promise<boolean> {
+  const rows = await database.select<{ name: string }[]>(
+    "PRAGMA table_info(clients)"
+  );
+  return rows.some((r) => r.name === column);
+}
+
+/**
+ * Drops the retired columns, one at a time and only where they exist.
+ *
+ * A missing column is not an error here: a database created after the change
+ * never had them, and that is the common case, not a failure. A genuine
+ * failure to drop is reported rather than swallowed - it is harmless (the
+ * columns are simply unused) but the user should know the database still holds
+ * whatever was in them.
+ */
+async function dropRetiredClientColumns(
+  database: Database
+): Promise<string | null> {
+  const failed: string[] = [];
+  for (const column of DROPPED_CLIENT_COLUMNS) {
+    if (!(await hasColumn(database, column))) continue;
+    try {
+      await database.execute(`ALTER TABLE clients DROP COLUMN ${column}`);
+    } catch {
+      failed.push(column);
+    }
+  }
+  if (failed.length > 0) {
+    return `Δεν ήταν δυνατή η αφαίρεση των στηλών ${failed.join(", ")} από τους πελάτες. Δεν επηρεάζει τη χρήση της εφαρμογής.`;
+  }
+  return null;
+}
+
+/**
  * Applies migrations, tolerating "duplicate column"/"already exists" so an
  * existing database upgrades in place instead of erroring on every launch.
  */
-async function applyMigrations(database: Database) {
+async function applyMigrations(database: Database): Promise<string | null> {
   for (const migration of MIGRATIONS) {
     try {
       await database.execute(migration);
@@ -100,6 +144,7 @@ async function applyMigrations(database: Database) {
       if (!alreadyApplied) throw err;
     }
   }
+  return dropRetiredClientColumns(database);
 }
 
 export function useDatabase() {
@@ -122,7 +167,10 @@ export function useDatabase() {
         }
 
         const database = await Database.load(`sqlite:${DB_FILE_NAME}`);
-        await applyMigrations(database);
+        const columnWarning = await applyMigrations(database);
+        if (columnWarning) {
+          setMigrationWarning(columnWarning);
+        }
         setDb(database);
       } catch (err) {
         // Show the underlying reason (e.g. checksum mismatch, missing permission)

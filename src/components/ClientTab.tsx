@@ -109,9 +109,6 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
         resetOnSuccess={false}
         initialData={{
           name: client.name,
-          email: client.email || "",
-          phone: client.phone || "",
-          address: client.address || "",
           taxId: client.taxId || "",
           notes: client.notes || "",
         }}
