@@ -24,8 +24,7 @@ fs.writeFileSync(
 export { WorklistFiltersBar } from "./src/components/WorklistFiltersBar";
 export { MonthlyWorklist } from "./src/components/MonthlyWorklist";
 export { MonthlySummary } from "./src/components/MonthlySummary";
-export { ExportPanel } from "./src/components/ExportPanel";
-export { BackupPanel } from "./src/components/BackupPanel";
+export { FileMenu } from "./src/components/FileMenu";
 export { Toaster } from "./src/components/Toaster";
 export { MonthPicker } from "./src/components/MonthPicker";
 export { ClientList } from "./src/components/ClientList";
@@ -200,51 +199,23 @@ const summaryFiltered = render(React.createElement(ui.MonthlySummary, {
 check('the figure is labelled as filtered', summaryFiltered.includes('Εργασίες (φίλτρο)'));
 check('the hidden count is disclosed', text(summaryFiltered).includes('4 εργασίες αποκρύπτονται'), `- got: ${text(summaryFiltered)}`);
 
-console.log('\n6) the export panel reflects the visible rows');
-const exportHtml = render(React.createElement(ui.ExportPanel, {
+console.log('\n6) the file menu is a closed menu that says what it is');
+// The items cannot be checked here: renderToStaticMarkup cannot click the
+// trigger open, and a menu whose contents only exist once it is open is the
+// correct behaviour, not a gap in the component. Everything inside the menu -
+// the scope note, the disabled state, the warning styling on restore - is
+// covered by verify-ui-interaction.cjs, which mounts it and opens it for real.
+const menuClosed = render(React.createElement(ui.FileMenu, {
   summary: { year: 2026, month: 10, totalClients: 2, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
-  filters: ui.DEFAULT_FILTERS, onExportCsv: noop, exporting: false,
-  clientOptions, taskOptions,
-}));
-check('row count shown', exportHtml.includes('3 εργασίες'));
-check('CSV action present', exportHtml.includes('Λήψη CSV'));
-
-console.log('\n7) the export scope names the selected client instead of an id');
-const exportNamed = render(React.createElement(ui.ExportPanel, {
-  summary: { year: 2026, month: 10, totalClients: 2, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
-  filters: { ...ui.DEFAULT_FILTERS, clientId: 10, taskTypeId: 2 },
+  filters: ui.DEFAULT_FILTERS,
   onExportCsv: noop, exporting: false,
+  onBackup: noop, onRestore: noop, busy: null,
   clientOptions, taskOptions,
 }));
-// The markup escapes the quotes, so the readable text is checked instead.
-check('the client is named', text(exportNamed).includes('πελάτης: "ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ"'));
-check('the task is named', text(exportNamed).includes('εργασία: "ΕΝΦΚΑ"'));
-check('print action present', exportHtml.includes('Εκτύπωση'));
-check('no filter detail when unfiltered', !exportHtml.includes('φίλτρα:'));
-
-const exportFiltered = render(React.createElement(ui.ExportPanel, {
-  summary: { year: 2026, month: 10, totalClients: 1, totalTasks: 1, completedTasks: 1, pendingTasks: 0, clientProgress: [] },
-  filters: { ...ui.DEFAULT_FILTERS, status: 'completed' }, onExportCsv: noop, exporting: false,
-}));
-check('the filter is described in the panel', text(exportFiltered).includes('φίλτρα: Ολοκληρωμένες'), `- got: ${text(exportFiltered)}`);
-
-const exportEmpty = render(React.createElement(ui.ExportPanel, {
-  summary: { year: 2026, month: 1, totalClients: 0, totalTasks: 0, completedTasks: 0, pendingTasks: 0, clientProgress: [] },
-  filters: ui.DEFAULT_FILTERS, onExportCsv: noop, exporting: false,
-}));
-check('export is disabled with nothing to export', exportEmpty.includes('disabled'));
-
-console.log('\n7) the backup panel marks restore as the risky action');
-const backupHtml = render(React.createElement(ui.BackupPanel, {
-  onBackup: noop, onRestore: noop, busy: null,
-}));
-check('backup action present', backupHtml.includes('Δημιουργία αντιγράφου'));
-check('restore action present', backupHtml.includes('Επαναφορά από αντίγραφο'));
-check('restore is styled as a warning, not a primary action',
-  /btn-warning/.test(attrsOf(backupHtml, 'Επαναφορά από αντίγραφο') || ''), '- restore should be visually distinct');
-check('restore explains that it replaces the data',
-  (attrsOf(backupHtml, 'Επαναφορά από αντίγραφο') || '').includes('Αντικαθιστά'), '- needs a warning title');
-
+check('the trigger is labelled Αρχείο', text(menuClosed).includes('Αρχείο'));
+check('it starts collapsed', menuClosed.includes('aria-expanded="false"'));
+check('no menu items are in the DOM yet', !menuClosed.includes('Εισαγωγή CSV'));
+check('and the list it controls is not rendered', !menuClosed.includes('id="file-menu-list"'));
 console.log('\n8) toasts are announced to screen readers');
 const toastHtml = render(React.createElement(ui.Toaster, {
   toasts: [

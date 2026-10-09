@@ -192,15 +192,16 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-/* The h1 "Accountant Util" was removed from the markup in favour of a menu
-   bar that carries the export and backup actions, so it no longer renders. The
-   bar now spans the header on its own and the menu pushes to the right. */
+/* The h1 "Accountant Util" was removed from the markup in favour of the file
+   menu. Two slots now: the file menu on the left, the screens and the month on
+   the right. `.app-header-bar` carries the auto margin so it is pushed right
+   whatever the menu's width turns out to be. */
 .app-header-bar {
   display: flex;
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
-  width: 100%;
+  margin-left: auto;
 }
 
 /* The screen tabs and the month arrows are two control clusters, so they share
@@ -1314,21 +1315,23 @@ body {
   gap: 10px;
 }
 
-/* Each client is its own card, and every other card is tinted so the eye can
-   follow a group down the list without counting. */
+/* Each client is its own card on a light blue fill, and the alternating card
+   is a shade deeper so the eye can follow a group down the list without
+   counting. Both are steps of the accent ramp rather than a literal blue, so
+   they stay in the same family as every other tinted surface in the app. */
 .worklist-client {
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent-100);
   border-radius: var(--r-lg);
   padding: 12px 14px;
-  background: var(--surface);
+  background: var(--accent-50);
   box-shadow: var(--shadow-sm);
 }
 
-/* The zebra stripe is a tint, not a grey fill: it stays inside the same
-   neutral family as the card so the list does not look striped with dirt. */
+/* One step deeper, so the stripe is visible without the two cards reading as
+   two different kinds of thing. */
 .worklist-client.alt {
-  background: var(--surface-subtle);
-  border-color: var(--border);
+  background: var(--accent-100);
+  border-color: var(--accent-200);
 }
 
 /* A reminder that was clicked points at this card, so it pulses. The animation
@@ -1573,89 +1576,46 @@ body {
 }
 
 /* ─── Backup ──────────────────────────────────────────────────────────────── */
-
-.backup-panel {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
+/* ─── File menu ───────────────────────────────────────────────────────────
+   The header's left slot. Same frame as the tab cluster on the right, so the
+   bar reads as two controls: one for the files, one for the screen. */
+.file-menu {
+  position: relative;
+  flex: none;
 }
 
-.backup-hint {
-  margin: 0 0 8px;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.backup-actions {
+.file-menu-trigger {
   display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-500);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
 }
 
-/* ─── Export ──────────────────────────────────────────────────────────────── */
-
-/* Export and backup now live in the header menu rather than at the foot of the
-   worklist. They lose their section rules - a 20px top margin and a rule above
-   them made sense when they were stacked under a list; here they are two inline
-   clusters in a bar. The h3 becomes a small caps label for the same reason. */
-.export-panel {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.file-menu-trigger:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
 }
 
-.export-panel h3,
-.backup-panel h3 {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.file-menu-trigger.active {
+  background: var(--accent-50);
+  border-color: var(--accent-200);
+  color: var(--accent-800);
+}
+
+.file-menu-caret {
   color: var(--text-muted);
-  margin: 0;
-  white-space: nowrap;
-}
-
-.backup-panel {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 0;
-  padding-top: 0;
-  border-top: none;
-}
-
-/* The scope note and the backup paragraph were blocks of body copy under a
-   heading. In a one-line bar there is no room for either, so they are dropped
-   from the bar and carried by the buttons' tooltips instead - the export count
-   and filter note are on the CSV button, the backup explanation on its own. */
-.app-header-menu .export-scope,
-.app-header-menu .backup-hint {
-  display: none;
-}
-
-.app-header-menu {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  margin-left: auto;
-  padding-left: 18px;
-  border-left: 1px solid var(--border);
-}
-
-.export-scope {
-  margin: 0 0 8px;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.export-scope-detail {
-  color: var(--text-faint);
-}
-
-.export-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  font-size: 0.7rem;
 }
 
 /* Printing should show the month and its tasks, not the app chrome. */
@@ -1664,8 +1624,7 @@ body {
   .app-nav,
   .client-list,
   .reminders,
-  .export-panel,
-  .backup-panel,
+  .file-menu,
   .month-picker,
   .toaster,
   .worklist-filters {
@@ -1709,6 +1668,102 @@ body {
   .task-color-dot {
     border: 1px solid var(--text-faint);
   }
+}
+
+.file-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  /* Above the sticky header (20) and the month dropdown (100), because this
+     list and that dropdown can never be open at the same time and whichever
+     is later in the tree must win. */
+  z-index: 110;
+  min-width: 268px;
+  padding: 6px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  animation: file-menu-in var(--t-fast) var(--ease);
+}
+
+@keyframes file-menu-in {
+  from {
+    opacity: 0;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* What the CSV item is about to produce. It sits inside the list rather than
+   above it, because it describes that one action - reading it as a heading for
+   backup and restore as well would be wrong. */
+.file-menu-scope {
+  margin: 0;
+  padding: 6px 10px 8px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.file-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.file-menu-item:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+/* Inset, because the list is flush with the window's left edge and an outward
+   ring would be clipped in half. */
+.file-menu-item:focus-visible,
+.file-menu-trigger:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: -2px;
+}
+
+.file-menu-item:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+/* Restore replaces the current data. It is not a peer of the other three and
+   it says so before it is pressed, not after. */
+.file-menu-item-warning {
+  color: var(--warning-text);
+  font-weight: 600;
+}
+
+.file-menu-item-warning:hover:not(:disabled) {
+  background: var(--warning-soft);
+  color: var(--warning-text-strong);
+}
+
+.file-menu-separator {
+  height: 1px;
+  margin: 5px 8px;
+  background: var(--border);
+}
+
+.export-scope-detail {
+  color: var(--text-faint);
 }
 
 /* ─── Worklist filters ────────────────────────────────────────────────────── */
@@ -3129,19 +3184,11 @@ body {
     gap: 10px;
   }
 
-  /* The menu bar is the widest thing in the header and it is optional weight,
-     so on a narrow window it drops to its own full-width row below the tabs
-     instead of competing with them for the same line. The left border and the
-     auto margin go with it - they were separating it in a row it no longer
-     shares. */
-  .app-header-menu {
-    margin-left: 0;
-    padding-left: 0;
-    padding-top: 10px;
-    border-left: none;
-    border-top: 1px solid var(--border);
+  /* The file menu sits above the tab cluster rather than beside it, so the two
+     never compete for one narrow row. */
+  .file-menu-trigger {
+    width: 100%;
     justify-content: space-between;
-    flex-wrap: wrap;
   }
 
   .app-nav button {

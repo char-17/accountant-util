@@ -44,8 +44,7 @@ fs.writeFileSync(
   `
 export { WorklistFiltersBar } from "./src/components/WorklistFiltersBar";
 export { MonthlyWorklist } from "./src/components/MonthlyWorklist";
-export { ExportPanel } from "./src/components/ExportPanel";
-export { BackupPanel } from "./src/components/BackupPanel";
+export { FileMenu } from "./src/components/FileMenu";
 export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
@@ -347,52 +346,149 @@ console.log('\n8) clicking a client name opens its tab');
   view.cleanup();
 }
 
-console.log('\n9) the export button runs the export and disables while it works');
+console.log('\n9) the file menu opens, and its export item runs the export');
 {
   let exported = 0;
   const view = mount(
-    React.createElement(ui.ExportPanel, {
+    React.createElement(ui.FileMenu, {
       summary: { year: 2026, month: 10, totalClients: 2, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
       filters: ui.DEFAULT_FILTERS,
       clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
       taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       onExportCsv: async () => { exported++; },
       exporting: false,
+      onBackup: () => {}, onRestore: () => {}, busy: null,
     })
   );
-  const csvBtn = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Λήψη CSV'));
-  check('the button reads CSV', Boolean(csvBtn));
+  const byText = (t) => findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes(t));
+  const trigger = byText('Αρχείο');
+  check('the trigger is present', Boolean(trigger));
+  check('the list is not in the DOM before opening', findAll((n) => n.id === 'file-menu-list').length === 0);
+
+  await act(async () => { trigger.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  check('the list appears once opened', findAll((n) => n.id === 'file-menu-list').length === 1);
+  check('the trigger reports expanded', trigger.getAttribute('aria-expanded') === 'true');
+
+  // The scope note travels with the CSV item and names the selected client
+  // rather than an id, so the exported file stays traceable.
+  const scope = findAll((n) => n.classList?.contains('file-menu-scope'))[0];
+  check('the scope note is in the menu', Boolean(scope));
+  check('it counts the visible rows', scope.textContent.includes('3 εργασίες'), `- got: ${scope.textContent}`);
+  check('and carries no filter detail when unfiltered', !scope.textContent.includes('φίλτρα:'));
+
+  const csvBtn = byText('Εισαγωγή CSV');
+  check('the CSV item is present', Boolean(csvBtn));
   check('it is enabled with rows to export', csvBtn.disabled === false);
   await act(async () => { csvBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
   checkEq('the export ran once', exported, 1);
+  check('and choosing an item closes the menu', findAll((n) => n.id === 'file-menu-list').length === 0);
   view.cleanup();
 }
 
-console.log('\n10) backup and restore fire their own handlers, and busy locks both');
+console.log('\n10) the menu names the filtered scope, and blocks export with nothing to send');
+{
+  const openMenu = async (over) => {
+    const view = mount(
+      React.createElement(ui.FileMenu, {
+        summary: { year: 2026, month: 10, totalClients: 1, totalTasks: 1, completedTasks: 1, pendingTasks: 0, clientProgress: [] },
+        clientOptions: [{ id: 10, name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' }],
+        taskOptions: [{ id: 2, name: 'ΕΝΦΚΑ' }],
+        onExportCsv: async () => {}, exporting: false,
+        onBackup: () => {}, onRestore: () => {}, busy: null,
+        ...over,
+      })
+    );
+    // The trigger click flips state, so it has to happen inside act or React
+    // warns and the DOM read that follows races the render.
+    await act(async () => {
+      findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Αρχείο'))
+        .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    return view;
+  };
+
+  const named = await openMenu({ filters: { ...ui.DEFAULT_FILTERS, clientId: 10, taskTypeId: 2 } });
+  const scopeNamed = findAll((n) => n.classList?.contains('file-menu-scope'))[0];
+  check('the client is named, not its id', scopeNamed.textContent.includes('πελάτης: "ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ"'), `- got: ${scopeNamed.textContent}`);
+  check('the task is named too', scopeNamed.textContent.includes('εργασία: "ΕΝΦΚΑ"'));
+  named.cleanup();
+
+  const byStatus = await openMenu({ filters: { ...ui.DEFAULT_FILTERS, status: 'completed' } });
+  const scopeStatus = findAll((n) => n.classList?.contains('file-menu-scope'))[0];
+  check('a status filter is described', scopeStatus.textContent.includes('φίλτρα: Ολοκληρωμένες'), `- got: ${scopeStatus.textContent}`);
+  byStatus.cleanup();
+
+  const empty = await openMenu({
+    summary: { year: 2026, month: 1, totalClients: 0, totalTasks: 0, completedTasks: 0, pendingTasks: 0, clientProgress: [] },
+    filters: ui.DEFAULT_FILTERS,
+  });
+  const csvEmpty = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Εισαγωγή CSV'));
+  check('export is disabled with nothing to export', csvEmpty.disabled === true);
+  check('and it says why', (csvEmpty.getAttribute('title') || '').includes('Δεν υπάρχουν εργασίες'), '- needs an explanatory title');
+  const printEmpty = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Εκτύπωση'));
+  check('print is disabled too, there is nothing to print', printEmpty.disabled === true);
+  empty.cleanup();
+}
+
+console.log('\n11) restore is marked as the risky item, and busy locks the menu');
 {
   let backups = 0, restores = 0;
-  const renderPanel = (busy) =>
-    React.createElement(ui.BackupPanel, {
-      onBackup: () => { backups++; }, onRestore: () => { restores++; }, busy,
+  const renderMenu = (busy) =>
+    mount(
+      React.createElement(ui.FileMenu, {
+        summary: { year: 2026, month: 10, totalClients: 1, totalTasks: 1, completedTasks: 0, pendingTasks: 1, clientProgress: [] },
+        filters: ui.DEFAULT_FILTERS,
+        onExportCsv: async () => {}, exporting: false,
+        onBackup: () => { backups++; }, onRestore: () => { restores++; }, busy,
+      })
+    );
+  const openIt = async () => {
+    await act(async () => {
+      findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Αρχείο'))
+        .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     });
-  const view = mount(renderPanel(null));
+  };
   const byText = (t) => findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes(t));
 
-  click(byText('Δημιουργία αντιγράφου'));
-  checkEq('backup fired', backups, 1);
-  click(byText('Επαναφορά από αντίγραφο'));
-  checkEq('restore fired', restores, 1);
+  const view = renderMenu(null);
+  await openIt();
+  const restoreBtn = byText('Επαναφορή από αντιγραφο');
+  check('restore is styled as a warning, not a peer of the others',
+    restoreBtn.classList.contains('file-menu-item-warning'), '- restore should be visually distinct');
+  check('restore explains that it replaces the data',
+    (restoreBtn.getAttribute('title') || '').includes('Αντικαθιστά'), '- needs a warning title');
 
-  // While an operation is in flight nothing else can be started.
-  view.rerender(renderPanel('backup'));
-  // The labels change to "in progress", so the buttons are located by position:
-  // backup first, restore second.
-  const buttons = findAll((n) => n.tagName === 'BUTTON');
-  checkEq('two actions offered', buttons.length, 2);
-  check('backup button disabled while busy', buttons[0].disabled === true);
-  check('restore button disabled while busy', buttons[1].disabled === true);
-  check('the label says what is happening', text().includes('Δημιουργία...'));
+  const backupBtn = byText('Αντίγραφο ασφαλείας');
+  check('backup is not styled as a risk', !backupBtn.classList.contains('file-menu-item-warning'));
+  check('backup explains what it contains',
+    (backupBtn.getAttribute('title') || '').includes('ιστορικό'), '- needs a descriptive title');
+
+  click(backupBtn);
+  checkEq('backup fired', backups, 1);
+  check('and the menu closed after the choice', findAll((n) => n.id === 'file-menu-list').length === 0);
+
+  await openIt();
+  click(byText('Επαναφορή από αντιγραφο'));
+  checkEq('restore fired', restores, 1);
   view.cleanup();
+
+  const busyView = renderMenu('backup');
+  await openIt();
+  // Busy locks the two items that replace or rewrite the whole database. CSV
+  // and print only read it, so they stay available - a backup in flight should
+  // not stop the accountant exporting what is on screen. The backup item's own
+  // label changes to "in progress", so it is found by that instead.
+  const backupBusy = byText('Δημιουργία...');
+  const restoreBusy = byText('Επαναφορή από αντιγραφο');
+  check('the running backup reports progress', backupBusy !== undefined, '- needs a busy label');
+  check('restore is still offered under its own name', restoreBusy !== undefined);
+  check('busy locks both database items',
+    Boolean(backupBusy) && backupBusy.disabled === true && restoreBusy.disabled === true,
+    '- backup in progress should lock backup and restore');
+  const csvWhileBusy = byText('Εισαγωγή CSV');
+  check('a read-only export stays available while backup runs',
+    csvWhileBusy !== undefined && csvWhileBusy.disabled === false, '- backup must not block reading the month');
+  busyView.cleanup();
 }
 
 console.log('\n11) creating a task through the catalogue form');
