@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const MONTHS = [
   "Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "Απρίλιος", "Μάιος", "Ιούνιος",
@@ -13,6 +13,27 @@ interface MonthPickerProps {
 
 export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Clicking anywhere else closes the popover, so it never floats over the
+  // worklist after the eye has moved on.
+  //
+  // Done with a document listener rather than the full-screen backdrop the
+  // filter pickers use: that backdrop covers the whole window, and the arrows
+  // and "Τρέχων μήνας" belong to this control rather than to the page, so it
+  // would sit on top of them and swallow their clicks. Asking what was actually
+  // hit keeps them working while the popover is open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const node = event.target as Node | null;
+      if (node && rootRef.current && !rootRef.current.contains(node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [isOpen]);
 
   const goToPrevMonth = () => {
     if (month === 1) {
@@ -36,7 +57,7 @@ export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
   };
 
   return (
-    <div className="month-picker">
+    <div className="month-picker" ref={rootRef}>
       <button className="month-nav" onClick={goToPrevMonth} aria-label="Προηγούμενος μήνας" title="Προηγούμενος μήνας">
         ←
       </button>
@@ -51,6 +72,9 @@ export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
         <button
           className="month-display"
           onClick={() => setIsOpen(!isOpen)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setIsOpen(false);
+          }}
           aria-expanded={isOpen}
           aria-haspopup="true"
           aria-label={`Επιλογή μήνα: ${MONTHS[month - 1]} ${year}`}

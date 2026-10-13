@@ -209,31 +209,38 @@ export function WorklistFiltersBar({
         />
       </div>
 
-      <div className="status-filter" role="group" aria-label="Φίλτρο κατάστασης">
-        {(Object.keys(STATUS_FILTER_LABELS) as Array<WorklistFilters["status"]>).map(
-          (status) => (
-            <button
-              key={status}
-              className={`status-filter-option ${filters.status === status ? "active" : ""}`}
-              onClick={() => onStatusChange(status)}
-              aria-pressed={filters.status === status}
-            >
-              {STATUS_FILTER_LABELS[status]}
+      {/* The status buttons and the "N από M" readout sit on one line: they are
+          the same question - what is on screen, and how much of it is left -
+          and stacking them put the count on a line of its own where it read as
+          a caption. The count and its reset are pushed to the far right so the
+          status buttons keep the left edge they share with the pickers above. */}
+      <div className="worklist-filter-status-row">
+        <div className="status-filter" role="group" aria-label="Φίλτρο κατάστασης">
+          {(Object.keys(STATUS_FILTER_LABELS) as Array<WorklistFilters["status"]>).map(
+            (status) => (
+              <button
+                key={status}
+                className={`status-filter-option ${filters.status === status ? "active" : ""}`}
+                onClick={() => onStatusChange(status)}
+                aria-pressed={filters.status === status}
+              >
+                {STATUS_FILTER_LABELS[status]}
+              </button>
+            )
+          )}
+        </div>
+
+        {isFiltered && (
+          <div className="worklist-filter-status">
+            <span aria-live="polite">
+              {shownCount} από {totalCount} εργασίες
+            </span>
+            <button className="btn-small btn-secondary" onClick={onReset}>
+              Καθαρισμός Φίλτρων
             </button>
-          )
+          </div>
         )}
       </div>
-
-      {isFiltered && (
-        <div className="worklist-filter-status">
-          <span aria-live="polite">
-            {shownCount} από {totalCount} εργασίες
-          </span>
-          <button className="btn-small btn-secondary" onClick={onReset}>
-            Καθαρισμός
-          </button>
-        </div>
-      )}
     </div>
   );
 }

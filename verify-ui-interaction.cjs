@@ -49,6 +49,7 @@ export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
 export { ClientForm } from "./src/components/ClientForm";
 export { ProfessionCatalog } from "./src/components/ProfessionCatalog";
+export { MonthPicker } from "./src/components/MonthPicker";
 export { ClientTab } from "./src/components/ClientTab";
 export { MonthlySummary } from "./src/components/MonthlySummary";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
@@ -836,6 +837,83 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
   view.cleanup();
 }
 
+console.log('\n12i) the month popover closes on an outside click, but not on its own');
+{
+  // The alternative was the full-screen backdrop the filter pickers use. It
+  // would have worked for closing, and broken the arrows: they are part of this
+  // control, so the backdrop would sit on top of them.
+  let current = { year: 2026, month: 10 };
+  const changes = [];
+  const view = mount(
+    React.createElement(ui.MonthPicker, {
+      year: current.year, month: current.month,
+      onChange: (y, m) => { current = { year: y, month: m }; changes.push([y, m]); },
+    })
+  );
+
+  const outside = document.createElement('div');
+  outside.textContent = 'κάπου αλλού';
+  document.body.appendChild(outside);
+
+  const display = () => view.el.querySelector('.month-display');
+  // The toggle sets state, so it has to go through act like the others.
+  const togglePopover = async () => {
+    await act(async () => { display().click(); });
+    await act(async () => {});
+  };
+
+  await togglePopover();
+  check('the popover opens', Boolean(view.el.querySelector('.month-dropdown')));
+  checkEq('showing the twelve months',
+    view.el.querySelectorAll('.month-option').length, 12);
+  // The year strip: the caption naming the year on screen, and a step back and
+  // forward from it.
+  const yearNav = view.el.querySelector('.year-nav');
+  check('with a year strip at the bottom', Boolean(yearNav));
+  check('naming the selected year', (yearNav?.textContent || '').includes('2026'));
+  checkEq('and a step each way',
+    yearNav?.querySelectorAll('button').length, 2);
+  check('the steppers are labelled with the year they go to',
+    (yearNav?.querySelector('button')?.getAttribute('aria-label') || '') === 'Έτος 2025',
+    `- got: ${yearNav?.querySelector('button')?.getAttribute('aria-label')}`);
+
+  // Stepping a year keeps the popover open, so the months can be re-read
+  // against the new year rather than having to reopen.
+  await act(async () => {
+    yearNav.querySelector('button').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('stepping the year stays in the popover', Boolean(view.el.querySelector('.month-dropdown')));
+
+  // A click on the page behind it closes the popover...
+  await act(async () => {
+    outside.dispatchEvent(new window.MouseEvent('mousedown', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('an outside click closes it', !view.el.querySelector('.month-dropdown'));
+  checkEq('and did not change the month', changes.length, 1);
+
+  // ...but the arrows and "Τρέχων μήνας" are inside the control, so they keep
+  // working while the popover is open. This is the case a backdrop would break.
+  await togglePopover();
+  check('reopened', Boolean(view.el.querySelector('.month-dropdown')));
+  await act(async () => {
+    view.el.querySelector('.month-nav').dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('and the arrows still step the month', changes.length === 2,
+    `- got ${changes.length} changes`);
+  check('while the popover stays put', Boolean(view.el.querySelector('.month-dropdown')));
+
+  // The toggle still closes it, which is what it did before.
+  await togglePopover();
+  check('and the toggle still closes it', !view.el.querySelector('.month-dropdown'));
+
+  outside.remove();
+  view.cleanup();
+}
+
 console.log('\n12e) the client panel scrolls itself, not the page');
 {
   // The scroll used to be on the overlay, which meant a long assignment list
@@ -1019,7 +1097,7 @@ console.log('\n13) end-to-end: filter the rendered list the way a user does');
   checkEq('filtering by pending leaves one row', visible().length, 1);
   check('it is pending', visible().every((s) => s.status === 'pending'));
 
-  click(findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.trim() === 'Καθαρισμός'));
+  click(findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.trim() === 'Καθαρισμός Φίλτρων'));
   view.rerender(renderApp());
   checkEq('clearing restores every row', visible().length, 3);
   view.cleanup();

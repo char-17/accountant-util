@@ -469,10 +469,10 @@ body {
 }
 
 .month-nav {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   color: var(--accent-700);
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -486,12 +486,15 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* The month name is what the whole stepper is for, so it carries the weight:
+   larger than the arrows beside it, and bold. The arrows were widened to match,
+   otherwise the strip would step down in height around a bigger label. */
 .month-display {
-  padding: 7px 16px;
+  padding: 6px 18px;
   color: var(--accent-800);
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  min-width: 168px;
+  min-width: 184px;
   text-align: center;
 }
 
@@ -500,13 +503,13 @@ body {
    divider, otherwise all three flatten into one strip and the eye cannot tell
    where "now" is. */
 .month-current {
-  padding: 7px 16px;
+  padding: 6px 16px;
   margin-left: 4px;
   border: 1px solid var(--accent-200);
   border-radius: var(--r-md);
   background: var(--accent-50);
   cursor: pointer;
-  font-size: 0.98rem;
+  font-size: 1.02rem;
   font-weight: 700;
   font-family: inherit;
   color: var(--accent-700);
@@ -669,12 +672,15 @@ body {
    where the month grid above is white cells on the card. The old version was a
    border-top and two bordered white buttons on the same white, which is how it
    came to read as a thirteenth and fourteenth month. */
+/* Its own strip under the month grid, separated by a rule rather than by space:
+   the two do different jobs - the grid picks a month, this browses years - and
+   a gap alone left them reading as one list. */
 .year-nav {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  padding: 6px 8px;
+  padding: 7px 8px;
   background: var(--surface-muted);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -684,14 +690,14 @@ body {
    be mistaken for cells. --accent-700 on --surface-muted is 7.3:1. */
 .year-nav button {
   flex: none;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--accent-700);
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -717,8 +723,8 @@ body {
   flex: 1;
   min-width: 0;
   text-align: center;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-soft);
 }
@@ -1937,7 +1943,7 @@ body {
   min-width: 0;
   padding: 6px 10px;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--text-strong);
   border: none;
   background: transparent;
@@ -1956,7 +1962,7 @@ body {
   border-left: 1px solid var(--border);
   background: var(--surface-muted);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
   color: var(--accent-700);
   cursor: pointer;
   max-width: 55%;
@@ -1966,7 +1972,14 @@ body {
   background: var(--accent-50);
 }
 
+/* Naming the filter is the point of the control, so its text is a shade larger
+   than the surrounding filter chrome and carries weight - at the previous size
+   "Όλοι οι πελάτες" read as placeholder text rather than as a chosen value.
+   Clipped rather than wrapped: the head is a fixed-height strip, and a second
+   line would either overflow it or make it taller than the search box beside it. */
 .filter-select-current {
+  font-size: 0.92rem;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2073,11 +2086,22 @@ body {
   outline-offset: 2px;
 }
 
+.worklist-filter-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Count and reset travel together to the far right of the status row. The auto
+   margin, rather than a spacer or justify-content, because the row wraps on a
+   narrow panel and the count has to stay beside the buttons when it does. */
 .worklist-filter-status {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.78rem;
+  margin-left: auto;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 

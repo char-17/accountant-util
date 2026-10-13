@@ -135,7 +135,37 @@ check('the active filter is marked pressed', barFiltered.includes('aria-pressed=
 check('the selected client is named in the picker', barFiltered.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
 check('the selected profession is named in its picker', barFiltered.includes('Ελεύθερος Επαγγελματίας'));
 check('the count reads "1 από 3 εργασίες"', text(barFiltered).includes('1 από 3 εργασίες'), `- got: ${text(barFiltered)}`);
-check('a clear button appears', barFiltered.includes('Καθαρισμός'));
+check('a clear button appears', barFiltered.includes('Καθαρισμός Φίλτρων'));
+
+console.log('\n2b) the count and its reset share the status row, pushed right');
+{
+  // The layout is the fix: on one line with the status buttons, not on a line of
+  // its own underneath. Checked structurally, because nothing about the markup
+  // reads wrong until it is laid out.
+  checkEq('there is a status row',
+    (barFiltered.match(/worklist-filter-status-row/g) || []).length, 1);
+
+  const start = barFiltered.indexOf('worklist-filter-status-row');
+  const rowHtml = barFiltered.slice(start, start + 2000);
+  check('it holds the status buttons', rowHtml.includes('status-filter'));
+  check('and the count', rowHtml.includes('1 από 3 εργασίες'));
+  check('and the reset', rowHtml.includes('Καθαρισμός Φίλτρων'));
+
+  const css = require('fs').readFileSync(path.join(__dirname, 'src', 'App.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = (sel) => {
+    const esc = sel.replace(/\./g, '\\.');
+    const m = css.match(new RegExp(`(?:^|\\})\\s*${esc}\\s*\\{([^}]*)\\}`));
+    return m ? m[1] : '';
+  };
+  // margin-left:auto is what sends it to the far right; justify-content would
+  // have left a gap in the middle when the row does not fill the panel.
+  check('and is pushed to the far right',
+    /margin-left:\s*auto/.test(rule('.worklist-filter-status')),
+    `- got: ${rule('.worklist-filter-status').trim().replace(/\s+/g, ' ')}`);
+  check('the row itself is a flex line',
+    /display:\s*flex/.test(rule('.worklist-filter-status-row')));
+}
 
 console.log('\n3) the worklist shows the period and groups by client');
 const listHtml = render(React.createElement(ui.MonthlyWorklist, {
