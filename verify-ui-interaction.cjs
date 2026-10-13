@@ -48,6 +48,7 @@ export { FileMenu } from "./src/components/FileMenu";
 export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
 export { ClientForm } from "./src/components/ClientForm";
+export { ProfessionCatalog } from "./src/components/ProfessionCatalog";
 export { ClientTab } from "./src/components/ClientTab";
 export { MonthlySummary } from "./src/components/MonthlySummary";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
@@ -678,6 +679,159 @@ console.log('\n12f) the month summary reads as two rows of two, in order');
   check('and it is laid out as two columns',
     /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/.test(m?.[1] || ''),
     `- got: ${(m?.[1] || '').trim().replace(/\s+/g, ' ')}`);
+
+  view.cleanup();
+}
+
+console.log('\n12g) the profession picker on the client form classifies, and clears');
+{
+  // The distinction that matters: picking a profession sends its id, and
+  // choosing "no profession" sends null so the client's classification can be
+  // removed. Sending undefined instead would mean "leave it alone" and the
+  // field could never be emptied.
+  const PROFESSIONS = [
+    { id: 7, name: 'Ελεύθερος Επαγγελματίας', isActive: true },
+    { id: 8, name: 'Εταιρική Διαχείριση', isActive: true },
+  ];
+  const submitted = [];
+
+  const openForm = (initialData, props = {}) =>
+    mount(
+      React.createElement(ui.ClientForm, {
+        submitLabel: 'Αποθήκευση αλλαγών',
+        initialData,
+        onSubmit: async (d) => { submitted.push(d); },
+        ...props,
+      })
+    );
+
+  // Hidden when the caller passes nothing - the quick "new client" modal has no
+  // list to browse and should not offer an empty control.
+  let view = openForm({ name: 'ΧΩΡΙΣ ΛΙΣΤΑ' });
+  await act(async () => {});
+  check('no profession field without a list to pick from',
+    !view.el.querySelector('.filter-profession'));
+  view.cleanup();
+
+  // An empty list still explains itself rather than offering a dead control.
+  view = openForm({ name: 'ΧΩΡΙΣ ΕΠΑΓΓΕΛΜΑΤΑ' }, { professions: [] });
+  await act(async () => {});
+  check('an empty list says where professions come from',
+    (view.el.textContent || '').includes('Δεν έχουν καταχωρηθεί επαγγέλματα'),
+    `- got: ${(view.el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)}`);
+  view.cleanup();
+
+  // A client that already has one: the picker opens on that name.
+  view = openForm({ name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', professionId: 8 }, { professions: PROFESSIONS });
+  await act(async () => {});
+  const toggle = view.el.querySelector('.filter-profession .filter-select-toggle');
+  check('the picker shows the current profession', Boolean(toggle));
+  checkEq('by name, not by id',
+    toggle?.querySelector('.filter-select-current')?.textContent,
+    'Εταιρική Διαχείριση');
+
+  await act(async () => { toggle.click(); });
+  await act(async () => {});
+  const options = Array.from(view.el.querySelectorAll('.filter-select-list [role="option"]'));
+  check('opening it lists the registered professions',
+    options.some((o) => o.textContent === 'Ελεύθερος Επαγγελματίας') &&
+    options.some((o) => o.textContent === 'Εταιρική Διαχείριση'),
+    `- got: ${options.map((o) => o.textContent).join(' | ')}`);
+  check('and offers a way to have none',
+    options.some((o) => o.textContent === 'Χωρίς επάγγελμα'));
+
+  // Re-saving without touching the picker keeps the classification.
+  const saveBtn = view.el.querySelector('button[type="submit"]');
+  await act(async () => { saveBtn.click(); });
+  await act(async () => {});
+  checkEq('saving sends the profession that is set', submitted.at(-1)?.professionId, 8);
+
+  // Choosing "no profession" and saving removes it.
+  const none = options.find((o) => o.textContent === 'Χωρίς επάγγελμα');
+  await act(async () => { none.click(); });
+  await act(async () => {});
+  await act(async () => { saveBtn.click(); });
+  await act(async () => {});
+  check('clearing sends null, not undefined',
+    submitted.at(-1)?.professionId === null,
+    `- got: ${String(submitted.at(-1)?.professionId)}`);
+
+  view.cleanup();
+}
+
+console.log('\n12h) the profession catalogue edits, deactivates and deletes');
+{
+  const calls = [];
+  const PROFESSIONS = [
+    { id: 7, name: 'Ελεύθερος Επαγγελματίας', description: 'Φυσικά πρόσωπα', isActive: true },
+    { id: 8, name: 'Εταιρική Διαχείριση', description: null, isActive: false },
+  ];
+
+  const view = mount(
+    React.createElement(ui.ProfessionCatalog, {
+      professions: PROFESSIONS,
+      clientCounts: { 7: 3 },
+      onCreate: async (d) => { calls.push(['create', d]); },
+      onUpdate: async (id, d) => { calls.push(['update', id, d]); },
+      onDelete: async (id) => { calls.push(['delete', id]); },
+    })
+  );
+  await act(async () => {});
+
+  const rows = Array.from(view.el.querySelectorAll('.task-item'));
+  checkEq('both professions listed', rows.length, 2);
+  check('the description is shown', (view.el.textContent || '').includes('Φυσικά πρόσωπα'));
+  check('how many clients use it is shown', (view.el.textContent || '').includes('Σε 3 πελάτες'));
+  check('a retired one is marked', rows[1]?.className.includes('inactive'));
+  check('and offers reactivation, not deactivation',
+    (rows[1]?.textContent || '').includes('Ενεργοποίηση'));
+  check('while an active one offers deactivation',
+    (rows[0]?.textContent || '').includes('Απενεργοποίηση'));
+
+  // Deleting something in use has to say what it will detach first. Scoped to
+  // the row: after a row opens for editing its buttons are replaced by the edit
+  // form, so a document-wide lookup would land on whichever row still has a
+  // delete button.
+  const deleteIn = async (row) => {
+    const btn = Array.from(row.querySelectorAll('.btn-danger'))
+      .find((b) => b.textContent === 'Διαγραφή');
+    await act(async () => { btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+    await act(async () => {});
+  };
+
+  await deleteIn(rows[0]);
+  let dialog = view.el.querySelector('.modal');
+  check('deleting asks first', Boolean(dialog));
+  check('and names what would be detached',
+    (dialog?.textContent || '').includes('3') &&
+    (dialog?.textContent || '').includes('πελάτες'),
+    `- got: ${(dialog?.textContent || '').replace(/\s+/g, ' ').trim()}`);
+  check('nothing deleted until confirmed', calls.length === 0);
+
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.modal .btn-secondary'))
+      .at(-1).dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('cancelling closes it without deleting',
+    !view.el.querySelector('.modal') && calls.length === 0);
+
+  // Editing loads the row's current values rather than blank ones.
+  await act(async () => {
+    rows[0].querySelector('.btn-small').dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('editing opens with the name in place',
+    view.el.querySelector('.task-edit-form input')?.value === 'Ελεύθερος Επαγγελματίας');
+
+  // An unused profession gets the shorter confirmation - there is nothing to
+  // detach, and saying "0 πελάτες" would read as if one were about to be lost.
+  await deleteIn(rows[1]);
+  dialog = view.el.querySelector('.modal');
+  check('an unused one says so instead',
+    (dialog?.textContent || '').includes('Δεν χρησιμοποιείται'),
+    `- got: ${(dialog?.textContent || '').replace(/\s+/g, ' ').trim()}`);
 
   view.cleanup();
 }

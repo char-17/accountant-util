@@ -206,6 +206,76 @@ check('sanitised path is accepted by VACUUM INTO', vacuumOk);
 const roundTrip = await repo.countBackup(db, cleaned);
 checkEq('the sanitised backup is readable', roundTrip.clients, raw.prepare('SELECT COUNT(*) c FROM clients').get().c);
 
+// ── 11) professions across a backup ───────────────────────────────────────────
+// The live database here predates professions on purpose - every check above
+// exercises the "snapshot and main agree" path, which says nothing about what
+// happens when only one side has the table. That is the interesting case: a user
+// restoring a file made before the feature existed.
+console.log('\n11) a snapshot from before professions is restored, not rejected');
+
+const MODERN_SCHEMA = `
+  CREATE TABLE professions (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,
+    description TEXT, is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+`;
+
+const livePath = path.join(tmp, 'live-modern.db');
+const modernBackup = path.join(tmp, 'modern-backup.db');
+const lraw = new Database(livePath);
+lraw.pragma('journal_mode = WAL');
+lraw.exec(SCHEMA + MODERN_SCHEMA);
+// The migration adds this to an existing table; on a fresh one it is declared
+// outright. Either way the column has to be there for the restore to clear it.
+lraw.exec('ALTER TABLE clients ADD COLUMN profession_id INTEGER REFERENCES professions(id)');
+lraw.prepare('INSERT INTO professions (name) VALUES (?)').run('Ελεύθερος Επαγγελματίας');
+lraw.prepare('INSERT INTO clients (name, profession_id) VALUES (?, ?)').run('ΜΕ ΕΠΑΓΓΕΛΜΑ', 1);
+lraw.prepare('INSERT INTO clients (name) VALUES (?)').run('ΧΩΡΙΣ ΕΠΑΓΓΕΛΜΑ');
+lraw.prepare('VACUUM INTO ?').run(modernBackup);
+
+const ldb = adapter(lraw);
+const modernCounts = await repo.countBackup(ldb, modernBackup);
+checkEq('the modern snapshot counts its professions', modernCounts.professions, 1);
+check(
+  'and says so in the confirmation text',
+  repo.describeCounts(modernCounts).includes('επαγγέλματα'),
+  `- got: ${repo.describeCounts(modernCounts)}`
+);
+
+// A modern snapshot restores its professions, and they come back with the
+// clients that point at them.
+await repo.restoreFromBackup(ldb, modernBackup);
+checkEq('professions restored', lraw.prepare('SELECT COUNT(*) c FROM professions').get().c, 1);
+checkEq('the client keeps its profession',
+  lraw.prepare('SELECT profession_id FROM clients WHERE name = ?').get('ΜΕ ΕΠΑΓΓΕΛΜΑ').profession_id, 1);
+
+// Now the older file. It has no professions table at all.
+const legacyCounts = await repo.countBackup(ldb, empty);
+checkEq('an older snapshot counts zero professions', legacyCounts.professions, 0);
+check(
+  'and is not announced as having lost them',
+  !repo.describeCounts(legacyCounts).includes('επαγγέλματα'),
+  `- got: ${repo.describeCounts(legacyCounts)}`
+);
+
+let restoredOk = true;
+try {
+  await repo.restoreFromBackup(ldb, empty);
+} catch (err) {
+  restoredOk = false;
+  console.log(`       threw: ${err.message}`);
+}
+check('restoring an older snapshot does not fail on the missing table', restoredOk);
+checkEq('the profession list is emptied, not left behind',
+  lraw.prepare('SELECT COUNT(*) c FROM professions').get().c, 0);
+// The clients that came back are unclassified, because there is nothing to
+// classify them into. A stale id here would put them outside every profession
+// filter while the worklist still joined on it.
+checkEq('and no client is left pointing at a row that is gone',
+  lraw.prepare('SELECT COUNT(*) c FROM clients WHERE profession_id IS NOT NULL').get().c, 0);
+
+lraw.close();
+
 raw.close();
 for (const f of fs.readdirSync(tmp)) fs.unlinkSync(path.join(tmp, f));
 fs.rmdirSync(tmp);

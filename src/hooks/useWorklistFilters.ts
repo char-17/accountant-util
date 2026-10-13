@@ -19,13 +19,15 @@ interface UseWorklistFiltersResult {
   isFiltered: boolean;
   setClientId: (value: number | null) => void;
   setTaskTypeId: (value: number | null) => void;
+  setProfessionId: (value: number | null) => void;
   setStatus: (value: WorklistFilters["status"]) => void;
   reset: () => void;
 }
 
 /**
- * Per-client, per-task and status filters for the monthly worklist. Filtering is
- * pure and derived, so changing a filter never re-queries the database.
+ * Per-client, per-task, per-profession and status filters for the monthly
+ * worklist. Filtering is pure and derived, so changing a filter never
+ * re-queries the database.
  */
 export function useWorklistFilters(
   statuses: MonthlyStatusWithDetails[],
@@ -38,6 +40,7 @@ export function useWorklistFilters(
 ): UseWorklistFiltersResult {
   const [search, setSearch] = useState<Omit<WorklistFilters, "clientId">>({
     taskTypeId: DEFAULT_FILTERS.taskTypeId,
+    professionId: DEFAULT_FILTERS.professionId,
     status: DEFAULT_FILTERS.status,
   });
 
@@ -72,6 +75,10 @@ export function useWorklistFilters(
     setSearch((prev) => ({ ...prev, taskTypeId }));
   }, []);
 
+  const setProfessionId = useCallback((professionId: number | null) => {
+    setSearch((prev) => ({ ...prev, professionId }));
+  }, []);
+
   const setStatus = useCallback((status: WorklistFilters["status"]) => {
     setSearch((prev) => ({ ...prev, status }));
   }, []);
@@ -91,6 +98,7 @@ export function useWorklistFilters(
     isFiltered: hasActiveFilters(filters),
     setClientId,
     setTaskTypeId,
+    setProfessionId,
     setStatus,
     reset,
   };

@@ -17,6 +17,16 @@ export function validateClient(client: Partial<Client>): ValidationError[] {
   return errors;
 }
 
+export function validateProfession(profession: { name?: string }): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  if (!profession.name?.trim()) {
+    errors.push({ field: "name", message: "Το όνομα επαγγέλματος είναι υποχρεωτικό" });
+  }
+
+  return errors;
+}
+
 export function validateTaskType(task: Partial<TaskType>): ValidationError[] {
   const errors: ValidationError[] = [];
 

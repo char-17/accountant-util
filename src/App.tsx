@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import type { TaskType } from "./domain/types";
+import type { TaskType, Profession } from "./domain/types";
 import { useDatabase } from "./hooks/useDatabase";
 import { useClients } from "./hooks/useClients";
 import { useTasks } from "./hooks/useTasks";
+import { useProfessions } from "./hooks/useProfessions";
 import { useMonthlyStatus } from "./hooks/useMonthlyStatus";
 import { useAssignments } from "./hooks/useAssignments";
 import { useCompletedKeys } from "./hooks/useCompletedKeys";
@@ -12,6 +13,7 @@ import { ClientList } from "./components/ClientList";
 import { MonthlySummary } from "./components/MonthlySummary";
 import { ClientTab } from "./components/ClientTab";
 import { TaskCatalog } from "./components/TaskCatalog";
+import { ProfessionCatalog } from "./components/ProfessionCatalog";
 import { FileMenu } from "./components/FileMenu";
 import { Reminders } from "./components/Reminders";
 import { MonthlyWorklist } from "./components/MonthlyWorklist";
@@ -25,7 +27,7 @@ import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
 import { currentDeadline, reminderState, describeDeadline } from "./domain/recurrence";
 import "./App.css";
 
-type View = "dashboard" | "tasks" | "reports";
+type View = "dashboard" | "tasks" | "professions" | "reports";
 
 function App() {
   const {
@@ -63,6 +65,14 @@ function App() {
   } = useClients(db);
   const { tasks, createTask, updateTask, deleteTask, suggestColor, refresh: refreshTasks } = useTasks(db);
   const {
+    professions,
+    clientCounts: professionClientCounts,
+    createProfession,
+    updateProfession,
+    deleteProfession,
+    refresh: refreshProfessions,
+  } = useProfessions(db);
+  const {
     statuses,
     markCompleted,
     markPending,
@@ -91,6 +101,12 @@ function App() {
   const taskOptions = useMemo(
     () => tasks.map((t) => ({ id: t.id, name: t.name })),
     [tasks]
+  );
+  // Only the professions that are in use are worth filtering by: a retired
+  // profession classifies nobody, so it would only ever match an empty list.
+  const professionOptions = useMemo(
+    () => professions.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name })),
+    [professions]
   );
 
   // A reminder points at a client in the month's worklist: select them and pulse
@@ -237,6 +253,7 @@ function App() {
   const handleRefresh = () => {
     refreshClients();
     refreshTasks();
+    refreshProfessions();
     refreshStatus();
     refreshAssignments();
     refreshCompletedKeys();
@@ -371,6 +388,45 @@ function App() {
     );
   };
 
+  const handleProfessionCreated = async (data: { name: string; description?: string | null }) => {
+    await toasts.run(
+      async () => {
+        await createProfession(data);
+      },
+      { success: "Το επάγγελμα προστέθηκε.", failure: "Αποτυχία προσθήκης επαγγέλματος" }
+    );
+  };
+
+  // A rename reaches the worklist: the row carries the profession's name, read
+  // through the join, so the month's rows have to be re-read or they would keep
+  // showing the old one until the month was navigated away from and back.
+  const handleProfessionUpdated = async (
+    id: number,
+    data: Partial<Profession>
+  ) => {
+    await toasts.run(
+      async () => {
+        await updateProfession(id, data);
+        refreshStatus();
+      },
+      { success: "Το επάγγελμα ενημερώθηκε.", failure: "Αποτυχία ενημέρωσης επαγγέλματος" }
+    );
+  };
+
+  // Deleting detaches the profession from its clients, so the client list is
+  // stale too - and a client that lost its profession drops out of the
+  // profession filter, which is a visible change to the worklist.
+  const handleProfessionDeleted = async (id: number) => {
+    await toasts.run(
+      async () => {
+        await deleteProfession(id);
+        refreshClients();
+        refreshStatus();
+      },
+      { success: "Το επάγγελμα διαγράφηκε.", failure: "Αποτυχία διαγραφής επαγγέλματος" }
+    );
+  };
+
   if (dbLoading) {
     return <div className="app-loading">Φόρτωση βάσης δεδομένων...</div>;
   }
@@ -421,6 +477,12 @@ function App() {
               onClick={() => setActiveView("tasks")}
             >
               Εργασίες
+            </button>
+            <button
+              className={activeView === "professions" ? "active" : ""}
+              onClick={() => setActiveView("professions")}
+            >
+              Επαγγέλματα
             </button>
             <button
               className={activeView === "reports" ? "active" : ""}
@@ -487,8 +549,10 @@ function App() {
                   onFilterStatusChange={filters.setStatus}
                   onFilterClientSelect={filters.setClientId}
                   onFilterTaskSelect={filters.setTaskTypeId}
+                  onFilterProfessionSelect={filters.setProfessionId}
                   clientOptions={clientOptions}
                   taskOptions={taskOptions}
+                  professionOptions={professionOptions}
                   onFilterReset={filters.reset}
                   year={year}
                   month={month}
@@ -537,6 +601,16 @@ function App() {
           />
         )}
 
+        {activeView === "professions" && (
+          <ProfessionCatalog
+            professions={professions}
+            clientCounts={professionClientCounts}
+            onCreate={handleProfessionCreated}
+            onUpdate={handleProfessionUpdated}
+            onDelete={handleProfessionDeleted}
+          />
+        )}
+
         {activeView === "reports" && (
           <ReportsView
             groups={reports.groups}
@@ -568,6 +642,7 @@ function App() {
               db={db}
               client={selectedClient}
               tasks={tasks}
+              professions={professions}
               onClose={handleCloseClientTab}
               onUpdate={handleClientUpdated}
               onDelete={handleClientDeleted}

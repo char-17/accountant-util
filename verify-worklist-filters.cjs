@@ -29,13 +29,16 @@ const worklist = require(bundle);
 // Three clients, five rows, mixed statuses and Greek uppercase names so the
 // case-insensitive matching is genuinely exercised.
 const rows = [
-  { id: 1, clientId: 10, taskTypeId: 1, year: 2026, month: 10, status: 'completed', clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', taskName: 'ΦΠΑ', taskColor: '#7B8D6E' },
-  { id: 2, clientId: 10, taskTypeId: 2, year: 2026, month: 10, status: 'pending',   clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', taskName: 'ΕΝΦΚΑ', taskColor: '#8B9DAD' },
-  { id: 3, clientId: 11, taskTypeId: 1, year: 2026, month: 10, status: 'pending',   clientName: 'BEBJA BLERIM',   taskName: 'ΦΠΑ', taskColor: '#7B8D6E' },
-  { id: 4, clientId: 11, taskTypeId: 3, year: 2026, month: 10, status: 'completed', clientName: 'BEBJA BLERIM',   taskName: 'ΒΕΡ', taskColor: '#C4A882' },
-  { id: 5, clientId: 12, taskTypeId: 2, year: 2026, month: 10, status: 'pending',   clientName: 'APARTMENT NAVARINO', taskName: 'ΕΝΦΚΑ', taskColor: '#8B9DAD' },
+  { id: 1, clientId: 10, taskTypeId: 1, year: 2026, month: 10, status: 'completed', clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', professionId: 7, taskName: 'ΦΠΑ', taskColor: '#7B8D6E' },
+  { id: 2, clientId: 10, taskTypeId: 2, year: 2026, month: 10, status: 'pending',   clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', professionId: 7, taskName: 'ΕΝΦΚΑ', taskColor: '#8B9DAD' },
+  { id: 3, clientId: 11, taskTypeId: 1, year: 2026, month: 10, status: 'pending',   clientName: 'BEBJA BLERIM',   professionId: 8, taskName: 'ΦΠΑ', taskColor: '#7B8D6E' },
+  { id: 4, clientId: 11, taskTypeId: 3, year: 2026, month: 10, status: 'completed', clientName: 'BEBJA BLERIM',   professionId: 8, taskName: 'ΒΕΡ', taskColor: '#C4A882' },
+  // Client 12 has no profession recorded. It stands for every unclassified
+  // client, which is most of a fresh database - see the LEFT JOIN in
+  // statusRepo's STATUS_QUERY.
+  { id: 5, clientId: 12, taskTypeId: 2, year: 2026, month: 10, status: 'pending',   clientName: 'APARTMENT NAVARINO', professionId: null, taskName: 'ΕΝΦΚΑ', taskColor: '#8B9DAD' },
 ];
-const base = { clientId: null, taskTypeId: null, status: 'all' };
+const base = { clientId: null, taskTypeId: null, professionId: null, status: 'all' };
 const F = (o) => ({ ...base, ...o });
 
 console.log('1) unfiltered list passes everything through');
@@ -78,10 +81,39 @@ checkEq(
   0
 );
 
+console.log('\n5b) profession filter');
+// The profession is reached through the client, so this cannot be a filter on
+// the row's own fields - it is the client's classification carried down.
+checkEq('profession 7 only', worklist.applyFilters(rows, F({ professionId: 7 })).length, 2);
+checkEq('profession 8 only', worklist.applyFilters(rows, F({ professionId: 8 })).length, 2);
+checkEq('null professionId means every profession', worklist.applyFilters(rows, F({ professionId: null })).length, 5);
+checkEq('unknown profession id yields empty', worklist.applyFilters(rows, F({ professionId: 999 })).length, 0);
+// An unclassified client must not be swept up by a profession filter. Loose
+// equality would otherwise let a null id match whichever id was picked.
+check(
+  'unclassified rows are excluded',
+  worklist.applyFilters(rows, F({ professionId: 7 })).every((r) => r.professionId === 7)
+);
+check(
+  'and are kept when no profession filter is on',
+  worklist.applyFilters(rows, F({})).some((r) => r.professionId === null)
+);
+checkEq(
+  'profession combines with client',
+  worklist.applyFilters(rows, F({ professionId: 8, clientId: 10 })).length,
+  0
+);
+checkEq(
+  'profession combines with task',
+  worklist.applyFilters(rows, F({ professionId: 8, taskTypeId: 3 })).length,
+  1
+);
+
 console.log('\n6) hasActiveFilters reflects the real state');
 check('status != all', worklist.hasActiveFilters(F({ status: 'pending' })) === true);
 check('client selected', worklist.hasActiveFilters(F({ clientId: 11 })) === true);
 check('task selected', worklist.hasActiveFilters(F({ taskTypeId: 2 })) === true);
+check('profession selected', worklist.hasActiveFilters(F({ professionId: 7 })) === true);
 check('no selection is not a filter', worklist.hasActiveFilters(base) === false);
 
 console.log('\n7) summarize counts the rows it is given');

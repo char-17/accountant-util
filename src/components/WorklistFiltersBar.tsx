@@ -14,8 +14,11 @@ interface WorklistFiltersBarProps {
   clientOptions: Array<{ id: number; name: string }>;
   /** Tasks offered by the per-task picker. */
   taskOptions: Array<{ id: number; name: string }>;
+  /** Professions offered by the per-profession picker. */
+  professionOptions?: Array<{ id: number; name: string }>;
   onClientSelect: (id: number | null) => void;
   onTaskSelect: (id: number | null) => void;
+  onProfessionSelect: (id: number | null) => void;
 }
 
 /**
@@ -28,12 +31,24 @@ interface WorklistFiltersBarProps {
  */
 interface ClientFilterSelectProps {
   value: number | null;
-  options: Array<{ id: number; name: string }>;
+  /**
+   * Defaults to empty rather than being required at every call site: a picker
+   * with nothing to offer still has to render - it shows its "all" row and says
+   * the list is empty, which is the truth - and should not throw because the
+   * caller had nothing to hand it.
+   */
+  options?: Array<{ id: number; name: string }>;
   onChange: (id: number | null) => void;
   allLabel: string;
   searchLabel: string;
   listLabel: string;
   className: string;
+  /**
+   * Shown when a search matches nothing. It names what was searched for, and
+   * this component is no longer only about clients - the same picker picks a
+   * profession on the client form, where "Κανένας πελάτης" would be a lie.
+   */
+  emptyText?: string;
 }
 
 function normalize(value: string): string {
@@ -42,12 +57,13 @@ function normalize(value: string): string {
 
 export function ClientFilterSelect({
   value,
-  options,
+  options = [],
   onChange,
   allLabel,
   searchLabel,
   listLabel,
   className,
+  emptyText = "Κανένας πελάτης με αυτό το όνομα",
 }: ClientFilterSelectProps) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -132,7 +148,7 @@ export function ClientFilterSelect({
               </li>
             ))}
             {visible.length === 0 && term !== "" && (
-              <li className="filter-select-empty">Κανένας πελάτης με αυτό το όνομα</li>
+              <li className="filter-select-empty">{emptyText}</li>
             )}
           </ul>
         </>
@@ -142,8 +158,9 @@ export function ClientFilterSelect({
 }
 
 /**
- * Per-client and per-task pickers plus the status buttons. Colour is never the
- * only cue: the selected option is also underlined and labelled as active.
+ * Per-client, per-task, per-profession pickers plus the status buttons. Colour is
+ * never the only cue: the selected option is also underlined and labelled as
+ * active.
  */
 export function WorklistFiltersBar({
   filters,
@@ -154,8 +171,10 @@ export function WorklistFiltersBar({
   totalCount,
   clientOptions,
   taskOptions,
+  professionOptions = [],
   onClientSelect,
   onTaskSelect,
+  onProfessionSelect,
 }: WorklistFiltersBarProps) {
   return (
     <div className="worklist-filters">
@@ -177,6 +196,16 @@ export function WorklistFiltersBar({
           searchLabel="Αναζήτηση εργασίας..."
           listLabel="Φίλτρο εργασίας"
           className="filter-task"
+        />
+        <ClientFilterSelect
+          value={filters.professionId}
+          options={professionOptions}
+          onChange={onProfessionSelect}
+          allLabel="Όλα τα επαγγέλματα"
+          searchLabel="Αναζήτηση επαγγέλματος..."
+          listLabel="Φίλτρο επαγγέλματος"
+          className="filter-profession"
+          emptyText="Κανένα επάγγελμα με αυτό το όνομα"
         />
       </div>
 

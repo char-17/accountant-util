@@ -79,6 +79,29 @@ const MIGRATIONS = [
   `ALTER TABLE monthly_task_status ADD COLUMN paid_at TEXT`,
   `ALTER TABLE monthly_task_status ADD COLUMN is_invoiced INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE monthly_task_status ADD COLUMN invoiced_at TEXT`,
+
+  // --- Professions -----------------------------------------------------------
+  // A profession describes the line of work a client is in. It is a list in its
+  // own right, like task_types, so it can be spelled once and picked from
+  // anywhere. No colour column: nothing is rendered in a profession's colour, and
+  // an unused NOT NULL column would only be a second thing to get wrong.
+  `CREATE TABLE IF NOT EXISTS professions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // Nullable: a client may not be classified yet, and the column has to be
+  // addable to a table that already holds rows. LEFT JOIN everywhere for the
+  // same reason - an inner join would drop every unclassified client out of the
+  // worklist and out of the month totals.
+  // No ON DELETE SET NULL: SQLite only honours it with foreign_keys pragma on,
+  // and the default here leaves a dangling id. The repository clears the
+  // references before deleting, which is honest about it happening.
+  `ALTER TABLE clients ADD COLUMN profession_id INTEGER REFERENCES professions(id)`,
 ];
 
 /**

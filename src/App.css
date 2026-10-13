@@ -1183,6 +1183,22 @@ body {
   color: var(--text);
 }
 
+/* The profession picker is a composite control - a search box and a toggle in
+   one bordered head - so it cannot be labelled by a <label for>, which needs a
+   single form control to point at. This is the same text, spelled as a span. */
+.form-label-like {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Says where a list comes from, for when the list is empty and the control
+   above it offers nothing to pick. */
+.form-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .form-group input,
 .form-group textarea,
 .form-group select {
@@ -1893,6 +1909,13 @@ body {
   position: relative;
   flex: 1 1 150px;
   min-width: 0;
+}
+
+/* Inside a form group the picker is a column of one, not a row of three. The
+   shared flex-basis above is a width there, and in a column container the same
+   declaration would be read as a 150px height. */
+.form-group .filter-select {
+  flex: 0 0 auto;
 }
 
 .filter-select-head {

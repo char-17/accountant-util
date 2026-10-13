@@ -21,11 +21,16 @@ const STATUS_QUERY = `
     m.created_at  AS createdAt,
     m.updated_at  AS updatedAt,
     c.name        AS clientName,
+    c.profession_id AS professionId,
+    p.name        AS professionName,
     t.name        AS taskName,
     t.color       AS taskColor
   FROM monthly_task_status m
   JOIN clients c    ON m.client_id = c.id
   JOIN task_types t ON m.task_type_id = t.id
+  -- LEFT, not JOIN: most clients are unclassified to begin with, and an inner
+  -- join would silently drop their rows out of the worklist and the totals.
+  LEFT JOIN professions p ON c.profession_id = p.id
 `;
 
 export async function getMonthlyStatus(

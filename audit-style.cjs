@@ -133,9 +133,13 @@ for (const f of components) {
   const masked = src.replace(/=>/g, '=§');
   for (const m of masked.matchAll(/<(input|select|textarea)\b([^>]*?)\/?>/g)) {
     const [, tag, attrs] = m;
+    // id={...} counts as well as id="...": the check is about whether the
+    // control carries an identifier a <label htmlFor> can point at, and a
+    // template literal produces the same id. Without this the audit flagged
+    // edit rows whose ids are built from the row key.
     const named =
       /aria-label/.test(attrs) ||
-      /\bid="/.test(attrs) ||
+      /\bid=\s*["{]/.test(attrs) ||
       /type="(checkbox|radio|hidden|file)"/.test(attrs);
     if (!named) {
       const line = src.slice(0, m.index).split('\n').length;

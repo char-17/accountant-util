@@ -11,11 +11,15 @@
 import type Database from "@tauri-apps/plugin-sql";
 
 /**
- * Tables are restored in this order so foreign keys always point at a row that
- * already exists. `sqlite_sequence` is copied too, otherwise AUTOINCREMENT
- * restarts and new rows would collide with restored ids.
+ * Tables in dependency order: each one only points at tables listed before it.
+ * Restored forwards and cleared backwards - see restoreFromBackup.
+ *
+ * `professions` leads because clients.profession_id points at it.
+ * `sqlite_sequence` is copied too, otherwise AUTOINCREMENT restarts and new
+ * rows would collide with restored ids.
  */
 const RESTORE_ORDER = [
+  { table: "professions" },
   { table: "clients" },
   { table: "task_types" },
   { table: "client_task_assignments" },
@@ -27,10 +31,60 @@ const SEQUENCE_TABLE = "sqlite_sequence";
 
 export interface TableCounts {
   clients: number;
+  professions: number;
   task_types: number;
   client_task_assignments: number;
   monthly_task_status: number;
   task_reminders: number;
+}
+
+/** Whether `schema` (main, or an attached name) holds `table`. */
+async function hasTable(db: Database, schema: string, table: string): Promise<boolean> {
+  const rows = await db.select<Array<{ name: string }>>(
+    `SELECT name FROM ${schema}.sqlite_master WHERE type = 'table' AND name = ?`,
+    [table]
+  );
+  return rows.length > 0;
+}
+
+/** Whether `table` in `schema` has `column`. PRAGMA takes no bind parameters. */
+async function hasColumn(
+  db: Database,
+  schema: string,
+  table: string,
+  column: string
+): Promise<boolean> {
+  const rows = await db.select<Array<{ name: string }>>(
+    `PRAGMA ${schema}.table_info(${table})`
+  );
+  return rows.some((r) => r.name === column);
+}
+
+/**
+ * The columns both sides have, in the live table's order.
+ *
+ * A snapshot taken before a column was added has fewer of them, and
+ * `INSERT ... SELECT *` fails on the mismatch: the live table has 7 columns and
+ * the snapshot supplies 6. Naming the columns fixes that and makes the column
+ * the snapshot lacks fall back to the live table's default - which for
+ * clients.profession_id is NULL, i.e. unclassified.
+ *
+ * The names come from PRAGMA output and are quoted, since identifiers cannot be
+ * bound and the values are interpolated.
+ */
+async function sharedColumns(
+  db: Database,
+  schema: string,
+  table: string
+): Promise<string[]> {
+  const live = await db.select<Array<{ name: string }>>(
+    `PRAGMA main.table_info(${table})`
+  );
+  const snapshot = await db.select<Array<{ name: string }>>(
+    `PRAGMA ${schema}.table_info(${table})`
+  );
+  const inSnapshot = new Set(snapshot.map((r) => r.name));
+  return live.map((r) => r.name).filter((name) => inSnapshot.has(name));
 }
 
 /**
@@ -97,7 +151,7 @@ export async function inspectBackup(
 export async function countBackup(db: Database, path: string): Promise<TableCounts> {
   await db.execute(`ATTACH DATABASE '${escapeSqlLiteral(path)}' AS backup_candidate`);
   try {
-    const rows = await db.select<TableCounts[]>(
+    const rows = await db.select<Omit<TableCounts, "professions">[]>(
       `SELECT
          (SELECT COUNT(*) FROM backup_candidate.clients)                    AS clients,
          (SELECT COUNT(*) FROM backup_candidate.task_types)                 AS task_types,
@@ -105,7 +159,16 @@ export async function countBackup(db: Database, path: string): Promise<TableCoun
          (SELECT COUNT(*) FROM backup_candidate.monthly_task_status)        AS monthly_task_status,
          (SELECT COUNT(*) FROM backup_candidate.task_reminders)             AS task_reminders`
     );
-    return rows[0];
+    // Counted separately: a snapshot taken before professions existed has no
+    // such table, and asking for its count in the query above would make the
+    // whole count throw - which would turn every older backup into "not an
+    // Accountant Util database".
+    const professions = (await hasTable(db, "backup_candidate", "professions"))
+      ? await db.select<Array<{ c: number }>>(
+          "SELECT COUNT(*) as c FROM backup_candidate.professions"
+        ).then((r) => r[0]?.c ?? 0)
+      : 0;
+    return { ...rows[0], professions };
   } finally {
     // Always detached, even on failure, or the file stays locked.
     await db.execute("DETACH DATABASE backup_candidate");
@@ -123,9 +186,57 @@ export async function restoreFromBackup(db: Database, path: string): Promise<Tab
 
   await db.execute(`ATTACH DATABASE '${escapeSqlLiteral(safe)}' AS backup_source`);
   try {
+    // A table is restored only when both ends hold it. The live database always
+    // has the migrations, but a snapshot may predate one - professions are the
+    // first such table - and then the user asked to go back to a state without
+    // it, so the rows here are emptied rather than read from a table that is not
+    // there.
+    // Deleting and inserting want opposite orders, and the difference is not
+    // cosmetic. Insertion needs a referenced row in place before the row that
+    // points at it. Deletion needs the reverse: emptying professions while
+    // clients still carry their id trips the foreign key - there is no
+    // ON DELETE clause on that column, unlike the assignments' cascade onto
+    // clients. Hence clearOrder below, which is RESTORE_ORDER backwards.
+    const restorable: string[] = [];
+    const emptied: string[] = [];
     for (const { table } of RESTORE_ORDER) {
+      const inMain = await hasTable(db, "main", table);
+      const inSnapshot = await hasTable(db, "backup_source", table);
+      if (inMain && inSnapshot) restorable.push(table);
+      else if (inMain) emptied.push(table);
+    }
+
+    // Derived from RESTORE_ORDER rather than from the two buckets above:
+    // reversing a concatenation would move whichever table happened to be
+    // optional to the front of the delete, which is the opposite of what the
+    // reversing is for.
+    const clearOrder = RESTORE_ORDER.map(({ table }) => table)
+      .filter((table) => restorable.includes(table) || emptied.includes(table))
+      .reverse();
+
+    for (const table of clearOrder) {
       await db.execute(`DELETE FROM main.${table}`);
-      await db.execute(`INSERT INTO main.${table} SELECT * FROM backup_source.${table}`);
+    }
+    for (const table of restorable) {
+      const columns = await sharedColumns(db, "backup_source", table);
+      // Nothing in common would mean the snapshot has a table of the same name
+      // and no matching columns. Skipping leaves the live table empty, which is
+      // the honest reading: there is nothing to restore from.
+      if (columns.length === 0) continue;
+      const list = columns.map((c) => `"${c}"`).join(", ");
+      await db.execute(
+        `INSERT INTO main.${table} (${list}) SELECT ${list} FROM backup_source.${table}`
+      );
+    }
+
+    // With no professions restored, the restored clients' profession_id values
+    // would point at rows that no longer exist. Cleared rather than left to the
+    // filter to match nothing: the worklist joins on it with LEFT, so a stale id
+    // would quietly put those clients outside every profession filter.
+    if (emptied.includes("professions")) {
+      if (await hasColumn(db, "main", "clients", "profession_id")) {
+        await db.execute("UPDATE main.clients SET profession_id = NULL");
+      }
     }
 
     // Only reset the counters if the snapshot actually carries them.
@@ -154,10 +265,13 @@ function escapeSqlLiteral(value: string): string {
 
 /** Human-readable one-liner for the confirmation prompt. */
 export function describeCounts(counts: TableCounts): string {
-  return (
+  const base =
     `${counts.clients} πελάτες, ` +
     `${counts.task_types} εργασίες, ` +
     `${counts.client_task_assignments} αναθέσεις, ` +
-    `${counts.monthly_task_status} μηνιαίες καταστάσεις`
-  );
+    `${counts.monthly_task_status} μηνιαίες καταστάσεις`;
+  // Left out when zero: a snapshot from before professions existed counts none,
+  // and announcing "0 επαγγέλματα" would imply the list was emptied rather than
+  // that the feature postdates the file.
+  return counts.professions > 0 ? `${base}, ${counts.professions} επαγγέλματα` : base;
 }

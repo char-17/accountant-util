@@ -22,12 +22,15 @@ export interface WorklistFilters {
   clientId: number | null;
   /** Restrict to one task; null means every task. */
   taskTypeId: number | null;
+  /** Restrict to one profession; null means every profession. */
+  professionId: number | null;
   status: StatusFilter;
 }
 
 export const DEFAULT_FILTERS: WorklistFilters = {
   clientId: null,
   taskTypeId: null,
+  professionId: null,
   status: "all",
 };
 
@@ -49,6 +52,11 @@ export function matchesFilters(
 ): boolean {
   if (filters.clientId !== null && item.clientId !== filters.clientId) return false;
   if (filters.taskTypeId !== null && item.taskTypeId !== filters.taskTypeId) return false;
+  // A row whose client has no profession cannot match a profession filter, and
+  // the loose equality keeps a null profession id from matching one by accident.
+  if (filters.professionId !== null && item.professionId !== filters.professionId) {
+    return false;
+  }
   if (!matchesStatus(item.status, filters.status)) return false;
   return true;
 }
@@ -65,6 +73,7 @@ export function hasActiveFilters(filters: WorklistFilters): boolean {
   return (
     filters.clientId !== null ||
     filters.taskTypeId !== null ||
+    filters.professionId !== null ||
     filters.status !== "all"
   );
 }

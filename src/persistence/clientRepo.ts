@@ -5,6 +5,7 @@ import type { Client } from "../domain/types";
 const CLIENT_COLUMNS = `
   id,
   name,
+  profession_id AS professionId,
   tax_id AS taxId,
   notes,
   created_at AS createdAt,
@@ -40,10 +41,11 @@ export async function createClient(
   data: Omit<Client, "id" | "createdAt" | "updatedAt">
 ): Promise<number> {
   const result = await db.execute(
-    `INSERT INTO clients (name, tax_id, notes)
-     VALUES ($1, $2, $3)`,
+    `INSERT INTO clients (name, profession_id, tax_id, notes)
+     VALUES ($1, $2, $3, $4)`,
     [
       data.name.trim(),
+      data.professionId ?? null,
       data.taxId?.trim() || null,
       data.notes?.trim() || null,
     ]
@@ -59,15 +61,22 @@ export async function updateClient(
   await db.execute(
     `UPDATE clients SET
        name = COALESCE($1, name),
-       tax_id = COALESCE($2, tax_id),
-       notes = COALESCE($3, notes),
+       tax_id = COALESCE($3, tax_id),
+       notes = COALESCE($4, notes),
+       -- Assigned through a flag rather than COALESCE: clearing a client's
+       -- profession is a real action, and COALESCE would read null as "leave
+       -- it alone", so the field could never be emptied. $6 says whether the
+       -- caller mentioned the field at all.
+       profession_id = CASE WHEN $6 = 1 THEN $2 ELSE profession_id END,
        updated_at = datetime('now')
-     WHERE id = $4`,
+     WHERE id = $5`,
     [
       data.name?.trim() || null,
+      data.professionId ?? null,
       data.taxId === undefined ? null : data.taxId?.trim() || null,
       data.notes === undefined ? null : data.notes?.trim() || null,
       id,
+      data.professionId === undefined ? 0 : 1,
     ]
   );
 }

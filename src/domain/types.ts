@@ -7,8 +7,24 @@ export type { Periodicity };
 export interface Client {
   id: number;
   name: string;
+  /** Set when the client has been classified; null while unclassified. */
+  professionId?: number | null;
   taxId?: string; // ΑΦΜ
   notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A line of work a client belongs to. Kept as its own list, like TaskType, so a
+ * profession is spelled once and picked from everywhere rather than retyped per
+ * client - which is what makes the worklist filter by it meaningful.
+ */
+export interface Profession {
+  id: number;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,6 +95,9 @@ export interface MonthlyStatusWithDetails extends MonthlyTaskStatus {
   clientName: string;
   taskName: string;
   taskColor: string;
+  /** Carried down from the client so the worklist can filter without a join. */
+  professionId?: number | null;
+  professionName?: string | null;
 }
 
 // ─── Reports ─────────────────────────────────────────────────────────────────

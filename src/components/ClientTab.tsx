@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Database from "@tauri-apps/plugin-sql";
-import type { Client, TaskType } from "../domain/types";
+import type { Client, TaskType, Profession } from "../domain/types";
 import * as assignmentRepo from "../persistence/assignmentRepo";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
 import type { ClientInput } from "../hooks/useClients";
@@ -18,6 +18,8 @@ interface ClientTabProps {
   db: Database;
   client: Client;
   tasks: TaskType[];
+  /** Offered by the profession picker, so a client can be classified here. */
+  professions: Profession[];
   onClose: () => void;
   onUpdate: () => void;
   onDelete: (id: number) => Promise<void>;
@@ -25,7 +27,7 @@ interface ClientTabProps {
   onSaveClient: (id: number, data: ClientInput) => Promise<void>;
 }
 
-export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSaveClient }: ClientTabProps) {
+export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, onDelete, onSaveClient }: ClientTabProps) {
   const [assignments, setAssignments] = useState<ClientTaskWithTask[]>([]);
   const [newTaskTypeId, setNewTaskTypeId] = useState<number | "">("");
   const [newPeriodicity, setNewPeriodicity] = useState<Periodicity>("monthly");
@@ -155,9 +157,11 @@ export function ClientTab({ db, client, tasks, onClose, onUpdate, onDelete, onSa
         resetOnSuccess={false}
         initialData={{
           name: client.name,
+          professionId: client.professionId ?? null,
           taxId: client.taxId || "",
           notes: client.notes || "",
         }}
+        professions={professions}
         onSubmit={handleSave}
         onCancel={onClose}
         onDelete={async () => {

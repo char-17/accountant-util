@@ -16,8 +16,11 @@ interface MonthlyWorklistProps {
   onFilterClientSelect: (id: number | null) => void;
   /** Per-task picker. */
   onFilterTaskSelect: (id: number | null) => void;
+  /** Per-profession picker. */
+  onFilterProfessionSelect?: (id: number | null) => void;
   clientOptions: Array<{ id: number; name: string }>;
   taskOptions: Array<{ id: number; name: string }>;
+  professionOptions?: Array<{ id: number; name: string }>;
   onFilterReset: () => void;
   year: number;
   month: number;
@@ -67,8 +70,10 @@ export function MonthlyWorklist({
   onFilterStatusChange,
   onFilterClientSelect,
   onFilterTaskSelect,
+  onFilterProfessionSelect,
   clientOptions,
   taskOptions,
+  professionOptions = [],
   onFilterReset,
   year,
   month,
@@ -112,8 +117,10 @@ export function MonthlyWorklist({
       onStatusChange={onFilterStatusChange}
       onClientSelect={onFilterClientSelect}
       onTaskSelect={onFilterTaskSelect}
+      onProfessionSelect={onFilterProfessionSelect ?? (() => {})}
       clientOptions={clientOptions}
       taskOptions={taskOptions}
+      professionOptions={professionOptions}
       onReset={onFilterReset}
       isFiltered={isFiltered}
       shownCount={statuses.length}

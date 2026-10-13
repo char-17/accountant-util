@@ -91,19 +91,30 @@ const taskOptions = [
   { id: 1, name: 'ΦΠΑ' },
   { id: 2, name: 'ΕΝΦΚΑ' },
 ];
+const professionOptions = [
+  { id: 7, name: 'Ελεύθερος Επαγγελματίας' },
+  { id: 8, name: 'Εταιρική Διαχείριση' },
+];
 
-console.log('1) the filter bar renders both pickers and all three status options');
+console.log('1) the filter bar renders all three pickers and every status option');
 const barHtml = render(React.createElement(ui.WorklistFiltersBar, {
   filters: ui.DEFAULT_FILTERS,
   onStatusChange: noop, onReset: noop,
   isFiltered: false, shownCount: 3, totalCount: 3,
-  clientOptions, taskOptions, onClientSelect: noop, onTaskSelect: noop,
+  clientOptions, taskOptions, professionOptions,
+  onClientSelect: noop, onTaskSelect: noop, onProfessionSelect: noop,
 }));
 check('client picker search present', barHtml.includes('Αναζήτηση πελάτη'));
 check('task picker search present', barHtml.includes('Αναζήτηση εργασίας'));
+check('profession picker search present', barHtml.includes('Αναζήτηση επαγγέλματος'));
 check('the client picker names its list', barHtml.includes('Φίλτρο πελάτη'));
 check('the task picker names its list', barHtml.includes('Φίλτρο εργασίας'));
+check('the profession picker names its list', barHtml.includes('Φίλτρο επαγγέλματος'));
+// Three pickers, counted by the toggle that opens each list. The listbox itself
+// only renders once a picker is open, and all three start closed.
+checkEq('three pickers', (barHtml.match(/aria-haspopup="listbox"/g) || []).length, 3);
 check('"Όλες" option', barHtml.includes('Όλες'));
+check('"Όλα τα επαγγέλματα" option', barHtml.includes('Όλα τα επαγγέλματα'));
 check('"Εκκρεμείς" option', barHtml.includes('Εκκρεμείς'));
 check('"Ολοκληρωμένες" option', barHtml.includes('Ολοκληρωμένες'));
 check('no filter count shown when nothing is filtered', !barHtml.includes('από'));
@@ -114,13 +125,15 @@ check('and it is "Όλες"', /aria-pressed="true"[^>]*>Όλες</.test(barHtml)
 
 console.log('\n2) the selected status is announced, not just tinted');
 const barFiltered = render(React.createElement(ui.WorklistFiltersBar, {
-  filters: { ...ui.DEFAULT_FILTERS, status: 'pending', clientId: 10 },
+  filters: { ...ui.DEFAULT_FILTERS, status: 'pending', clientId: 10, professionId: 7 },
   onStatusChange: noop, onReset: noop,
   isFiltered: true, shownCount: 1, totalCount: 3,
-  clientOptions, taskOptions, onClientSelect: noop, onTaskSelect: noop,
+  clientOptions, taskOptions, professionOptions,
+  onClientSelect: noop, onTaskSelect: noop, onProfessionSelect: noop,
 }));
 check('the active filter is marked pressed', barFiltered.includes('aria-pressed="true"'));
 check('the selected client is named in the picker', barFiltered.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
+check('the selected profession is named in its picker', barFiltered.includes('Ελεύθερος Επαγγελματίας'));
 check('the count reads "1 από 3 εργασίες"', text(barFiltered).includes('1 από 3 εργασίες'), `- got: ${text(barFiltered)}`);
 check('a clear button appears', barFiltered.includes('Καθαρισμός'));
 
