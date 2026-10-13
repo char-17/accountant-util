@@ -557,8 +557,23 @@ console.log('\n12) the client list reports selection and asks for a new client')
   check('the create dialog opened', Boolean(container.querySelector('.client-create-modal')));
   check('it has an accessible name', container.querySelector('.client-create-modal')?.getAttribute('aria-label') === 'Νέος πελάτης');
 
-  const nameField = container.querySelector('#cf-name');
+  // Found through its label rather than a fixed id: the ids are generated now
+  // (two forms are on screen at once when the client tab is open), and what
+  // matters here is that the label points at the field.
+  //
+  // Matched by attribute rather than with a selector: the generated ids contain
+  // colons, which a selector would need escaping for, and escaping is not
+  // reliably present in this harness.
+  const nameLabel = Array.from(
+    container.querySelectorAll('.client-create-modal label')
+  ).find((l) => l.textContent.includes('Όνομα'));
+  const withId = (id) => Array.from(container.querySelectorAll('[id]'))
+    .filter((el) => el.getAttribute('id') === id);
+  const nameField = nameLabel ? withId(nameLabel.htmlFor)[0] : null;
   check('the form has a labelled name field', Boolean(nameField));
+  check('and the label resolves to exactly one element',
+    nameLabel && withId(nameLabel.htmlFor).length === 1,
+    `- ${nameLabel ? withId(nameLabel.htmlFor).length : 0} matched`);
   type(nameField, 'ΝΕΟΣ ΠΕΛΑΤΗΣ');
   const submit = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.trim() === 'Προσθήκη');
   await act(async () => { submit.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
@@ -1075,6 +1090,48 @@ console.log('\n12m) the window asks before closing, and one Cancel is enough');
   await act(async () => {});
   check('renders safely with no window', !bare.el.querySelector('.modal'));
   bare.cleanup();
+}
+
+console.log('\n12n) a close that fails re-arms the guard instead of giving up');
+{
+  // The one outcome this component exists to prevent, reached by accident: the
+  // approval is remembered, close() throws, and the next click on X closes the
+  // application without asking anything. Silent, and irreversible.
+  let handler = null;
+  let attempts = 0;
+  const failingWindow = {
+    onCloseRequested: async (h) => { handler = h; return () => { handler = null; }; },
+    close: async () => { attempts++; throw new Error('Το παράθυρο δεν έκλεισε'); },
+  };
+
+  const view = mount(React.createElement(ui.CloseGuard, { win: failingWindow }));
+  await act(async () => {});
+  const request = async () => {
+    await act(async () => { handler({ preventDefault: () => {} }); });
+    await act(async () => {});
+  };
+
+  await request();
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.modal button'))
+      .find((b) => b.textContent === 'Κλείσιμο').click();
+  });
+  await act(async () => {});
+  check('the close was attempted', attempts === 1);
+  check('and the failure is shown, not swallowed',
+    (view.el.querySelector('.error-banner')?.textContent || '').includes('δεν έκλεισε'),
+    `- got: ${view.el.querySelector('.error-banner')?.textContent ?? '(no banner)'}`);
+  check('with the question still up, so the user can try again',
+    Boolean(view.el.querySelector('.modal')));
+
+  // Re-armed: the next X must ask again rather than close outright.
+  await request();
+  check('the guard re-arms', Boolean(view.el.querySelector('.modal')));
+  check('and the stale error is gone when it asks afresh',
+    !view.el.querySelector('.error-banner'),
+    `- got: ${view.el.querySelector('.error-banner')?.textContent ?? '(none)'}`);
+
+  view.cleanup();
 }
 
 console.log('\n12l) a report row folds only the client that was clicked');

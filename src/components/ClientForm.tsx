@@ -157,11 +157,21 @@ export function ClientForm({
     [professions]
   );
 
-  // The portalled submit button lives outside the <form>, and HTML only submits
-  // a form from a button inside it. The `form` attribute points it back, and
-  // useId keeps it unique so two forms on a page cannot collide.
-  const formId = useId();
+  // Every id in here is derived from useId rather than written out.
+  //
+  // Two instances of this form are on screen at once whenever the client tab is
+  // open: the dashboard behind it keeps the "new client" modal mounted. With
+  // fixed ids the two copies of #cf-name collided, and a <label for> resolves to
+  // the first match in the document - so the client tab's label pointed at the
+  // modal's input behind the overlay, and clicking it moved focus there.
+  const uid = useId();
+  const formId = `${uid}-form`;
+  const nameFieldId = `${uid}-name`;
+  const taxIdFieldId = `${uid}-taxid`;
+  const notesFieldId = `${uid}-notes`;
 
+  // The portalled submit button lives outside the <form>, and HTML only submits
+  // a form from a button inside it. The `form` attribute points it back.
   const actionRow = (
     <div className="form-actions">
       <button
@@ -199,9 +209,9 @@ export function ClientForm({
     <>
       <form className="client-form" id={formId} onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="cf-name">Όνομα *</label>
+          <label htmlFor={nameFieldId}>Όνομα *</label>
           <input
-            id="cf-name"
+            id={nameFieldId}
             type="text"
             value={form.name}
             onChange={(e) => set("name")(e.target.value)}
@@ -212,9 +222,9 @@ export function ClientForm({
         </div>
 
         <div className="form-group">
-          <label htmlFor="cf-taxid">ΑΦΜ</label>
+          <label htmlFor={taxIdFieldId}>ΑΦΜ</label>
           <input
-            id="cf-taxid"
+            id={taxIdFieldId}
             type="text"
             value={form.taxId}
             onChange={(e) => set("taxId")(e.target.value)}
@@ -223,7 +233,12 @@ export function ClientForm({
 
         {professions && (
           <div className="form-group">
-            <span className="form-label-like" id="cf-profession-label">Επάγγελμα</span>
+            {/* A span, not a label: the picker is a composite control - a search
+                box and a toggle in one head - and <label for> needs a single form
+                element to point at. The picker carries its own accessible name
+                via aria-label, so this is the visible caption only, and it has
+                no id because nothing refers to it. */}
+            <span className="form-label-like">Επάγγελμα</span>
             <ClientFilterSelect
               value={form.professionId === "" ? null : Number(form.professionId)}
               options={professions}
@@ -247,9 +262,9 @@ export function ClientForm({
         )}
 
         <div className="form-group">
-          <label htmlFor="cf-notes">Σημειώσεις</label>
+          <label htmlFor={notesFieldId}>Σημειώσεις</label>
           <textarea
-            id="cf-notes"
+            id={notesFieldId}
             rows={3}
             value={form.notes}
             onChange={(e) => set("notes")(e.target.value)}

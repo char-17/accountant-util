@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toMessage } from "../utils/errors";
 
 /**
  * The slice of the Tauri window API this component uses.
@@ -51,6 +52,7 @@ export function CloseGuard({
   title = "Έξοδος από το Accountant Util",
 }: CloseGuardProps) {
   const [isAsking, setIsAsking] = useState(false);
+  const [closeError, setCloseError] = useState("");
   // Not state: nothing renders from it, and a re-render must not re-arm the
   // guard or re-register the listener.
   const approved = useRef(false);
@@ -63,8 +65,17 @@ export function CloseGuard({
     // whose only remaining answer is the one they just pressed.
     setIsAsking(false);
     if (!target) return;
-    approved.current = true;
-    await target.close();
+    try {
+      approved.current = true;
+      await target.close();
+    } catch (err) {
+      // The window did not go. Re-arm and say why: left armed, the next click on
+      // X would close the application without asking, which is the one outcome
+      // this component exists to prevent - and it would happen silently.
+      approved.current = false;
+      setCloseError(toMessage(err));
+      setIsAsking(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -91,6 +102,7 @@ export function CloseGuard({
           // Synchronous, before anything else: the window stops closing here,
           // and the question is asked afterwards.
           event.preventDefault();
+          setCloseError("");
           setIsAsking(true);
         });
       } catch {
@@ -125,6 +137,7 @@ export function CloseGuard({
       >
         <h3>{title}</h3>
         <p>{message}</p>
+        {closeError && <div className="error-banner">{closeError}</div>}
         <div className="form-actions">
           <button className="btn-primary" onClick={closeNow}>
             Κλείσιμο
