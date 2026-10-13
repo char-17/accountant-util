@@ -50,6 +50,7 @@ export { ClientList } from "./src/components/ClientList";
 export { ClientForm } from "./src/components/ClientForm";
 export { ProfessionCatalog } from "./src/components/ProfessionCatalog";
 export { MonthPicker } from "./src/components/MonthPicker";
+export { ReportsView } from "./src/components/ReportsView";
 export { ClientTab } from "./src/components/ClientTab";
 export { MonthlySummary } from "./src/components/MonthlySummary";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
@@ -997,6 +998,71 @@ console.log('\n12k) deleting a task asks first, and says what it would take');
   check('confirming deletes it', deleted.length === 1 && deleted[0] === 2,
     `- got ${JSON.stringify(deleted)}`);
   check('and closes the dialog', !view.el.querySelector('.modal'));
+
+  view.cleanup();
+}
+
+console.log('\n12l) a report row folds only the client that was clicked');
+{
+  // The bug: one shared boolean, handed to every row, so clicking any client
+  // name opened and closed the whole table at once.
+  const group = (id, name) => ({
+    clientId: id,
+    clientName: name,
+    totalAmount: 100, paidAmount: 50, invoicedAmount: 0,
+    rows: [
+      { key: `${id}-1`, taskName: 'ΦΠΑ', taskColor: '#7B8D6E', year: 2026, month: 10, isPaid: false, isInvoiced: false, amount: 100 },
+    ],
+  });
+  const GROUPS = [group(1, 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'), group(2, 'BEBJA BLERIM'), group(3, 'APARTMENT NAVARINO')];
+
+  const view = mount(
+    React.createElement(ui.ReportsView, {
+      groups: GROUPS,
+      loading: false,
+      year: 2026, month: 10,
+      period: 'month',
+      onPeriodChange: async () => {},
+      customFrom: 1, customTo: 12,
+      onCustomRangeChange: async () => {},
+      isEmpty: false,
+    })
+  );
+  await act(async () => {});
+
+  const toggles = () => Array.from(view.el.querySelectorAll('.report-client-toggle'));
+  // The service rows under each client; a folded client shows none of its own.
+  const detailRows = () => view.el.querySelectorAll('.report-service-row').length;
+
+  checkEq('three clients listed', toggles().length, 3);
+  check('all start open', toggles().every((t) => t.getAttribute('aria-expanded') === 'true'));
+  check('with their services showing', detailRows() === 3, `- got ${detailRows()}`);
+
+  await act(async () => { toggles()[1].click(); });
+  await act(async () => {});
+  check('clicking the middle one folds it',
+    toggles()[1].getAttribute('aria-expanded') === 'false',
+    `- got ${toggles()[1].getAttribute('aria-expanded')}`);
+  check('and leaves the other two open',
+    toggles()[0].getAttribute('aria-expanded') === 'true' &&
+    toggles()[2].getAttribute('aria-expanded') === 'true',
+    `- got ${toggles().map((t) => t.getAttribute('aria-expanded')).join(', ')}`);
+  checkEq('so exactly one service row is hidden', detailRows(), 2);
+  // A second client folds independently rather than the first one reopening.
+  await act(async () => { toggles()[0].click(); });
+  await act(async () => {});
+  check('folding another leaves the first folded',
+    toggles()[0].getAttribute('aria-expanded') === 'false' &&
+    toggles()[1].getAttribute('aria-expanded') === 'false');
+  check('the third is untouched',
+    toggles()[2].getAttribute('aria-expanded') === 'true');
+
+  await act(async () => { toggles()[1].click(); });
+  await act(async () => {});
+  check('and clicking it again reopens only it',
+    toggles()[1].getAttribute('aria-expanded') === 'true' &&
+    toggles()[0].getAttribute('aria-expanded') === 'false' &&
+    toggles()[2].getAttribute('aria-expanded') === 'true');
 
   view.cleanup();
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReportClientGroup, ReportPeriod, ReportRange } from "../domain/types";
 import {
   REPORT_PERIOD_LABELS,
@@ -83,7 +83,39 @@ export function ReportsView({
   onCustomRangeChange,
   isEmpty,
 }: ReportsViewProps) {
-  const [expanded, setExpanded] = useState(true);
+  // Which client rows are open, by client id.
+  //
+  // `null` means "not decided yet", which reads as everything open - the report
+  // starts fully expanded so the numbers are visible without a click. Once the
+  // user touches a row it becomes an explicit list, and only the row they
+  // touched moves. A single boolean shared by every row would fold them
+  // together: clicking one client opened and closed all of them at once, which
+  // is what it used to do.
+  const [expandedIds, setExpandedIds] = useState<Set<number> | null>(null);
+
+  // A new report starts fully open again. Adjusted during render rather than in
+  // an effect: an effect would run after paint, so the previous period's
+  // collapsed rows would flash on screen for a frame before being reset.
+  const reportBasis = `${year}-${month}-${period}-${customFrom}-${customTo}`;
+  const lastBasis = useRef(reportBasis);
+  if (lastBasis.current !== reportBasis) {
+    lastBasis.current = reportBasis;
+    setExpandedIds(null);
+  }
+
+  const isExpanded = (clientId: number) =>
+    expandedIds === null ? true : expandedIds.has(clientId);
+
+  const toggleClient = (clientId: number) =>
+    setExpandedIds((prev) => {
+      // First click decides the starting point from the rows actually on screen,
+      // so whichever client was clicked moves and the rest stay where they are.
+      const base = prev ?? new Set(groups.map((g) => g.clientId));
+      const next = new Set(base);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
 
   const range: ReportRange =
     period === "custom"
@@ -198,8 +230,8 @@ export function ReportsView({
                   <ReportGroupRow
                     key={group.clientId}
                     group={group}
-                    expanded={expanded}
-                    onToggle={() => setExpanded((v) => !v)}
+                    expanded={isExpanded(group.clientId)}
+                    onToggle={() => toggleClient(group.clientId)}
                   />
                 ))}
               </tbody>
