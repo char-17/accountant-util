@@ -49,6 +49,7 @@ export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
 export { ClientForm } from "./src/components/ClientForm";
 export { ClientTab } from "./src/components/ClientTab";
+export { MonthlySummary } from "./src/components/MonthlySummary";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
 `,
   'utf8'
@@ -651,6 +652,36 @@ console.log('\n12c) the remove button is a drawn icon, not a glyph, and still na
     /stroke="currentColor"/.test(btn?.[0] || ''),
     '- a fixed colour would ignore the hover state');
 }
+console.log('\n12f) the month summary reads as two rows of two, in order');
+{
+  // The order is the design: top row answers "how big is this month and how
+  // much is left", bottom row is the arithmetic behind it. Nothing else checks
+  // it, so a reorder would pass silently.
+  const view = mount(
+    React.createElement(ui.MonthlySummary, {
+      summary: { year: 2026, month: 10, totalClients: 1, totalTasks: 3, completedTasks: 1, pendingTasks: 2, clientProgress: [] },
+      year: 2026, month: 10, isFiltered: false,
+    })
+  );
+  await act(async () => {});
+
+  const labels = findAll((n) => n.classList?.contains('stat-label')).map((n) => n.textContent);
+  checkEq('four tiles', labels.length, 4);
+  check('top row is Πελάτες then Εκκρεμείς',
+    labels[0] === 'Πελάτες' && labels[1] === 'Εκκρεμείς', `- got: ${labels.slice(0, 2).join(' | ')}`);
+  check('bottom row is Εργασίες then Ολοκληρωμένες',
+    labels[2] === 'Εργασίες' && labels[3] === 'Ολοκληρωμένες', `- got: ${labels.slice(2).join(' | ')}`);
+
+  const css = require('fs').readFileSync(path.join(__dirname, 'src', 'App.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const m = css.match(/(?:^|\})\s*\.summary-stats\s*\{([^}]*)\}/);
+  check('and it is laid out as two columns',
+    /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/.test(m?.[1] || ''),
+    `- got: ${(m?.[1] || '').trim().replace(/\s+/g, ' ')}`);
+
+  view.cleanup();
+}
+
 console.log('\n12e) the client panel scrolls itself, not the page');
 {
   // The scroll used to be on the overlay, which meant a long assignment list

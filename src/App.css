@@ -913,19 +913,25 @@ body {
   gap: 20px;
 }
 
-/* minmax(0, 1fr) and not 1fr: a bare 1fr floors the track at the item's
-   min-content width, and "Ολοκληρωμένες" is a single unbreakable word. In a narrow
-   panel that floor exceeded the container and pushed the four stats out of the
-   box. min-width:0 lets the track shrink past the text. */
+/* Two rows of two rather than one row of four. Each tile is twice as wide, so
+   "Εργασίες (φίλτρο)" stops being the cramped one, and the numbers are far
+   enough apart to be read as pairs.
+
+   minmax(0, 1fr) and not 1fr: a bare 1fr floors the track at the item's
+   min-content width, and "Ολοκληρωμένες" is a single unbreakable word. That
+   floor exceeded the panel and pushed the stats out of the box - which is what
+   this replaced. min-width:0 on the tile lets the track shrink past the text. */
 .summary-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .stat {
   text-align: center;
-  padding: 14px 10px;
+  /* Wider tiles carry shorter padding: at twice the width the old 14px made the
+     block twice as tall as it needed to be. */
+  padding: 11px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -3359,8 +3365,10 @@ body {
     flex-direction: column;
   }
 
+  /* One column: the layout is already two, so this is the only step left
+     before the tiles stop being wide enough to hold a number and a label. */
   .summary-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .form-row {

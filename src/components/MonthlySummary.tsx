@@ -37,10 +37,19 @@ export function MonthlySummary({
 
   return (
     <div className="monthly-summary">
+      {/* Two rows of two: the row reads across as a pair, so the top row is
+          the two counts that answer "how big is this month and how much is
+          left" (clients, pending) and the bottom row is the arithmetic behind
+          them (tasks, completed). In one row of four the numbers were too
+          narrow for "Εργασίες (φίλτρο)" and too close together to compare. */}
       <div className="summary-stats">
         <div className="stat">
           <span className="stat-value">{summary.totalClients}</span>
           <span className="stat-label">Πελάτες</span>
+        </div>
+        <div className="stat">
+          <span className="stat-value pending">{summary.pendingTasks}</span>
+          <span className="stat-label">Εκκρεμείς</span>
         </div>
         <div className="stat">
           <span className="stat-value">{summary.totalTasks}</span>
@@ -49,10 +58,6 @@ export function MonthlySummary({
         <div className="stat">
           <span className="stat-value completed">{summary.completedTasks}</span>
           <span className="stat-label">Ολοκληρωμένες</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value pending">{summary.pendingTasks}</span>
-          <span className="stat-label">Εκκρεμείς</span>
         </div>
       </div>
 
