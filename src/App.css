@@ -1839,16 +1839,10 @@ body {
   }
 }
 
-/* What the CSV item is about to produce. It sits inside the list rather than
-   above it, because it describes that one action - reading it as a heading for
-   backup and restore as well would be wrong. */
-.file-menu-scope {
-  margin: 0;
-  padding: 6px 10px 8px;
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-}
+/* What the CSV item is about to produce used to be a line here. Removed: the
+   worklist already states the count and the active filters directly above, so
+   the menu was saying the same thing twice before the user had read anything.
+   Each action's own tooltip carries it now. */
 
 .file-menu-item {
   display: block;
@@ -1900,10 +1894,6 @@ body {
   height: 1px;
   margin: 5px 8px;
   background: var(--border);
-}
-
-.export-scope-detail {
-  color: var(--text-faint);
 }
 
 /* ─── Worklist filters ────────────────────────────────────────────────────── */

@@ -107,6 +107,11 @@ function findAll(predicate) {
 }
 const byLabel = (label) =>
   find((n) => n.getAttribute && n.getAttribute('aria-label') === label);
+// The first button whose text contains `t`. At module level because two blocks
+// below need it and a local copy in each meant the second silently failed to
+// find its own.
+const byText = (t) =>
+  findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes(t));
 const click = (node) => {
   if (!node) throw new Error('click() called on a missing element');
   act(() => {
@@ -367,7 +372,6 @@ console.log('\n9) the file menu opens, and its export item runs the export');
       onBackup: () => {}, onRestore: () => {}, busy: null,
     })
   );
-  const byText = (t) => findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes(t));
   const trigger = byText('Αρχείο');
   check('the trigger is present', Boolean(trigger));
   check('the list is not in the DOM before opening', findAll((n) => n.id === 'file-menu-list').length === 0);
@@ -376,16 +380,22 @@ console.log('\n9) the file menu opens, and its export item runs the export');
   check('the list appears once opened', findAll((n) => n.id === 'file-menu-list').length === 1);
   check('the trigger reports expanded', trigger.getAttribute('aria-expanded') === 'true');
 
-  // The scope note travels with the CSV item and names the selected client
-  // rather than an id, so the exported file stays traceable.
-  const scope = findAll((n) => n.classList?.contains('file-menu-scope'))[0];
-  check('the scope note is in the menu', Boolean(scope));
-  check('it counts the visible rows', scope.textContent.includes('3 εργασίες'), `- got: ${scope.textContent}`);
-  check('and carries no filter detail when unfiltered', !scope.textContent.includes('φίλτρα:'));
+  // The menu used to head itself with a count and a description of the filters.
+  // Removed - the worklist states both above it, so it repeated them before
+  // anything had been read. The information moved onto the CSV item's own
+  // tooltip, and that is what is checked here instead.
+  check('the menu no longer repeats the count and the filters',
+    findAll((n) => n.classList?.contains('file-menu-scope')).length === 0);
 
   const csvBtn = byText('Εισαγωγή CSV');
   check('the CSV item is present', Boolean(csvBtn));
   check('it is enabled with rows to export', csvBtn.disabled === false);
+  check('and its tooltip counts what will be exported',
+    (csvBtn.getAttribute('title') || '').includes('3 εργασιών'),
+    `- got: ${csvBtn.getAttribute('title')}`);
+  check('with no filter detail when nothing is filtered',
+    !(csvBtn.getAttribute('title') || '').includes('φίλτρα:'),
+    `- got: ${csvBtn.getAttribute('title')}`);
   await act(async () => { csvBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
   checkEq('the export ran once', exported, 1);
   check('and choosing an item closes the menu', findAll((n) => n.id === 'file-menu-list').length === 0);
@@ -415,14 +425,15 @@ console.log('\n10) the menu names the filtered scope, and blocks export with not
   };
 
   const named = await openMenu({ filters: { ...ui.DEFAULT_FILTERS, clientId: 10, taskTypeId: 2 } });
-  const scopeNamed = findAll((n) => n.classList?.contains('file-menu-scope'))[0];
-  check('the client is named, not its id', scopeNamed.textContent.includes('πελάτης: "ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ"'), `- got: ${scopeNamed.textContent}`);
-  check('the task is named too', scopeNamed.textContent.includes('εργασία: "ΕΝΦΚΑ"'));
+  const namedTitle = byText('Εισαγωγή CSV').getAttribute('title') || '';
+  check('the client is named, not its id',
+    namedTitle.includes('πελάτης: "ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ"'), `- got: ${namedTitle}`);
+  check('the task is named too', namedTitle.includes('εργασία: "ΕΝΦΚΑ"'));
   named.cleanup();
 
   const byStatus = await openMenu({ filters: { ...ui.DEFAULT_FILTERS, status: 'completed' } });
-  const scopeStatus = findAll((n) => n.classList?.contains('file-menu-scope'))[0];
-  check('a status filter is described', scopeStatus.textContent.includes('φίλτρα: Ολοκληρωμένες'), `- got: ${scopeStatus.textContent}`);
+  const statusTitle = byText('Εισαγωγή CSV').getAttribute('title') || '';
+  check('a status filter is described', statusTitle.includes('φίλτρα: Ολοκληρωμένες'), `- got: ${statusTitle}`);
   byStatus.cleanup();
 
   const empty = await openMenu({
@@ -451,11 +462,9 @@ console.log('\n11) restore is marked as the risky item, and busy locks the menu'
     );
   const openIt = async () => {
     await act(async () => {
-      findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Αρχείο'))
-        .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+      byText('Αρχείο').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     });
   };
-  const byText = (t) => findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes(t));
 
   const view = renderMenu(null);
   await openIt();

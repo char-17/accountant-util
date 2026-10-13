@@ -109,10 +109,12 @@ export function FileMenu({
 
       {open && (
         <div className="file-menu-list" id="file-menu-list" role="menu">
-          <p className="file-menu-scope">
-            {summary.totalTasks} εργασίες
-            {scope && <span className="export-scope-detail"> · φίλτρα: {scope}</span>}
-          </p>
+          {/* The count and the active filters used to head this menu. Removed:
+              the worklist already states both above it - "4 από 12 εργασίες" on
+              the filter row, and the pickers that produced the number - so
+              repeating them here said the same thing twice before the user had
+              read anything. What each action will contain is still on its own
+              tooltip, which is where it belongs. */}
 
           <button
             className="file-menu-item"
