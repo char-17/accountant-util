@@ -23,7 +23,7 @@ import { useToasts } from "./hooks/useToasts";
 import { useWorklistFilters } from "./hooks/useWorklistFilters";
 import { useExportReport } from "./hooks/useExportReport";
 import { useBackup } from "./hooks/useBackup";
-import { useCloseGuard } from "./hooks/useCloseGuard";
+import { CloseGuard } from "./components/CloseGuard";
 import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
 import { currentDeadline, reminderState, describeDeadline } from "./domain/recurrence";
 import "./App.css";
@@ -38,9 +38,6 @@ function App() {
     migrationWarning,
   } = useDatabase();
   const toasts = useToasts();
-  // The window's own close button is one click from the month in progress and
-  // anything half-typed on a client, so it asks first.
-  useCloseGuard();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<View>("dashboard");
@@ -668,6 +665,10 @@ function App() {
         </div>
       )}
 
+      {/* The window's own close button is one click from the month in progress
+          and anything half-typed on a client, so it asks first. Renders nothing
+          until a close is actually requested. */}
+      <CloseGuard />
       <Toaster toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </div>
   );

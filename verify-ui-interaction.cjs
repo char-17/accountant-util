@@ -51,6 +51,7 @@ export { ClientForm } from "./src/components/ClientForm";
 export { ProfessionCatalog } from "./src/components/ProfessionCatalog";
 export { MonthPicker } from "./src/components/MonthPicker";
 export { ReportsView } from "./src/components/ReportsView";
+export { CloseGuard } from "./src/components/CloseGuard";
 export { ClientTab } from "./src/components/ClientTab";
 export { MonthlySummary } from "./src/components/MonthlySummary";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
@@ -1000,6 +1001,80 @@ console.log('\n12k) deleting a task asks first, and says what it would take');
   check('and closes the dialog', !view.el.querySelector('.modal'));
 
   view.cleanup();
+}
+
+console.log('\n12m) the window asks before closing, and one Cancel is enough');
+{
+  // The native dialog needed two presses of Cancel to go away on Windows, and
+  // none of it could be tested. This drives the guard directly instead.
+  let handler = null;
+  let closes = 0;
+  const fakeWindow = {
+    onCloseRequested: async (h) => { handler = h; return () => { handler = null; }; },
+    close: async () => { closes++; },
+  };
+  const requestClose = async () => {
+    let prevented = false;
+    // Through act: the handler sets state, and an unwrapped setState is the
+    // kind of thing that passes once and fails after a refactor.
+    await act(async () => {
+      handler({ preventDefault: () => { prevented = true; } });
+    });
+    await act(async () => {});
+    return prevented;
+  };
+
+  const view = mount(React.createElement(ui.CloseGuard, { win: fakeWindow }));
+  await act(async () => {});
+  check('nothing on screen to begin with', !view.el.querySelector('.modal'));
+  check('and the listener is armed', typeof handler === 'function');
+
+  check('a close request is blocked', await requestClose() === true);
+  const dialog = view.el.querySelector('.modal');
+  check('and the question appears', Boolean(dialog));
+  check('with both answers', dialog?.querySelectorAll('button').length === 2);
+
+  // Cancel: once, and it is gone. This is the bug being pinned - the old
+  // native dialog needed a second press.
+  await act(async () => {
+    Array.from(dialog.querySelectorAll('button'))
+      .find((b) => b.textContent === 'Άκυρο').click();
+  });
+  await act(async () => {});
+  check('one Cancel closes it', !view.el.querySelector('.modal'));
+  check('and nothing was closed', closes === 0);
+
+  // Asking again works, and Escape backs out of it.
+  await requestClose();
+  check('a second attempt asks again', Boolean(view.el.querySelector('.modal')));
+  await act(async () => {
+    view.el.ownerDocument.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+  await act(async () => {});
+  check('Escape backs out too', !view.el.querySelector('.modal') && closes === 0);
+
+  // Confirming closes, exactly once, and does not ask again: close() re-raises
+  // the event, and that second event has to fall through.
+  await requestClose();
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.modal button'))
+      .find((b) => b.textContent === 'Κλείσιμο').click();
+  });
+  await act(async () => {});
+  checkEq('the window was closed once', closes, 1);
+  check('and the question did not come back', !view.el.querySelector('.modal'));
+
+  // The re-raised event is now allowed straight through.
+  check('a later close is not blocked', await requestClose() === false);
+  checkEq('and does not close a second time on its own', closes, 1);
+
+  view.cleanup();
+
+  // No window at all: must not throw, and must not leave anything behind.
+  const bare = mount(React.createElement(ui.CloseGuard, { win: null }));
+  await act(async () => {});
+  check('renders safely with no window', !bare.el.querySelector('.modal'));
+  bare.cleanup();
 }
 
 console.log('\n12l) a report row folds only the client that was clicked');
