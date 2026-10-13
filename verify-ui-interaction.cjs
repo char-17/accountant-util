@@ -1208,6 +1208,69 @@ console.log('\n12l) a report row folds only the client that was clicked');
   view.cleanup();
 }
 
+console.log('\n12o) the pickers search Greek, not just ASCII');
+{
+  // The library test covers the folding; this covers the pickers actually using
+  // it. A picker that went back to a bare toLowerCase would still pass the
+  // library test and lose the user the search.
+  const OPTIONS = [
+    { id: 1, name: 'ΜΙΣΘΟΔΟΣΙΑ' },
+    { id: 2, name: 'ΟΝΟΜΑ' },
+    { id: 3, name: 'CHALIKIAN ERIK' },
+  ];
+  const view = mount(React.createElement(ui.WorklistFiltersBar, {
+    filters: { clientId: null, taskTypeId: null, professionId: null, status: 'all' },
+    onStatusChange: async () => {}, onReset: async () => {},
+    isFiltered: false, shownCount: 0, totalCount: 0,
+    clientOptions: OPTIONS,
+    taskOptions: OPTIONS,
+    onClientSelect: async () => {}, onTaskSelect: async () => {},
+  }));
+  await act(async () => {});
+
+  const search = async (pickerClass, value) => {
+    const head = view.el.querySelector(`.${pickerClass} .filter-select-head input`);
+    // type(), not a bare value assignment: React tracks the input's value and a
+    // plain assignment is ignored, so the list would never filter and every
+    // "finds it" check below would pass without having searched.
+    await act(async () => { head.focus(); });
+    await act(async () => { type(head, value); });
+    await act(async () => {});
+    return Array.from(
+      view.el.querySelectorAll(`.${pickerClass} .filter-select-list [role="option"]`)
+    ).map((o) => o.textContent.trim()).filter((t) => t && !t.startsWith('Όλ'));
+  };
+
+  // The reported shape: a prefix up to the sigma finds it, and so does the same
+  // prefix with one more letter.
+  // Compared by hand rather than with checkEq: that one uses ===, which for an
+  // array compares identity, so two equal lists read as different.
+  const one = await search('filter-client', 'ΜΙ');
+  checkEq('"ΜΙ" narrows the list to the one match', one.length, 1);
+  check('  and it is ΜΙΣΘΟΔΟΣΙΑ', one[0] === 'ΜΙΣΘΟΔΟΣΙΑ', `- got ${JSON.stringify(one)}`);
+  const hits = await search('filter-client', 'ΜΙΣ');
+  check('"ΜΙΣ" finds it too - the prefix that used to lose it',
+    hits.length === 1 && hits[0] === 'ΜΙΣΘΟΔΟΣΙΑ', `- got ${JSON.stringify(hits)}`);
+
+  // Tonos.
+  const accented = await search('filter-task', 'όνομα');
+  check('an accented query finds an unaccented name', accented.includes('ΟΝΟΜΑ'),
+    `- got ${JSON.stringify(accented)}`);
+  const unaccented = await search('filter-task', 'ΟΝΟΜΑ');
+  check('and the other way round', unaccented.includes('ΟΝΟΜΑ'));
+
+  // Latin still behaves.
+  const latin = await search('filter-client', 'chalik');
+  check('Latin names are still found', latin.includes('CHALIKIAN ERIK'),
+    `- got ${JSON.stringify(latin)}`);
+
+  // And nothing extra sneaks in.
+  const none = await search('filter-client', 'ΕΦΚΑ');
+  checkEq('a query matching nothing returns nothing', none.length, 0);
+
+  view.cleanup();
+}
+
 console.log('\n12i) the month popover closes on an outside click, but not on its own');
 {
   // The alternative was the full-screen backdrop the filter pickers use. It

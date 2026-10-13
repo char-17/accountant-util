@@ -12,6 +12,7 @@ const VERIFY = [
   'verify-seed.cjs',
   'verify-seed-period.cjs',
   'verify-profession-seed.cjs',
+  'verify-greek-search.cjs',
   'verify-duplicates.cjs',
   'verify-worklist-filters.cjs',
   'verify-export-report.cjs',

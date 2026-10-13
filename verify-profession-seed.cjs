@@ -205,6 +205,24 @@ function main() {
     // that is deciding whether to warn.
     checkEq('and only the used tasks carry an entry', Object.keys(usage).length, 2);
 
+    console.log('\n7) why the client search cannot stay in SQL');
+    {
+      // Proved against SQLite rather than asserted. SQLite folds case for ASCII
+      // only, so a Greek query finds something or does not depending on which
+      // case the name happens to be stored in - which is why the search moved
+      // into JS and got folded there instead.
+      const live = new Database(require('./lib/dbPath.cjs').databasePath(), { readonly: true });
+      const like = (q) =>
+        live.prepare('SELECT COUNT(*) c FROM clients WHERE name LIKE ?').get(`%${q}%`).c;
+      const caps = like('ΟΣ');
+      const lower = like('ος');
+      console.log(`     SQLite: name LIKE '%ΟΣ%' -> ${caps}, name LIKE '%ος%' -> ${lower}`);
+      check('the same two characters in different case disagree',
+        caps !== lower,
+        '- if they matched, LIKE would have handled Greek and could have stayed');
+      live.close();
+    }
+
     usageRaw.close();
     freshRaw.close();
     fs.unlinkSync(bundlePath);

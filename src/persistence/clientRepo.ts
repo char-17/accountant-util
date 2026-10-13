@@ -16,17 +16,12 @@ export async function getAllClients(db: Database): Promise<Client[]> {
   return db.select<Client[]>(`SELECT ${CLIENT_COLUMNS} FROM clients ORDER BY name`);
 }
 
-export async function searchClients(db: Database, query: string): Promise<Client[]> {
-  // The name is the only thing left to match on. It used to also search the
-  // email and phone columns, which is why this is worth noting: the search box
-  // no longer finds a client by any field but their name.
-  return db.select<Client[]>(
-    `SELECT ${CLIENT_COLUMNS} FROM clients
-     WHERE name LIKE $1
-     ORDER BY name`,
-    [`%${query}%`]
-  );
-}
+// There is deliberately no searchClients. It used to be a `name LIKE '%term%'`,
+// and SQLite's LIKE folds case for ASCII only - "%ΟΣ%" matched while "%ος%"
+// matched nothing at all - so a Greek name could not be searched for at all.
+// Neither lower() nor LIKE can be taught Greek here, and a column kept folded
+// would have to be written and migrated to stay in step. The caller folds in JS
+// instead; see utils/greek.ts and the comment in useClients.
 
 export async function getClientById(db: Database, id: number): Promise<Client | null> {
   const results = await db.select<Client[]>(

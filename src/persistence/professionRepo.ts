@@ -1,6 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import type { Profession } from "../domain/types";
 import { getAvailableColor } from "../utils/colors";
+import { foldGreek } from "../utils/greek";
 
 // Same shape as taskRepo: snake_case columns aliased to camelCase, and booleans
 // normalised in JS because drivers disagree about typing them.
@@ -118,28 +119,19 @@ export const DEFAULT_PROFESSIONS = [
   "Παροχή Υπηρεσιών",
 ] as const;
 
-/** Lowercased with the accents dropped, so spelling variants still match. */
-function fold(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .trim()
-    .toLocaleLowerCase("el-GR");
-}
-
 /**
  * Adds any of DEFAULT_PROFESSIONS that is not there yet, and returns how many.
  *
  * Additive and never overwriting: a profession the user has renamed, recoloured
- * or deactivated is left exactly as it is. Matching is accent-insensitive,
- * because "Εργολάβος" and "Εργολαβος" are the same word to a person and would
- * otherwise produce a duplicate pair in the list.
+ * or deactivated is left exactly as it is. Matching runs through foldGreek, so
+ * "Εργολάβος" and "Εργολαβος" - the same word with and without the tonos - are
+ * one entry rather than two nearly identical rows in the picker.
  */
 export async function seedDefaultProfessions(db: Database): Promise<number> {
   const existing = await db.select<Array<{ name: string; color: string }>>(
     "SELECT name, color FROM professions"
   );
-  const present = new Set(existing.map((r) => fold(r.name)));
+  const present = new Set(existing.map((r) => foldGreek(r.name)));
   // Colours only. The filter below is an exact match against the palette, and
   // a set that also held the names would still work by accident - it would just
   // be carrying a list it never reads.
@@ -147,14 +139,14 @@ export async function seedDefaultProfessions(db: Database): Promise<number> {
 
   let added = 0;
   for (const name of DEFAULT_PROFESSIONS) {
-    if (present.has(fold(name))) continue;
+    if (present.has(foldGreek(name))) continue;
     const color = getAvailableColor([...taken]);
     taken.add(color);
     await db.execute(
       "INSERT INTO professions (name, color) VALUES ($1, $2)",
       [name, color]
     );
-    present.add(fold(name));
+    present.add(foldGreek(name));
     added++;
   }
   return added;

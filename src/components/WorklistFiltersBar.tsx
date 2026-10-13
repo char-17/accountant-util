@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { WorklistFilters } from "../domain/worklist";
 import { STATUS_FILTER_LABELS } from "../domain/worklist";
+import { greekIncludes } from "../utils/greek";
 
 interface WorklistFiltersBarProps {
   filters: WorklistFilters;
@@ -61,10 +62,6 @@ interface ClientFilterSelectProps {
   colors?: Record<number, string>;
 }
 
-function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase("el-GR");
-}
-
 export function ClientFilterSelect({
   value,
   options = [],
@@ -79,8 +76,13 @@ export function ClientFilterSelect({
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
 
-  const term = normalize(search);
-  const visible = term === "" ? options : options.filter((o) => normalize(o.name).includes(term));
+  // greekIncludes, not a bare toLowerCase: a plain fold misses "ΜΙΣ" typed in
+  // caps against "ΜΙΣΘΟΔΟΣΙΑ" stored, because the locale-aware lowercasing turns
+  // the query's final sigma into ς while the name's stays σ. It also matches
+  // "ο" against "ό". See utils/greek.ts.
+  const visible = search.trim() === ""
+    ? options
+    : options.filter((o) => greekIncludes(o.name, search));
   const selected = options.find((o) => o.id === value);
   const selectedColor = selected ? colors[selected.id] : undefined;
 
@@ -175,7 +177,7 @@ export function ClientFilterSelect({
                 </button>
               </li>
             ))}
-            {visible.length === 0 && term !== "" && (
+            {visible.length === 0 && search.trim() !== "" && (
               <li className="filter-select-empty">{emptyText}</li>
             )}
           </ul>
