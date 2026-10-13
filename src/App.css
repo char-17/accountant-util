@@ -2020,7 +2020,10 @@ body {
   border-radius: var(--r-xs);
   background: none;
   font-family: inherit;
-  font-size: 0.85rem;
+  /* Close to the head's 0.92rem rather than the 0.85rem it was: the list is
+     where the chosen value is read, and at the old size it was visibly smaller
+     than the label above it that the user is matching it against. */
+  font-size: 0.9rem;
   color: var(--text-strong);
   text-align: left;
   cursor: pointer;
@@ -3199,6 +3202,21 @@ body {
   height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+/* The same dot inside a picker, at the smaller size a line of text calls for.
+   Inline-block rather than flex: these sit in the middle of a text run, and a
+   flex child would be pulled out of the line. */
+.filter-select-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  /* Aligns the dot to the middle of the cap height rather than the baseline, so
+     it reads as a bullet beside the word and not as a descender under it. */
+  vertical-align: middle;
 }
 
 .task-name {

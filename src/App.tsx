@@ -70,6 +70,7 @@ function App() {
     createProfession,
     updateProfession,
     deleteProfession,
+    suggestColor: suggestProfessionColor,
     refresh: refreshProfessions,
   } = useProfessions(db);
   const {
@@ -106,6 +107,10 @@ function App() {
   // profession classifies nobody, so it would only ever match an empty list.
   const professionOptions = useMemo(
     () => professions.filter((p) => p.isActive).map((p) => ({ id: p.id, name: p.name })),
+    [professions]
+  );
+  const professionColors = useMemo(
+    () => Object.fromEntries(professions.map((p) => [p.id, p.color])),
     [professions]
   );
 
@@ -388,7 +393,11 @@ function App() {
     );
   };
 
-  const handleProfessionCreated = async (data: { name: string; description?: string | null }) => {
+  const handleProfessionCreated = async (data: {
+    name: string;
+    description?: string | null;
+    color: string;
+  }) => {
     await toasts.run(
       async () => {
         await createProfession(data);
@@ -553,6 +562,7 @@ function App() {
                   clientOptions={clientOptions}
                   taskOptions={taskOptions}
                   professionOptions={professionOptions}
+                  professionColors={professionColors}
                   onFilterReset={filters.reset}
                   year={year}
                   month={month}
@@ -608,6 +618,7 @@ function App() {
             onCreate={handleProfessionCreated}
             onUpdate={handleProfessionUpdated}
             onDelete={handleProfessionDeleted}
+            suggestColor={suggestProfessionColor}
           />
         )}
 

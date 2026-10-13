@@ -7,6 +7,7 @@ const PROFESSION_COLUMNS = `
   id,
   name,
   description,
+  color,
   is_active AS isActive,
   created_at AS createdAt,
   updated_at AS updatedAt
@@ -34,11 +35,11 @@ export async function getActiveProfessions(db: Database): Promise<Profession[]> 
 
 export async function createProfession(
   db: Database,
-  data: Pick<Profession, "name" | "description">
+  data: Pick<Profession, "name" | "description" | "color">
 ): Promise<number> {
   const result = await db.execute(
-    "INSERT INTO professions (name, description) VALUES ($1, $2)",
-    [data.name.trim(), data.description?.trim() || null]
+    "INSERT INTO professions (name, description, color) VALUES ($1, $2, $3)",
+    [data.name.trim(), data.description?.trim() || null, data.color]
   );
   return result.lastInsertId ?? 0;
 }
@@ -46,7 +47,7 @@ export async function createProfession(
 export async function updateProfession(
   db: Database,
   id: number,
-  data: Partial<Pick<Profession, "name" | "description" | "isActive">>
+  data: Partial<Pick<Profession, "name" | "description" | "color" | "isActive">>
 ): Promise<void> {
   const name = data.name?.trim();
   // null and "" both mean "no description": the textarea hands back an empty
@@ -58,16 +59,29 @@ export async function updateProfession(
     `UPDATE professions SET
        name = COALESCE($1, name),
        description = COALESCE($2, description),
-       is_active = COALESCE($3, is_active),
+       color = COALESCE($3, color),
+       is_active = COALESCE($4, is_active),
        updated_at = datetime('now')
-     WHERE id = $4`,
+     WHERE id = $5`,
     [
       name || null,
       description ?? null,
+      // COALESCE here, unlike the profession_id flag in clientRepo: there is
+      // no "no colour" to express. A caller that omits it leaves the row alone,
+      // and the form always sends one, so the NOT NULL column is never at risk.
+      data.color || null,
       data.isActive === undefined ? null : data.isActive ? 1 : 0,
       id,
     ]
   );
+}
+
+/** The colours already taken, so the picker can offer the free ones first. */
+export async function getUsedProfessionColors(db: Database): Promise<string[]> {
+  const rows = await db.select<Array<{ color: string }>>(
+    "SELECT color FROM professions WHERE is_active = 1"
+  );
+  return rows.map((r) => r.color);
 }
 
 /**

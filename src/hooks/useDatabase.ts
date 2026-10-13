@@ -83,16 +83,25 @@ const MIGRATIONS = [
   // --- Professions -----------------------------------------------------------
   // A profession describes the line of work a client is in. It is a list in its
   // own right, like task_types, so it can be spelled once and picked from
-  // anywhere. No colour column: nothing is rendered in a profession's colour, and
-  // an unused NOT NULL column would only be a second thing to get wrong.
+  // anywhere. The colour is shown as a dot beside the name, the same way a task
+  // is, and it is what tells two similarly-named professions apart at a glance
+  // in the worklist.
   `CREATE TABLE IF NOT EXISTS professions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     description TEXT,
+    color TEXT NOT NULL DEFAULT '#8B9DAD',
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
+
+  // A database created before the colour column still has the table without it.
+  // CREATE TABLE IF NOT EXISTS would not touch it, so the column is added
+  // separately; the duplicate-column error is what applyMigrations tolerates for
+  // every other statement here. The default is the same dusty blue task_types
+  // starts on, so an existing profession is not suddenly colourless.
+  `ALTER TABLE professions ADD COLUMN color TEXT NOT NULL DEFAULT '#8B9DAD'`,
 
   // Nullable: a client may not be classified yet, and the column has to be
   // addable to a table that already holds rows. LEFT JOIN everywhere for the

@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useId, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { ClientInput } from "../hooks/useClients";
 import type { Profession } from "../domain/types";
@@ -149,6 +149,14 @@ export function ClientForm({
 
   const errorFor = (field: string) => errors.find((e) => e.field === field)?.message;
 
+  // One swatch per profession, rebuilt only when the list does. The picker is
+  // not memoised, so an object built inline would simply be a new allocation on
+  // every keystroke elsewhere in the form.
+  const professionSwatches = useMemo(
+    () => Object.fromEntries((professions ?? []).map((p) => [p.id, p.color])),
+    [professions]
+  );
+
   // The portalled submit button lives outside the <form>, and HTML only submits
   // a form from a button inside it. The `form` attribute points it back, and
   // useId keeps it unique so two forms on a page cannot collide.
@@ -225,6 +233,7 @@ export function ClientForm({
               listLabel="Επάγγελμα πελάτη"
               className="filter-profession"
               emptyText="Κανένα επάγγελμα με αυτό το όνομα"
+              colors={professionSwatches}
             />
             {/* Nothing to pick from is a dead end unless it says where the list
                 comes from. */}

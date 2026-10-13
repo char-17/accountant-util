@@ -764,8 +764,8 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
 {
   const calls = [];
   const PROFESSIONS = [
-    { id: 7, name: 'Ελεύθερος Επαγγελματίας', description: 'Φυσικά πρόσωπα', isActive: true },
-    { id: 8, name: 'Εταιρική Διαχείριση', description: null, isActive: false },
+    { id: 7, name: 'Ελεύθερος Επαγγελματίας', description: 'Φυσικά πρόσωπα', color: '#7B8D6E', isActive: true },
+    { id: 8, name: 'Εταιρική Διαχείριση', description: null, color: '#8B9DAD', isActive: false },
   ];
 
   const view = mount(
@@ -775,6 +775,8 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
       onCreate: async (d) => { calls.push(['create', d]); },
       onUpdate: async (id, d) => { calls.push(['update', id, d]); },
       onDelete: async (id) => { calls.push(['delete', id]); },
+      // The first palette colour nothing else has taken.
+      suggestColor: async () => '#C4A882',
     })
   );
   await act(async () => {});
@@ -788,6 +790,60 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
     (rows[1]?.textContent || '').includes('Ενεργοποίηση'));
   check('while an active one offers deactivation',
     (rows[0]?.textContent || '').includes('Απενεργοποίηση'));
+
+  // The colour dot, the way a task is marked. Each row carries its own colour,
+  // so counting dots would pass even if they were all the same shade.
+  const dots = Array.from(view.el.querySelectorAll('.task-color-dot'));
+  checkEq('a dot beside each name', dots.length, 2);
+  checkEq('in the row\'s own colour', dots[0]?.style.backgroundColor, 'rgb(123, 141, 110)');
+  check('and not the next row\'s', dots[1]?.style.backgroundColor !== dots[0]?.style.backgroundColor,
+    `- both were ${dots[0]?.style.backgroundColor}`);
+
+  // The new form starts on a free colour rather than the default, and the one
+  // in use is offered but marked, so a collision is visible before it happens.
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.btn-primary'))
+      .find((b) => b.textContent.includes('Νέο')).click();
+  });
+  await act(async () => {});
+  const swatches = Array.from(view.el.querySelectorAll('.color-picker .color-option'));
+  checkEq('the whole palette is offered', swatches.length, 16);
+  check('starting on the suggested colour',
+    swatches.find((s) => s.getAttribute('aria-pressed') === 'true')?.style.backgroundColor === 'rgb(196, 168, 130)',
+    `- got ${swatches.find((s) => s.getAttribute('aria-pressed') === 'true')?.style.backgroundColor}`);
+  check('and the one already taken is flagged',
+    swatches.filter((s) => s.className.includes('used')).length === 1);
+  check('with a title saying so',
+    (swatches.find((s) => s.className.includes('used'))?.getAttribute('title') || '').includes('χρησιμοποιείται ήδη'));
+  // The swatch is still pressable - "used" is a hint, not a lock.
+  check('and is still choosable', swatches.find((s) => s.className.includes('used'))?.disabled !== true);
+
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.btn-secondary'))
+      .find((b) => b.textContent === 'Άκυρο').click();
+  });
+  await act(async () => {});
+
+  // Editing loads the row's values rather than blank ones - including the
+  // colour, which has to survive a rename that never touches it.
+  await act(async () => {
+    rows[0].querySelector('.btn-small').dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('editing opens with the name in place',
+    view.el.querySelector('.task-edit-form input')?.value === 'Ελεύθερος Επαγγελματίας');
+  check('and with its colour preselected',
+    view.el.querySelector('.task-edit-form .color-option[aria-pressed="true"]')?.style.backgroundColor === 'rgb(123, 141, 110)',
+    `- got ${view.el.querySelector('.task-edit-form .color-option[aria-pressed="true"]')?.style.backgroundColor}`);
+
+  await act(async () => {
+    view.el.querySelector('.task-edit-form .btn-small').click();
+  });
+  await act(async () => {});
+  const savedEdit = calls.find((c) => c[0] === 'update');
+  check('saving an edit sends the colour through', savedEdit?.[2]?.color === '#7B8D6E',
+    `- got ${savedEdit?.[2]?.color}`);
 
   // Deleting something in use has to say what it will detach first. Scoped to
   // the row: after a row opens for editing its buttons are replaced by the edit
@@ -807,7 +863,7 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
     (dialog?.textContent || '').includes('3') &&
     (dialog?.textContent || '').includes('πελάτες'),
     `- got: ${(dialog?.textContent || '').replace(/\s+/g, ' ').trim()}`);
-  check('nothing deleted until confirmed', calls.length === 0);
+  check('nothing deleted until confirmed', calls.filter((c) => c[0] === 'delete').length === 0);
 
   await act(async () => {
     Array.from(view.el.querySelectorAll('.modal .btn-secondary'))
@@ -815,16 +871,7 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
   });
   await act(async () => {});
   check('cancelling closes it without deleting',
-    !view.el.querySelector('.modal') && calls.length === 0);
-
-  // Editing loads the row's current values rather than blank ones.
-  await act(async () => {
-    rows[0].querySelector('.btn-small').dispatchEvent(
-      new window.MouseEvent('click', { bubbles: true }));
-  });
-  await act(async () => {});
-  check('editing opens with the name in place',
-    view.el.querySelector('.task-edit-form input')?.value === 'Ελεύθερος Επαγγελματίας');
+    !view.el.querySelector('.modal') && calls.filter((c) => c[0] === 'delete').length === 0);
 
   // An unused profession gets the shorter confirmation - there is nothing to
   // detach, and saying "0 πελάτες" would read as if one were about to be lost.
@@ -833,6 +880,46 @@ console.log('\n12h) the profession catalogue edits, deactivates and deletes');
   check('an unused one says so instead',
     (dialog?.textContent || '').includes('Δεν χρησιμοποιείται'),
     `- got: ${(dialog?.textContent || '').replace(/\s+/g, ' ').trim()}`);
+
+  view.cleanup();
+}
+
+console.log('\n12j) the profession colour reaches the pickers as a cue, not as text');
+{
+  // The colour is a second cue beside the name, never the name itself. Checked
+  // by reading the swatch out of the markup: if it were rendered as the option's
+  // text, or only as a background, either check would fail.
+  const colors = { 7: '#7B8D6E', 8: '#C4A882' };
+  const view = mount(
+    React.createElement(ui.WorklistFiltersBar, {
+      filters: { clientId: null, taskTypeId: null, professionId: null, status: 'all' },
+      onStatusChange: async () => {}, onReset: async () => {},
+      isFiltered: false, shownCount: 0, totalCount: 0,
+      clientOptions: [], taskOptions: [],
+      professionOptions: [{ id: 7, name: 'Ελεύθερος Επαγγελματίας' }, { id: 8, name: 'Εταιρική Διαχείριση' }],
+      professionColors: colors,
+      onClientSelect: async () => {}, onTaskSelect: async () => {}, onProfessionSelect: async () => {},
+    })
+  );
+  await act(async () => {});
+
+  const toggle = view.el.querySelector('.filter-profession .filter-select-toggle');
+  await act(async () => { toggle.click(); });
+  await act(async () => {});
+
+  const options = Array.from(view.el.querySelectorAll('.filter-select-list [role="option"]'));
+  const named = options.filter((o) => o.textContent.trim().length > 0);
+  checkEq('both professions are on offer', named.length, 3); // "all" plus the two
+  check('and the names are plain text, so the colour is never the only cue',
+    named.some((o) => o.textContent.trim() === 'Ελεύθερος Επαγγελματίας') &&
+    named.some((o) => o.textContent.trim() === 'Εταιρική Διαχείριση'));
+  const swatches = Array.from(view.el.querySelectorAll('.filter-profession .filter-select-swatch'));
+  check('each carries a swatch', swatches.length >= 2, `- got ${swatches.length}`);
+  // Both offered colours have to appear, or the palette collapsed to one shade
+  // and the dot stopped distinguishing anything.
+  check('in their own colours',
+    new Set(swatches.map((s) => s.style.backgroundColor)).size === 2,
+    `- got ${[...new Set(swatches.map((s) => s.style.backgroundColor))].join(', ')}`);
 
   view.cleanup();
 }

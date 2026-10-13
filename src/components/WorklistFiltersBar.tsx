@@ -16,6 +16,11 @@ interface WorklistFiltersBarProps {
   taskOptions: Array<{ id: number; name: string }>;
   /** Professions offered by the per-profession picker. */
   professionOptions?: Array<{ id: number; name: string }>;
+  /**
+   * A swatch per profession id, shown beside the name in the profession picker.
+   * Optional: without it the list is still correct, just without the cue.
+   */
+  professionColors?: Record<number, string>;
   onClientSelect: (id: number | null) => void;
   onTaskSelect: (id: number | null) => void;
   onProfessionSelect: (id: number | null) => void;
@@ -49,6 +54,11 @@ interface ClientFilterSelectProps {
    * profession on the client form, where "Κανένας πελάτης" would be a lie.
    */
   emptyText?: string;
+  /**
+   * A swatch per option id, drawn beside its name. Purely a cue: the option is
+   * named in text either way, so nothing here depends on seeing the colour.
+   */
+  colors?: Record<number, string>;
 }
 
 function normalize(value: string): string {
@@ -64,6 +74,7 @@ export function ClientFilterSelect({
   listLabel,
   className,
   emptyText = "Κανένας πελάτης με αυτό το όνομα",
+  colors = {},
 }: ClientFilterSelectProps) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -71,6 +82,7 @@ export function ClientFilterSelect({
   const term = normalize(search);
   const visible = term === "" ? options : options.filter((o) => normalize(o.name).includes(term));
   const selected = options.find((o) => o.id === value);
+  const selectedColor = selected ? colors[selected.id] : undefined;
 
   function choose(id: number | null) {
     onChange(id);
@@ -110,6 +122,15 @@ export function ClientFilterSelect({
           onClick={() => setOpen((v) => !v)}
         >
           <span className="filter-select-current" aria-hidden="true">
+            {/* The swatch repeats the chosen option's colour, so the current
+                value is recognisable without opening the list. */}
+            {selectedColor && (
+              <span
+                className="filter-select-swatch"
+                style={{ backgroundColor: selectedColor }}
+                aria-hidden="true"
+              />
+            )}
             {selected ? selected.name : allLabel}
           </span>
           <span aria-hidden="true" className="filter-select-caret">
@@ -143,6 +164,13 @@ export function ClientFilterSelect({
                   className={o.id === value ? "selected" : ""}
                   onClick={() => choose(o.id)}
                 >
+                  {colors[o.id] && (
+                    <span
+                      className="filter-select-swatch"
+                      style={{ backgroundColor: colors[o.id] }}
+                      aria-hidden="true"
+                    />
+                  )}
                   {o.name}
                 </button>
               </li>
@@ -172,6 +200,7 @@ export function WorklistFiltersBar({
   clientOptions,
   taskOptions,
   professionOptions = [],
+  professionColors = {},
   onClientSelect,
   onTaskSelect,
   onProfessionSelect,
@@ -206,6 +235,7 @@ export function WorklistFiltersBar({
           listLabel="Φίλτρο επαγγέλματος"
           className="filter-profession"
           emptyText="Κανένα επάγγελμα με αυτό το όνομα"
+          colors={professionColors}
         />
       </div>
 

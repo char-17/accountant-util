@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import type { Profession } from "../domain/types";
 import * as professionRepo from "../persistence/professionRepo";
+import { getAvailableColor } from "../utils/colors";
 import { toMessage } from "../utils/errors";
 
 export interface ProfessionInput {
   name: string;
   description?: string | null;
+  color: string;
 }
 
 /**
@@ -55,6 +57,18 @@ export function useProfessions(db: Database | null) {
   };
 
   /**
+   * The first palette colour no other active profession is using.
+   *
+   * Asked of the database rather than counted off the loaded list, so a colour
+   * suggested for the new row is not the same one the row being typed already
+   * has - which would otherwise happen every time a profession was renamed.
+   */
+  const suggestColor = async (): Promise<string> => {
+    if (!db) return getAvailableColor([]);
+    return getAvailableColor(await professionRepo.getUsedProfessionColors(db));
+  };
+
+  /**
    * Deleting detaches the profession from any client using it, so the clients
    * are read back afterwards: the month totals and the profession filter both
    * read through this list.
@@ -74,5 +88,6 @@ export function useProfessions(db: Database | null) {
     createProfession,
     updateProfession,
     deleteProfession,
+    suggestColor,
   };
 }

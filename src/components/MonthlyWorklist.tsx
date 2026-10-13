@@ -21,6 +21,8 @@ interface MonthlyWorklistProps {
   clientOptions: Array<{ id: number; name: string }>;
   taskOptions: Array<{ id: number; name: string }>;
   professionOptions?: Array<{ id: number; name: string }>;
+  /** Swatches shown beside each profession in the picker. */
+  professionColors?: Record<number, string>;
   onFilterReset: () => void;
   year: number;
   month: number;
@@ -74,6 +76,7 @@ export function MonthlyWorklist({
   clientOptions,
   taskOptions,
   professionOptions = [],
+  professionColors,
   onFilterReset,
   year,
   month,
@@ -121,6 +124,7 @@ export function MonthlyWorklist({
       clientOptions={clientOptions}
       taskOptions={taskOptions}
       professionOptions={professionOptions}
+      professionColors={professionColors}
       onReset={onFilterReset}
       isFiltered={isFiltered}
       shownCount={statuses.length}

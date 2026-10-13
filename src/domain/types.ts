@@ -24,6 +24,8 @@ export interface Profession {
   id: number;
   name: string;
   description?: string | null;
+  /** A swatch from MUTED_PALETTE, shown as a dot beside the name. */
+  color: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
