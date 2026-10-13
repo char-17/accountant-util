@@ -924,6 +924,83 @@ console.log('\n12j) the profession colour reaches the pickers as a cue, not as t
   view.cleanup();
 }
 
+console.log('\n12k) deleting a task asks first, and says what it would take');
+{
+  const deleted = [];
+  const TASKS = [
+    { id: 1, name: 'ΦΠΑ', color: '#7B8D6E', isActive: true },
+    { id: 2, name: 'ΒΕΡ', color: '#8B9DAD', isActive: true },
+  ];
+  const view = mount(
+    React.createElement(ui.TaskCatalog, {
+      tasks: TASKS,
+      // One task has clients and no history, the other the reverse: the two
+      // facts call for different decisions and both have to be named.
+      usage: { 1: { clients: 4, history: 0 }, 2: { clients: 0, history: 19 } },
+      onCreate: async () => {},
+      onUpdate: async () => {},
+      onDelete: async (id) => { deleted.push(id); },
+      suggestColor: async () => '#7B8D6E',
+    })
+  );
+  await act(async () => {});
+
+  const rowDelete = (row) =>
+    Array.from(row.querySelectorAll('.btn-danger')).find((b) => b.textContent === 'Διαγραφή');
+
+  await act(async () => {
+    rowDelete(view.el.querySelectorAll('.task-item')[0])
+      .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  let dialog = view.el.querySelector('.modal');
+  check('deleting a task asks first', Boolean(dialog));
+  check('names the task', (dialog?.textContent || '').includes('ΦΠΑ'));
+  check('and how many clients it is attached to',
+    (dialog?.textContent || '').includes('4 πελάτες'),
+    `- got ${(dialog?.textContent || '').replace(/\s+/g, ' ').trim()}`);
+  // Zero history is not printed as "0 μηνιαίες καταστάσεις", which would read as
+  // though something had been wiped.
+  check('and does not mention history it has none of',
+    !/καταστάσ/.test(dialog?.textContent || ''));
+  check('nothing deleted yet', deleted.length === 0);
+
+  // Cancelling leaves the list alone.
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.modal .btn-secondary'))
+      .at(-1).dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('cancelling closes it without deleting',
+    !view.el.querySelector('.modal') && deleted.length === 0);
+
+  // The second task: no clients, a lot of history. This is the case where the
+  // count of clients alone would understate what is lost.
+  await act(async () => {
+    rowDelete(view.el.querySelectorAll('.task-item')[1])
+      .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  dialog = view.el.querySelector('.modal');
+  check('and a task with history but no clients says so',
+    /19 μηνιαίες καταστάσεις/.test(dialog?.textContent || ''),
+    `- got ${(dialog?.textContent || '').replace(/\s+/g, ' ').trim()}`);
+  check('without inventing a client count',
+    !/πελάτ/.test(dialog?.textContent || ''));
+
+  // Confirming actually deletes, and only that one.
+  await act(async () => {
+    Array.from(view.el.querySelectorAll('.modal .btn-danger'))
+      .at(-1).dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  check('confirming deletes it', deleted.length === 1 && deleted[0] === 2,
+    `- got ${JSON.stringify(deleted)}`);
+  check('and closes the dialog', !view.el.querySelector('.modal'));
+
+  view.cleanup();
+}
+
 console.log('\n12i) the month popover closes on an outside click, but not on its own');
 {
   // The alternative was the full-screen backdrop the filter pickers use. It

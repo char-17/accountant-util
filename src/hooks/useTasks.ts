@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import type { TaskType } from "../domain/types";
 import * as taskRepo from "../persistence/taskRepo";
+import type { TaskUsage } from "../persistence/taskRepo";
 import { getAvailableColor } from "../utils/colors";
 
 export function useTasks(db: Database | null) {
   const [tasks, setTasks] = useState<TaskType[]>([]);
+  const [usage, setUsage] = useState<Record<number, TaskUsage>>({});
   const [loading, setLoading] = useState(true);
 
   const loadTasks = useCallback(async () => {
@@ -14,6 +16,10 @@ export function useTasks(db: Database | null) {
     try {
       const result = await taskRepo.getAllTaskTypes(db);
       setTasks(result);
+      // Reloaded with the list rather than on demand: a delete confirmation has
+      // to be able to say what is attached at the moment it is opened, and the
+      // numbers go stale as soon as anyone adds an assignment elsewhere.
+      setUsage(await taskRepo.getTaskUsage(db));
     } finally {
       setLoading(false);
     }
@@ -49,6 +55,7 @@ export function useTasks(db: Database | null) {
 
   return {
     tasks,
+    usage,
     loading,
     createTask,
     updateTask,

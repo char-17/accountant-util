@@ -2,11 +2,22 @@ import Database from "@tauri-apps/plugin-sql";
 import type { TaskType } from "../domain/types";
 import { normalizeTasks } from "../utils/db";
 
+/**
+ * What a task is currently attached to, for the delete confirmation.
+ *
+ * `clients` counts assignments - who has this work. `history` counts rows in
+ * monthly_task_status - how much recorded work carries this task's name. The two
+ * are not the same: a task can have months of history and no assignments left.
+ */
+export interface TaskUsage {
+  clients: number;
+  history: number;
+}
+
 // SQLite returns columns in snake_case (is_active, created_at) and drivers are
 // inconsistent about typing booleans, so rows are normalised in JS instead of
 // relying on SQL casts. See normalizeTask in utils/db.ts.
-const TASK_COLUMNS = `
-  id,
+const TASK_COLUMNS = `  id,
   name,
   description,
   color,
@@ -78,6 +89,46 @@ export async function getUsedColors(db: Database): Promise<string[]> {
     "SELECT DISTINCT color FROM task_types WHERE is_active = 1"
   );
   return results.map((r) => r.color);
+}
+
+/**
+ * How many clients each task is assigned to, keyed by task id.
+ *
+ * Asked of the database so the delete confirmation can say what it is about to
+ * detach. A task carries history as well as assignments - deleting one leaves
+ * the month's rows pointing at a task that no longer exists, which is why the
+ * confirmation names both numbers rather than just the client count.
+ *
+ * Assignments and month rows are counted separately because they answer
+ * different questions: "who does this work for" versus "how much recorded work
+ * would lose its label".
+ */
+export async function getTaskUsage(db: Database): Promise<Record<number, TaskUsage>> {
+  const assignments = await db.select<Array<{ taskTypeId: number; count: number }>>(
+    `SELECT task_type_id AS taskTypeId, COUNT(*) as count
+       FROM client_task_assignments
+      GROUP BY task_type_id`
+  );
+  const months = await db.select<Array<{ taskTypeId: number; count: number }>>(
+    `SELECT task_type_id AS taskTypeId, COUNT(*) as count
+       FROM monthly_task_status
+      GROUP BY task_type_id`
+  );
+  const total = (rows: Array<{ taskTypeId: number; count: number }>) =>
+    rows.reduce<Record<number, number>>((acc, r) => {
+      acc[r.taskTypeId] = r.count;
+      return acc;
+    }, {});
+  const clients = total(assignments);
+  const history = total(months);
+  const out: Record<number, TaskUsage> = {};
+  for (const id of new Set([...Object.keys(clients), ...Object.keys(history)])) {
+    out[Number(id)] = {
+      clients: clients[Number(id)] ?? 0,
+      history: history[Number(id)] ?? 0,
+    };
+  }
+  return out;
 }
 
 export async function isColorUsed(

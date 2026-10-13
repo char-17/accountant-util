@@ -1,5 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import type { Profession } from "../domain/types";
+import { getAvailableColor } from "../utils/colors";
 
 // Same shape as taskRepo: snake_case columns aliased to camelCase, and booleans
 // normalised in JS because drivers disagree about typing them.
@@ -96,6 +97,67 @@ export async function getUsedProfessionColors(db: Database): Promise<string[]> {
 export async function deleteProfession(db: Database, id: number): Promise<void> {
   await db.execute("UPDATE clients SET profession_id = NULL WHERE profession_id = $1", [id]);
   await db.execute("DELETE FROM professions WHERE id = $1", [id]);
+}
+
+/**
+ * The professions a new database starts with.
+ *
+ * A list of professions is a vocabulary, and an empty one forces the accountant
+ * to invent the common categories before they can classify anyone. These are the
+ * ones an accountant in Greece meets first. They are a starting point, not a
+ * closed set - the catalogue is fully editable, and deleting one of these leaves
+ * it deleted.
+ */
+export const DEFAULT_PROFESSIONS = [
+  "Εννοικιαζόμενα Δωμάτια",
+  "Ξενοδοχείο",
+  "Εργολάβος",
+  "Μηχανικός",
+  "Τεχνήτης",
+  "Εμπόριο",
+  "Παροχή Υπηρεσιών",
+] as const;
+
+/** Lowercased with the accents dropped, so spelling variants still match. */
+function fold(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLocaleLowerCase("el-GR");
+}
+
+/**
+ * Adds any of DEFAULT_PROFESSIONS that is not there yet, and returns how many.
+ *
+ * Additive and never overwriting: a profession the user has renamed, recoloured
+ * or deactivated is left exactly as it is. Matching is accent-insensitive,
+ * because "Εργολάβος" and "Εργολαβος" are the same word to a person and would
+ * otherwise produce a duplicate pair in the list.
+ */
+export async function seedDefaultProfessions(db: Database): Promise<number> {
+  const existing = await db.select<Array<{ name: string; color: string }>>(
+    "SELECT name, color FROM professions"
+  );
+  const present = new Set(existing.map((r) => fold(r.name)));
+  // Colours only. The filter below is an exact match against the palette, and
+  // a set that also held the names would still work by accident - it would just
+  // be carrying a list it never reads.
+  const taken = new Set(existing.map((r) => r.color));
+
+  let added = 0;
+  for (const name of DEFAULT_PROFESSIONS) {
+    if (present.has(fold(name))) continue;
+    const color = getAvailableColor([...taken]);
+    taken.add(color);
+    await db.execute(
+      "INSERT INTO professions (name, color) VALUES ($1, $2)",
+      [name, color]
+    );
+    present.add(fold(name));
+    added++;
+  }
+  return added;
 }
 
 export async function professionNameExists(

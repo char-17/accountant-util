@@ -63,7 +63,7 @@ function App() {
     deleteClient,
     refresh: refreshClients,
   } = useClients(db);
-  const { tasks, createTask, updateTask, deleteTask, suggestColor, refresh: refreshTasks } = useTasks(db);
+  const { tasks, usage: taskUsage, createTask, updateTask, deleteTask, suggestColor, refresh: refreshTasks } = useTasks(db);
   const {
     professions,
     clientCounts: professionClientCounts,
@@ -604,6 +604,7 @@ function App() {
         {activeView === "tasks" && (
           <TaskCatalog
             tasks={tasks}
+            usage={taskUsage}
             onCreate={handleTaskCreated}
             onUpdate={handleTaskUpdated}
             onDelete={handleTaskDeleted}

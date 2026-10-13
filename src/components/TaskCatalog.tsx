@@ -1,24 +1,49 @@
 import { useState } from "react";
 import type { TaskType } from "../domain/types";
+import type { TaskUsage } from "../persistence/taskRepo";
+import { DeleteImpact } from "./DeleteImpact";
 import { MUTED_PALETTE, isColorUsed } from "../utils/colors";
 import { toMessage } from "../utils/errors";
 
 interface TaskCatalogProps {
   tasks: TaskType[];
+  /** What each task is attached to, so deleting can say what it would take. */
+  usage?: Record<number, TaskUsage>;
   onCreate: (data: Pick<TaskType, "name" | "color" | "description">) => Promise<void>;
   onUpdate: (id: number, data: Partial<TaskType>) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   suggestColor: () => Promise<string>;
 }
 
-export function TaskCatalog({ tasks, onCreate, onUpdate, onDelete }: TaskCatalogProps) {
+export function TaskCatalog({ tasks, usage = {}, onCreate, onUpdate, onDelete }: TaskCatalogProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: "", color: "", description: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Held until confirmed. Deleting a task straight from the row took the whole
+  // month's history with it, and there was no way back from that.
+  const [pendingDelete, setPendingDelete] = useState<TaskType | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const usedColors = tasks.filter((t) => t.isActive).map((t) => t.color);
+
+  async function handleDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await onDelete(pendingDelete.id);
+      setPendingDelete(null);
+    } catch (err) {
+      // The dialog closes so the error is not hidden behind it, but the reason
+      // is kept on the page - a failed delete is not a silent one.
+      setError(toMessage(err));
+      setPendingDelete(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   async function handleAdd() {
     if (!formData.name.trim()) {
@@ -165,7 +190,7 @@ export function TaskCatalog({ tasks, onCreate, onUpdate, onDelete }: TaskCatalog
                     >
                       {task.isActive ? "Απενεργοποίηση" : "Ενεργοποίηση"}
                     </button>
-                    <button className="btn-small btn-danger" onClick={() => onDelete(task.id)}>
+                    <button className="btn-small btn-danger" onClick={() => setPendingDelete(task)}>
                       Διαγραφή
                     </button>
                   </div>
@@ -175,6 +200,39 @@ export function TaskCatalog({ tasks, onCreate, onUpdate, onDelete }: TaskCatalog
           ))
         )}
       </div>
+
+      {pendingDelete && (
+        <div className="modal-backdrop" onClick={() => !deleting && setPendingDelete(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Διαγραφή εργασίας"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Διαγραφή εργασίας</h3>
+            <p>
+              Θα διαγραφεί η εργασία <strong>{pendingDelete.name}</strong>.
+            </p>
+            <DeleteImpact
+              clients={usage[pendingDelete.id]?.clients ?? 0}
+              history={usage[pendingDelete.id]?.history ?? 0}
+            />
+            <div className="form-actions">
+              <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting ? "Διαγραφή..." : "Ναι, διέγραψε"}
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={() => setPendingDelete(null)}
+                disabled={deleting}
+              >
+                Άκυρο
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

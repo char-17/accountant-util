@@ -11,6 +11,7 @@ const VERIFY = [
   'verify-recurrence.mjs',
   'verify-seed.cjs',
   'verify-seed-period.cjs',
+  'verify-profession-seed.cjs',
   'verify-worklist-filters.cjs',
   'verify-export-report.cjs',
   'verify-backup-restore.cjs',

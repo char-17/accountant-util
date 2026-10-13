@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Profession } from "../domain/types";
+import { DeleteImpact } from "./DeleteImpact";
 import { MUTED_PALETTE, isColorUsed } from "../utils/colors";
 import { toMessage } from "../utils/errors";
 
@@ -285,21 +286,10 @@ export function ProfessionCatalog({
             <p>
               Θα διαγραφεί το επάγγελμα <strong>{pendingDelete.name}</strong>.
             </p>
-            <div className="modal-warning">
-              {(clientCounts[pendingDelete.id] ?? 0) > 0 ? (
-                <>
-                  Θα αποσυνδεθεί από{" "}
-                  <strong>
-                    {clientCounts[pendingDelete.id]}{" "}
-                    {(clientCounts[pendingDelete.id] ?? 0) === 1 ? "πελάτη" : "πελάτες"}
-                  </strong>
-                  , οι οποίοι θα εμφανίζονται χωρίς επάγγελμα. Τα δεδομένα τους δεν
-                  χάνονται.
-                </>
-              ) : (
-                "Δεν χρησιμοποιείται από κανέναν πελάτη."
-              )}
-            </div>
+            {/* The same wording as the task catalogue's: two lists, one
+                question, and two hand-written versions would drift apart
+                exactly where nobody reads twice. */}
+            <DeleteImpact clients={clientCounts[pendingDelete.id] ?? 0} />
             <div className="form-actions">
               <button className="btn-danger" onClick={handleDelete} disabled={deleting}>
                 {deleting ? "Διαγραφή..." : "Ναι, διέγραψε"}

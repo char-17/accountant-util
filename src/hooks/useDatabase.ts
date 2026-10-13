@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { migrateLegacyDatabase, DB_FILE_NAME } from "../domain/dbLocation";
+import { seedDefaultProfessions } from "../persistence/professionRepo";
 
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS clients (
@@ -175,6 +176,14 @@ async function applyMigrations(database: Database): Promise<string | null> {
         message.includes("already exists");
       if (!alreadyApplied) throw err;
     }
+  }
+  // After the migrations, not as one: the seed writes into professions, so the
+  // table has to exist first. Never fails the launch - a database that will not
+  // take the default rows is still perfectly usable, just empty.
+  try {
+    await seedDefaultProfessions(database);
+  } catch {
+    // Deliberately swallowed; see above.
   }
   return dropRetiredClientColumns(database);
 }

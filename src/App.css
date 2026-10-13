@@ -57,6 +57,10 @@
   --danger-border: #fecaca;
 
   --warning: #d97706;
+  /* White on --warning measures 3.19:1, short of the 4.5:1 these labels need at
+     this size. --warning-text-strong is the step that carries white, and is what
+     a filled warning button hovers to. */
+  --warning-strong: #92400e;
   --warning-text: #b45309;
   --warning-text-strong: #92400e;
   --warning-soft: #fffbeb;
@@ -2536,11 +2540,16 @@ body {
 
 /* aria-disabled rather than disabled, so the button still answers a hover and
    a click - but it must read as unavailable while doing so. Desaturated, one
-   step flatter, and the hover is suppressed so nothing looks actionable. */
+   step flatter, and the hover is suppressed so nothing looks actionable.
+
+   The label stays dark rather than going white: white on this fill is 1.51:1,
+   so the label vanished entirely. "Unavailable" is carried by the flat grey and
+   the not-allowed cursor, and the text is still there to be read. --text-soft
+   holds 4.87:1 here. */
 .btn-primary[aria-disabled="true"] {
   background: var(--border-strong);
   border-color: var(--border-strong);
-  color: var(--surface);
+  color: var(--text-soft);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -2939,8 +2948,9 @@ body {
 }
 
 .btn-warning:hover {
-  background: var(--warning);
-  border-color: var(--warning-text);
+  /* --warning-strong, not --warning: white on --warning is 3.19:1. */
+  background: var(--warning-strong);
+  border-color: var(--warning-text-strong);
   color: var(--surface);
 }
 
@@ -3092,15 +3102,6 @@ body {
 .btn-add-client:focus-visible {
   outline: 2px solid var(--success-strong);
   outline-offset: 2px;
-}
-
-.btn-danger {
-  color: var(--danger);
-}
-
-.btn-danger:hover {
-  border-color: var(--danger);
-  color: var(--danger);
 }
 
 .btn-toggle {
