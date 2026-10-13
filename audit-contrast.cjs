@@ -172,6 +172,7 @@ for (const r of rules) {
 
 const problems = [];
 const warnings = [];
+const semantic = [];
 
 // :active is folded into :hover - in this file it resolves to the same pair, and
 // reporting the same finding twice is noise.
@@ -292,6 +293,36 @@ for (const combo of combos) {
   }
 }
 
+// ── Does a delete button look like one ────────────────────────────────────────
+// Contrast alone cannot see this. Black on white is perfectly legible, so a
+// delete button that lost its red still passes every measurement above while
+// reading as an ordinary button until it is pressed. What matters is that a
+// destructive control is recognisable before it is used, so a button carrying
+// btn-danger has to resolve to a red at rest.
+const DANGER = ['--danger', '--danger-strong', '--danger-text'];
+const dangerCombos = combos.filter((c) => c.split('.').includes('btn-danger'));
+
+for (const combo of dangerCombos) {
+  // The filled variant is white on red by design; only the outlined one is
+  // expected to be red-on-white.
+  if (combo.split('.').includes('btn-danger-solid')) continue;
+
+  const baseDecls = {};
+  for (const r of rulesForCombo(combo, null)) Object.assign(baseDecls, declarations(r.body));
+  const label = baseDecls.color || '';
+  const token = label.match(/var\(\s*(--[a-z0-9-]+)\s*\)/i)?.[1];
+  const bare = label.trim();
+  const ok =
+    (token && DANGER.includes(token)) ||
+    (DANGER.some((t) => (tokens[t] || '').toLowerCase() === bare.toLowerCase()));
+  if (!ok) {
+    semantic.push(
+      `.${combo} is a delete button but its label is ` +
+      `${token ? token : bare || '(unset)'}, not a red`
+    );
+  }
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────
 console.log(`Scanned ${rules.length} rules, ${groups.size} button selectors, ${combos.length} class combinations.`);
 console.log(`Tokens resolved: ${Object.keys(tokens).length}\n`);
@@ -309,4 +340,11 @@ if (problems.length === 0) {
   problems.forEach((p) => console.log(`  X ${p}`));
 }
 
-process.exit(problems.length ? 1 : 0);
+if (semantic.length === 0) {
+  console.log('OK   every delete button reads as destructive at rest.');
+} else {
+  console.log(`\nFound ${semantic.length} destructive-looking button(s) that do not read as one:\n`);
+  semantic.forEach((p) => console.log(`  X ${p}`));
+}
+
+process.exit(problems.length + semantic.length ? 1 : 0);

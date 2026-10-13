@@ -132,6 +132,11 @@ export function ReportsView({
   const totals = reportTotals(groups);
   const monthCount = monthsInRange(range).length;
 
+  // Prints the page, not the app: the report is laid out for the screen, so the
+  // controls, the totals strip and the client rows all have to say whether they
+  // belong on paper. See the @media print block in App.css.
+  const handlePrint = () => window.print();
+
   return (
     <div className="reports-view">
       <div className="reports-controls">
@@ -181,10 +186,18 @@ export function ReportsView({
           </div>
         )}
 
+        {/* The period in words sits between the buttons and the print action
+            rather than on a line of its own: it describes what those buttons
+            selected, so reading it directly beside them saves the eye a trip
+            down and back. Centred in the space that leaves. */}
         <p className="reports-range-label">
           {reportRangeLabel(range)}
           {monthCount > 1 && <span> · {monthCount} μήνες</span>}
         </p>
+
+        <button className="btn-secondary reports-print" onClick={handlePrint}>
+          Εκτύπωση
+        </button>
       </div>
 
       {loading ? (

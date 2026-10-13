@@ -203,7 +203,7 @@ async function main() {
   }));
 
   console.log('\n4) the report table');
-  await render('reports', React.createElement(ui.ReportsView, {
+  const report = await render('reports', React.createElement(ui.ReportsView, {
     groups: [
       { clientId: 1, clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', totalAmount: 100, paidAmount: 50, invoicedAmount: 0, rows: [
         { key: 'a', taskName: 'ΦΠΑ', taskColor: '#7B8D6E', year: 2026, month: 10, isPaid: false, isInvoiced: false, amount: 100 }] },
@@ -213,6 +213,32 @@ async function main() {
     onPeriodChange: noop, customFrom: 1, customTo: 12,
     onCustomRangeChange: noop, isEmpty: false,
   }));
+
+  // The period, the range it selected and the print action share one row, in
+  // that order. Checked as structure: nothing about the markup is wrong until
+  // it is laid out, and this is the shape being asked for.
+  const controls = container.querySelector('.reports-controls');
+  check('the controls row exists', Boolean(controls));
+  check('the period buttons are in it', Boolean(controls?.querySelector('.reports-period')));
+  check('the range label is in it', Boolean(controls?.querySelector('.reports-range-label')));
+  check('the print button is in it', Boolean(controls?.querySelector('.reports-print')));
+  check('reading left to right: period, range, print',
+    /reports-period[\s\S]*reports-range-label[\s\S]*reports-print/.test(controls?.innerHTML || ''),
+    `- got: ${(controls?.innerHTML || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)}`);
+  check('and the print button asks to print',
+    controls?.querySelector('.reports-print')?.textContent === 'Εκτύπωση');
+  // The buttons and the print action are what the @media print block hides.
+  const css = fs.readFileSync(path.join(__dirname, 'src', 'App.css'), 'utf8');
+  const printBlock = (css.match(/@media print \{[\s\S]*?\n\}/) || [''])[0];
+  check('and the print stylesheet drops the buttons',
+    /\.reports-print/.test(printBlock) && /\.reports-period/.test(printBlock));
+  check('but keeps the range label, which is worth reading on paper',
+    !/\.reports-range-label[^{]*\{[^}]*display:\s*none/.test(printBlock));
+  check('the document title is the application, not the build template',
+    /<title>Accountant Util<\/title>/.test(
+      fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8')));
+
+  void report;
 
   console.log('\n5) the month summary, and the confirm dialog behind it');
   const confirming = await render('summary', React.createElement(

@@ -1742,8 +1742,33 @@ body {
   .file-menu,
   .month-picker,
   .toaster,
-  .worklist-filters {
+  .worklist-filters,
+  /* The controls and the print button are how the period was chosen; on paper
+     the period is already stated by the range label and the rows below it, and
+     a row of buttons that does nothing on a printed page is just noise. Only
+     the buttons and the print action go - the range label stays, because it is
+     the one thing on that row that is worth reading on paper. */
+  .reports-period,
+  .reports-print,
+  .month-nav-group,
+  .modal-backdrop {
     display: none !important;
+  }
+
+  /* Back to the stacked layout the screen uses, with the label promoted to a
+     heading since it is now the only thing describing the period. */
+  .reports-controls {
+    display: block;
+    padding: 0 0 12px;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: none;
+  }
+
+  .reports-range-label {
+    text-align: left;
+    font-size: 1.05rem;
   }
 
   .app,
@@ -2146,22 +2171,56 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+/* Period buttons, the range they select, and the print action share one line.
+   The label is centred in whatever space the buttons leave on each side, so it
+   reads as describing them rather than sitting beside them; the print button
+   takes the far right so it never drifts into the middle on a wider window. */
 .reports-controls {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 16px 18px;
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   background: var(--surface-muted);
 }
 
+/* flex:1 with auto margins centres the label in the leftover width, and both
+   collapse to nothing if the row wraps - so the label is never squeezed into a
+   few pixels on a narrow panel. */
+.reports-range-label {
+  flex: 1 1 auto;
+  margin: 0 auto;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent-700);
+}
+
+/* Right-aligned by the auto margins on the label, so it holds the far right even
+   when the label is short. */
+.reports-print {
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .reports-range-label {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+
 .reports-custom-range {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
+/* The custom-range selects belong to the period buttons, so they sit with them
+   rather than on a line below. */
 .reports-custom-range label {
   display: inline-flex;
   align-items: center;
@@ -2180,14 +2239,14 @@ body {
   background: var(--surface);
 }
 
-.reports-range-label {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--accent-700);
+/* The period buttons are the report's only control, and they were reading as
+   small chips next to the table rather than as the thing being chosen. A shade
+   larger and heavier, to match the range label beside them. */
+.reports-period .status-filter-option {
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 6px 16px;
 }
-
-/* auto-fit lets the four totals spread to whatever width the window gives,
-   so no fixed column count and no measure cap. */
 .reports-totals {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -3069,10 +3128,18 @@ body {
   color: var(--accent-600);
 }
 
-/* A small delete button has both classes, and this rule sits later in the file
-   than .btn-danger:hover with the same weight - so it won. The result was a red
-   fill with a blue label: the worst of the two states rather than either. The
-   variant is restated here at the same weight to put the label back. */
+/* A small delete button has both classes, and .btn-small is declared later in
+   this file than .btn-danger with the same weight - so it won, twice over. On
+   hover that gave a red fill with a blue label; at rest it gave a black one. A
+   destructive button that does not look destructive is worse than no styling
+   at all, because it reads as ordinary until it is pressed.
+
+   Only the outlined variant. btn-danger-solid is the filled one - white on red
+   already - and colouring its label red would put red on red. */
+.btn-small.btn-danger {
+  color: var(--danger);
+}
+
 .btn-small.btn-danger:hover,
 .btn-small.btn-danger-solid:hover {
   border-color: var(--danger-strong);
