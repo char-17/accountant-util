@@ -136,6 +136,13 @@ check('the selected client is named in the picker', barFiltered.includes('ΧΑΤ
 check('the selected profession is named in its picker', barFiltered.includes('Ελεύθερος Επαγγελματίας'));
 check('the count reads "1 από 3 εργασίες"', text(barFiltered).includes('1 από 3 εργασίες'), `- got: ${text(barFiltered)}`);
 check('a clear button appears', barFiltered.includes('Καθαρισμός Φίλτρων'));
+// Dressed as a delete. Clearing throws the filters away rather than changing
+// them, so it carries the same red-on-white treatment as the catalogues' delete
+// buttons - nothing else would notice a revert to the neutral style.
+const clearBtnHtml = (barFiltered.match(/<button[^>]*>[\s\S]{0,120}?Καθαρισμός Φίλτρων/) || [''])[0];
+check('and it reads as destructive, like the delete buttons',
+  clearBtnHtml.includes('btn-danger') && !clearBtnHtml.includes('btn-secondary'),
+  `- got: ${clearBtnHtml}`);
 
 console.log('\n2b) the count and its reset share the status row, pushed right');
 {

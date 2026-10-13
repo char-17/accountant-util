@@ -265,7 +265,12 @@ export function WorklistFiltersBar({
             <span aria-live="polite">
               {shownCount} από {totalCount} εργασίες
             </span>
-            <button className="btn-small btn-secondary" onClick={onReset}>
+            {/* Destructive, and dressed like it: clearing throws away the
+                filters the user has built rather than changing them, which is
+                the same kind of act as a delete - red label on white, filling
+                red on hover. Same treatment as the catalogues' delete buttons,
+                so the weight of the action is legible before it is taken. */}
+            <button className="btn-small btn-danger" onClick={onReset}>
               Καθαρισμός Φίλτρων
             </button>
           </div>
