@@ -95,6 +95,11 @@ const mediaRanges = atRuleRanges(css);
 const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
   .map((m) => ({
     selector: m[1].trim().replace(/\s+/g, ' '),
+    // A rule may list several selectors sharing one body. They are separate
+    // controls that happen to agree, and treating the list as one string merges
+    // them: ".btn-small.btn-danger:hover, .btn-small.btn-danger-solid:hover"
+    // then reads as a selector requiring all four classes, so neither matches.
+    parts: m[1].split(',').map((s) => s.trim().replace(/\s+/g, ' ')).filter(Boolean),
     line: raw.slice(0, m.index).split('\n').length,
     inAtRule: mediaRanges.some(([a, b]) => m.index >= a && m.index <= b),
     body: m[2],
@@ -121,34 +126,48 @@ const BUTTONISH =
  * modifier as a duplicate definition of the thing it modifies.
  */
 function parse(selector) {
-  const states = [...selector.matchAll(/:(hover|active|disabled|focus-visible|checked)/g)]
+  // ":hover:not(:disabled)" must not count as applying in the disabled state -
+  // the :not() is what excludes it. Treating it as a match folded the hover
+  // colours into the disabled reading and produced a failure that was not there.
+  const withoutNot = selector.replace(/:not\([^)]*\)/g, '');
+  const states = [...withoutNot.matchAll(/:(hover|active|disabled|focus-visible|checked)/g)]
     .map((m) => m[1]);
-  const base = selector.replace(/:(hover|active|disabled|focus-visible|checked)/g, '');
+  const base = withoutNot.replace(/:(hover|active|disabled|focus-visible|checked)/g, '');
   return { base, states };
 }
 
 // Group by base selector, keeping source order: within one file the cascade is
-// last-wins, and that is the mechanism this file got wrong.
+// last-wins, and that is the mechanism this file got wrong. A rule listing
+// several selectors joins the group of each of them.
 const groups = new Map();
+const addTo = (base, entry) => {
+  if (!groups.has(base)) groups.set(base, { base, entries: [] });
+  groups.get(base).entries.push(entry);
+};
 for (const r of rules) {
   // Only simple compounds. A descendant selector ("` `.foo .btn` `") inherits a
   // background from an ancestor this tool cannot see, so it is left alone
   // rather than measured against a colour it does not have.
-  if (/\s/.test(r.selector)) continue;
-  if (!BUTTONISH.test(r.selector)) continue;
   // ::before and friends draw the notch or the caret, not a label. Measuring
   // them would report a decorative triangle as unreadable text.
-  if (/::/.test(r.selector)) continue;
-  const { base, states } = parse(r.selector);
-  if (!groups.has(base)) groups.set(base, { base, entries: [] });
-  groups.get(base).entries.push({
-    states,
-    body: r.body,
-    line: r.line,
-    // Carried through, not re-derived: dropping it here made every rule look
-    // top-level and flagged the responsive overrides as duplicates.
-    inAtRule: r.inAtRule,
-  });
+  for (const part of r.parts) {
+    if (/\s/.test(part)) continue;
+    if (!BUTTONISH.test(part)) continue;
+    if (/::/.test(part)) continue;
+    const { base, states } = parse(part);
+    addTo(base, {
+      states,
+      body: r.body,
+      line: r.line,
+      // A rule listing several selectors is the idiomatic "shared block" - one
+      // declaration for both, then each specialised below. That is not a
+      // duplicate definition of anything, so it is excluded from the warning.
+      shared: r.parts.length > 1,
+      // Carried through, not re-derived: dropping it here made every rule look
+      // top-level and flagged the responsive overrides as duplicates.
+      inAtRule: r.inAtRule,
+    });
+  }
 }
 
 const problems = [];
@@ -161,7 +180,7 @@ const STATES = ['', 'hover', 'disabled'];
 for (const { base, entries } of groups.values()) {
   const baseEntries = entries.filter((e) => e.states.length === 0);
   if (baseEntries.length > 1) {
-    const topLevel = baseEntries.filter((e) => !e.inAtRule);
+    const topLevel = baseEntries.filter((e) => !e.inAtRule && !e.shared);
     if (topLevel.length > 1) {
       warnings.push(
         `${base} defined ${topLevel.length} times outside any media query ` +
@@ -199,8 +218,82 @@ for (const { base, entries } of groups.values()) {
   }
 }
 
+// ── Combinations ──────────────────────────────────────────────────────────────
+// The per-selector pass above reads `.btn-danger:hover` as white on red and
+// passes it. The reported bug was not in that rule: it was `.btn-small:hover`,
+// later in the file and the same weight, applied to the same element because the
+// markup says class="btn-small btn-danger". Red fill, blue label.
+//
+// So the combinations that actually appear on an element are collected from the
+// markup and resolved as one control. Without this the check cannot see any
+// multi-class bug, which is most of them.
+function classCombinations() {
+  const src = path.join(__dirname, 'src');
+  const found = new Set();
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(entry.name)) {
+        const text = fs.readFileSync(p, 'utf8');
+        for (const m of text.matchAll(/(?:class|className)\s*=\s*(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+          const classes = (m[1] ?? m[2] ?? '')
+            .split(/\s+/)
+            .filter((c) => c && !c.includes("$") && !c.includes("{"));
+          if (classes.length > 1 && classes.every((c) => BUTTONISH.test(`.${c}`))) {
+            found.add(classes.slice().sort().join('.'));
+          }
+        }
+      }
+    }
+  };
+  walk(src);
+  return [...found];
+}
+
+const combos = classCombinations();
+
+/** Every rule part whose classes are all part of `combo`, in source order. */
+function rulesForCombo(combo, state) {
+  const set = new Set(combo.split('.'));
+  const out = [];
+  for (const r of rules) {
+    for (const part of r.parts) {
+      const { base, states } = parse(part);
+      const classes = (base.match(/\.[a-z][a-z0-9_-]*/gi) || []).map((c) => c.slice(1));
+      if (!classes.length || !classes.every((c) => set.has(c))) continue;
+      if (state ? !states.includes(state) : states.length !== 0) continue;
+      out.push(r);
+      break;
+    }
+  }
+  return out.sort((a, b) => a.line - b.line);
+}
+
+for (const combo of combos) {
+  const baseDecls = {};
+  for (const r of rulesForCombo(combo, null)) Object.assign(baseDecls, declarations(r.body));
+
+  for (const state of STATES) {
+    const decls = { ...baseDecls };
+    if (state) for (const r of rulesForCombo(combo, state)) Object.assign(decls, declarations(r.body));
+
+    const fg = resolve(decls.color);
+    const bg = resolve(decls['background-color']) || resolve(decls.background);
+    if (!fg || !bg) continue;
+
+    const ratio = contrast(fg, bg);
+    if (ratio < 4.5) {
+      problems.push(
+        `.${combo}${state ? ':' + state : ''} — ${ratio.toFixed(2)}:1  ` +
+        `text ${hex(fg)} on ${hex(bg)}  (two classes on one element)`
+      );
+    }
+  }
+}
+
 // ── Report ────────────────────────────────────────────────────────────────────
-console.log(`Scanned ${rules.length} rules, ${groups.size} button selectors.`);
+console.log(`Scanned ${rules.length} rules, ${groups.size} button selectors, ${combos.length} class combinations.`);
 console.log(`Tokens resolved: ${Object.keys(tokens).length}\n`);
 
 if (warnings.length) {

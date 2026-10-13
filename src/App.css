@@ -3069,6 +3069,16 @@ body {
   color: var(--accent-600);
 }
 
+/* A small delete button has both classes, and this rule sits later in the file
+   than .btn-danger:hover with the same weight - so it won. The result was a red
+   fill with a blue label: the worst of the two states rather than either. The
+   variant is restated here at the same weight to put the label back. */
+.btn-small.btn-danger:hover,
+.btn-small.btn-danger-solid:hover {
+  border-color: var(--danger-strong);
+  color: var(--surface);
+}
+
 /* The one action that adds something, so it is green and carries its own
    contrast: white on var(--success-strong) is 4.6:1, and the hover darkens rather than
    lightens, so the label never ends up lighter than its background. */
@@ -3156,13 +3166,20 @@ body {
 
 .client-assignments h3 {
   font-size: 1.1rem;
-  margin-bottom: 12px;
   position: sticky;
   top: 0;
+  /* Explicit rather than relying on the sticky element being positioned: the
+     rows below are static, and a future transform on one of them would lift it
+     into the same painting order and let it scroll over the heading. */
+  z-index: 2;
   /* Opaque, or the list would show through the heading while passing under it. */
   background: var(--surface);
-  padding: 4px 0 8px;
-  margin-top: -4px;
+  /* The gap below the heading is padding, not margin. Margin sits outside the
+     background box, so the rows scrolled up into that 12px and read as running
+     into the text; padding is inside it, so they are covered. The 12px of
+     breathing room is unchanged. */
+  padding: 4px 0 12px;
+  margin: -4px 0 0;
 }
 
 .assignment-list {
