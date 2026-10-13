@@ -29,13 +29,29 @@ export function ClientList({
   return (
     <div className="client-list" id="client-list-panel">
       <div className="client-search">
-        <input
-          type="search"
-          placeholder="Αναζήτηση πελάτη..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          aria-label="Αναζήτηση πελάτη"
-        />
+        <div className="client-search-field">
+          <input
+            type="search"
+            placeholder="Αναζήτηση πελάτη..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            aria-label="Αναζήτηση πελάτη"
+          />
+          {/* Only with something to clear, for the same reason as the filter
+              pickers: an always-present button would take its width from the
+              search field the whole time. */}
+          {searchQuery !== "" && (
+            <button
+              type="button"
+              className="filter-select-clear"
+              aria-label="Καθαρισμός αναζήτησης πελάτη"
+              title="Καθαρισμός αναζήτησης"
+              onClick={() => onSearchChange("")}
+            >
+              <span aria-hidden="true">✕</span>
+            </button>
+          )}
+        </div>
         <button
           className="btn-add-client"
           onClick={() => setIsAdding(true)}

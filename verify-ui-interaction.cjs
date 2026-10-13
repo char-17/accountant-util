@@ -1208,6 +1208,130 @@ console.log('\n12l) a report row folds only the client that was clicked');
   view.cleanup();
 }
 
+console.log('\n12p) every search box can be emptied with one click');
+{
+  // type="button" matters more than it looks: this picker is also used inside
+  // the client form, where an untyped button submits the form. Clicking the
+  // cross would then save the client as a side effect of clearing a search.
+  const OPTIONS = [
+    { id: 1, name: 'ΜΙΣΘΟΔΟΣΙΑ' },
+    { id: 2, name: 'ΟΝΟΜΑ' },
+    { id: 3, name: 'CHALIKIAN ERIK' },
+  ];
+  const view = mount(React.createElement(ui.WorklistFiltersBar, {
+    filters: { clientId: null, taskTypeId: null, professionId: null, status: 'all' },
+    onStatusChange: async () => {}, onReset: async () => {},
+    isFiltered: false, shownCount: 0, totalCount: 0,
+    clientOptions: OPTIONS,
+    taskOptions: OPTIONS,
+    professionOptions: OPTIONS,
+    onClientSelect: async () => {}, onTaskSelect: async () => {}, onProfessionSelect: async () => {},
+  }));
+  await act(async () => {});
+
+  // All three, not one: the same component renders each, and the request was
+  // for all of the filters.
+  for (const picker of ['filter-client', 'filter-task', 'filter-profession']) {
+    const head = view.el.querySelector(`.${picker} .filter-select-head input`);
+    check(`${picker}: nothing to clear with an empty box`,
+      !view.el.querySelector(`.${picker} .filter-select-clear`));
+
+    await act(async () => { head.focus(); });
+    await act(async () => { type(head, 'ΟΝ'); });
+
+    const clear = view.el.querySelector(`.${picker} .filter-select-clear`);
+    check(`${picker}: the cross appears once there is text`, Boolean(clear));
+    check(`${picker}: and it is named`, Boolean(clear?.getAttribute('aria-label')),
+      `- got: ${clear?.getAttribute('aria-label') ?? '(none)'}`);
+    check(`${picker}: and is not submitted as a form`,
+      clear?.getAttribute('type') === 'button',
+      `- got: ${clear?.getAttribute('type')}`);
+
+    await act(async () => { clear.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+    await act(async () => {});
+    check(`${picker}: clicking it empties the box`, head.value === '',
+      `- got: ${JSON.stringify(head.value)}`);
+    check(`${picker}: and it goes away again`, !view.el.querySelector(`.${picker} .filter-select-clear`));
+    check(`${picker}: focus stays in the box for the next thing typed`,
+      view.el.ownerDocument.activeElement === head,
+      `- got: ${view.el.ownerDocument.activeElement?.tagName ?? '(none)'}`);
+  }
+
+  // And the list is whole again, not left showing one match.
+  const optionsAfter = view.el.querySelectorAll('.filter-client .filter-select-list [role="option"]');
+  check('the list goes back to offering everything',
+    optionsAfter.length === OPTIONS.length + 1,
+    `- ${optionsAfter.length} options (expecting ${OPTIONS.length + 1}, counting "all")`);
+
+  // One cross, not two. Chromium draws its own inside a type="search" field and
+  // shows it on hover, which put a second ✕ in the same box - and one that
+  // appeared and vanished with the pointer read as a glitch.
+  const css = require('fs').readFileSync(path.join(__dirname, 'src', 'App.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  check("the browser's own clear control is suppressed",
+    /input\[type="search"\]::\-webkit-search-cancel-button[\s\S]*?display:\s*none/.test(css),
+    "- without it the box shows this cross and the browser's on hover");
+
+  view.cleanup();
+
+  // The same control on the client list's own search box.
+  const listView = mount(React.createElement(ui.ClientList, {
+    clients: [{ id: 1, name: 'ΧΑΤΖΙΔΗΣ', taxId: '', notes: '', createdAt: '', updatedAt: '' }],
+    selectedClientId: null,
+    onSelectClient: async () => {}, onSearchChange: async () => {},
+    searchQuery: 'ΧΑΤ',
+    onCreate: async () => {}, onOpenClient: async () => {}, loading: false,
+  }));
+  await act(async () => {});
+  const listClear = listView.el.querySelector('.client-search .filter-select-clear');
+  check('the client list search has one too', Boolean(listClear));
+  check('and it asks to clear that search by name',
+    (listClear?.getAttribute('aria-label') || '').includes('πελάτη'),
+    `- got: ${listClear?.getAttribute('aria-label') ?? '(none)'}`);
+  listView.cleanup();
+}
+
+console.log('\n12q) clearing a search inside the client form does not save the client');
+{
+  // The concrete harm the type="button" prevents. The profession picker sits
+  // inside <form class="client-form">, and a button with no type inside a form
+  // is a submit button - so emptying a search would have written the client.
+  let saved = 0;
+  const view = mount(React.createElement(ui.ClientForm, {
+    submitLabel: 'Αποθήκευση αλλαγών',
+    initialData: { name: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ' },
+    professions: [
+      { id: 7, name: 'Ελεύθερος Επαγγελματίας', color: '#7B8D6E', isActive: true },
+      { id: 8, name: 'Εταιρική Διαχείριση', color: '#C4A882', isActive: true },
+    ],
+    onSubmit: async () => { saved++; },
+  }));
+  await act(async () => {});
+
+  const head = view.el.querySelector('.filter-profession .filter-select-head input');
+  await act(async () => { head.focus(); });
+  await act(async () => { type(head, 'Εταιρ'); });
+  await act(async () => {});
+
+  const clear = view.el.querySelector('.filter-profession .filter-select-clear');
+  check('the profession search can be cleared', Boolean(clear));
+  await act(async () => { clear.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
+  await act(async () => {});
+
+  checkEq('and the client was NOT saved', saved, 0);
+  check('the search box is empty', head.value === '');
+
+  // The real save button still works, so nothing was disabled along the way.
+  await act(async () => {
+    view.el.querySelector('button[type="submit"]')
+      .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  });
+  await act(async () => {});
+  checkEq('and saving still saves', saved, 1);
+
+  view.cleanup();
+}
+
 console.log('\n12o) the pickers search Greek, not just ASCII');
 {
   // The library test covers the folding; this covers the pickers actually using

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { WorklistFilters } from "../domain/worklist";
 import { STATUS_FILTER_LABELS } from "../domain/worklist";
 import { greekIncludes } from "../utils/greek";
@@ -75,6 +75,7 @@ export function ClientFilterSelect({
 }: ClientFilterSelectProps) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // greekIncludes, not a bare toLowerCase: a plain fold misses "ΜΙΣ" typed in
   // caps against "ΜΙΣΘΟΔΟΣΙΑ" stored, because the locale-aware lowercasing turns
@@ -97,6 +98,7 @@ export function ClientFilterSelect({
       <div className="filter-select-head">
         <input
           type="search"
+          ref={searchRef}
           value={search}
           placeholder={searchLabel}
           aria-label={searchLabel}
@@ -115,6 +117,27 @@ export function ClientFilterSelect({
             }
           }}
         />
+        {/* type="button" because this picker is also used inside the client
+            form, where an untyped button submits the form. Shown only with text
+            in the box: there is nothing to clear before that, and an always-
+            present button would take its width from the search field for the
+            whole time. */}
+        {search !== "" && (
+          <button
+            type="button"
+            className="filter-select-clear"
+            aria-label={`Καθαρισμός: ${searchLabel}`}
+            title="Καθαρισμός αναζήτησης"
+            onClick={() => {
+              setSearch("");
+              // Focus stays in the box so the next thing typed goes there, the
+              // same as after a backspace.
+              searchRef.current?.focus();
+            }}
+          >
+            <span aria-hidden="true">✕</span>
+          </button>
+        )}
         <button
           type="button"
           className="filter-select-toggle"

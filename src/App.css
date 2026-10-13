@@ -779,6 +779,47 @@ body {
   color: var(--text-soft);
 }
 
+/* Chromium draws its own clear button inside a type="search" field, and shows
+   it on hover - so with the app's own ✕ in the same box there were two, and the
+   one that appeared and disappeared with the pointer looked like the wrong one
+   flickering. Removed rather than overlapped.
+
+   The field keeps type="search" itself: it is what makes a screen reader
+   announce the box as a search field, and it is what gives Escape its
+   clear-the-box behaviour. Only the drawn decoration goes. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+/* The clear sits over the field rather than beside it, so the input keeps the
+   border and the focus ring it already had. The extra right padding is what
+   stops the last typed characters ending up underneath it. */
+.client-search-field {
+  position: relative;
+  display: flex;
+}
+
+.client-search-field input {
+  padding-right: 34px;
+}
+
+.client-search-field .filter-select-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+}
+
 /* A focus ring everywhere, not just a border-colour change: the ring is what
    makes the field look focused rather than merely tinted. */
 .client-search input:focus {
@@ -1989,6 +2030,39 @@ body {
 
 .filter-select-toggle:hover {
   background: var(--accent-50);
+}
+
+/* Clears the typed text. Part of the head's border rather than floating over the
+   input, so it cannot cover the last characters, and it only appears once there
+   is something to clear. Quiet on purpose: it is a convenience, not the thing
+   the box is for, and it sits next to the toggle that actually opens the list. */
+.filter-select-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
+}
+
+.filter-select-clear:hover {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.filter-select-clear:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: -2px;
 }
 
 /* Naming the filter is the point of the control, so its text is a shade larger
