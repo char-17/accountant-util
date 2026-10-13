@@ -18,7 +18,6 @@ interface ClientTabProps {
   db: Database;
   client: Client;
   tasks: TaskType[];
-  /** Offered by the profession picker, so a client can be classified here. */
   professions: Profession[];
   onClose: () => void;
   onUpdate: () => void;

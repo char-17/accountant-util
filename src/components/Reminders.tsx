@@ -9,7 +9,6 @@ import {
 
 interface RemindersProps {
   assignments: ClientTaskWithTask[];
-  /** Desktop (Windows) notification state. */
   desktopEnabled: boolean;
   onDesktopEnabledChange: (enabled: boolean) => void;
   desktopPermission: "granted" | "denied" | "default";

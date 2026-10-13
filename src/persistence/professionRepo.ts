@@ -172,7 +172,6 @@ export async function professionNameExists(
   return rows[0]?.count > 0;
 }
 
-/** How many clients carry this profession, so the UI can say what it detaches. */
 export async function countClientsWithProfession(
   db: Database,
   id: number

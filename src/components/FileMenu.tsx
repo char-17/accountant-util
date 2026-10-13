@@ -6,7 +6,7 @@ import type { WorklistFilters } from "../domain/worklist";
 interface FileMenuProps {
   summary: MonthlySummary;
   filters: WorklistFilters;
-  /** Used to name the selected client/task in the export scope note. */
+  /** Names the selected client/task for the export tooltip. */
   clientOptions?: Array<{ id: number; name: string }>;
   taskOptions?: Array<{ id: number; name: string }>;
   onExportCsv: () => Promise<void>;
@@ -16,7 +16,6 @@ interface FileMenuProps {
   busy: "backup" | "restore" | null;
 }
 
-/** Human-readable summary of what the export will contain. */
 function describeScope(
   filters: WorklistFilters,
   clientOptions: Array<{ id: number; name: string }>,
@@ -43,10 +42,6 @@ function describeScope(
  * The "Αρχείο" menu. Everything that leaves the app or touches the database as
  * a whole lives here, so the screen tabs and the month picker on the right stay
  * about moving around inside the app.
- *
- * The scope note travels with the CSV item rather than sitting above the menu:
- * it describes what that one action will produce, and a heading-wide note would
- * have to be read as if it applied to backup and restore too.
  */
 export function FileMenu({
   summary,

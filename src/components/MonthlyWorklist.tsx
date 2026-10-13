@@ -12,11 +12,8 @@ interface MonthlyWorklistProps {
   filters: WorklistFilters;
   isFiltered: boolean;
   onFilterStatusChange: (value: WorklistFilters["status"]) => void;
-  /** Per-client picker. */
   onFilterClientSelect: (id: number | null) => void;
-  /** Per-task picker. */
   onFilterTaskSelect: (id: number | null) => void;
-  /** Per-profession picker. */
   onFilterProfessionSelect?: (id: number | null) => void;
   clientOptions: Array<{ id: number; name: string }>;
   taskOptions: Array<{ id: number; name: string }>;
@@ -49,8 +46,7 @@ interface MonthlyWorklistProps {
 }
 
 /** The change awaiting the user's confirmation. */
-interface PendingChange {
-  clientId: number;
+interface PendingChange {  clientId: number;
   taskTypeId: number;
   clientName: string;
   taskName: string;

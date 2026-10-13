@@ -11,7 +11,6 @@ const ICONS: Record<Toast["kind"], string> = {
   info: "i",
 };
 
-/** Transient confirmation for every action, success or failure. */
 export function Toaster({ toasts, onDismiss }: ToasterProps) {
   if (toasts.length === 0) return null;
 

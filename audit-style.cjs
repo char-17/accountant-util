@@ -168,6 +168,59 @@ for (const f of components) {
 }
 console.log('  (warnings above are real findings)');
 
+console.log('\nComment accuracy\n');
+
+// A comment that names a class which no longer exists sends the reader looking
+// for something that is not there. It is worse than no comment, and it does not
+// announce itself: nothing goes red when a class is renamed.
+//
+// Found by hand once already - a component's doc comment still described a
+// heading that had been removed - so this is here to catch the next one.
+//
+// Only hyphenated names are considered. "Math.round" and "clients.profession_id"
+// read like class references and are not; every CSS class in this project is
+// kebab-case, so a hyphen is what separates the two.
+{
+  // Collected from where a class is *defined* - a CSS selector, or a literal in
+  // a className - and never from prose. Taking the names from the same files
+  // that are scanned would make every comment self-fulfilling: a comment
+  // naming .toast-unused would put toast-unused in the set, and then the rule
+  // would find nothing wrong with itself.
+  const existing = new Set();
+  for (const f of files) {
+    const text = fs.readFileSync(f, 'utf8');
+    if (f.endsWith('.css')) {
+      for (const m of text.matchAll(/([^{}]+)\{/g)) {
+        for (const c of m[1].matchAll(/\.([a-z][a-z0-9-]+)/g)) existing.add(c[1]);
+      }
+    }
+    for (const m of text.matchAll(/class(?:Name)?\s*=\s*(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
+      for (const c of (m[1] ?? m[2] ?? '').split(/\s+/)) {
+        if (c && /^[a-z][a-z0-9-]*$/.test(c)) existing.add(c);
+      }
+    }
+  }
+
+  let stale = 0;
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    for (const m of src.matchAll(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g)) {
+      const body = m[0];
+      if (!body.includes('-')) continue;
+      for (const c of body.matchAll(/`?\.([a-z][a-z0-9]*-[a-z0-9-]+)`?/g)) {
+        if (existing.has(c[1])) continue;
+        stale++;
+        const line = src.slice(0, m.index).split('\n').length;
+        console.log(`  ??   ${rel(f)}:${line} comment names .${c[1]}, which does not exist`);
+        problems.push(`${rel(f)}:${line} comment names .${c[1]}, which does not exist`);
+      }
+    }
+  }
+  if (stale === 0) {
+    console.log('  OK   every class a comment names still exists');
+  }
+}
+
 console.log('\nDead code\n');
 
 // An eslint-disable for a rule that is not configured is misleading: it looks
