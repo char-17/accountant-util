@@ -54,7 +54,7 @@ npm run typecheck
 npm run audit      # όρια modules, προσβασιμότητα, συμβάσεις
 ```
 
-`npm run verify` τρέχει 27 ελέγχους: `tsc`, ESLint, 3 audits και 22 scripts
+`npm run verify` τρέχει 28 ελέγχους: `tsc`, ESLint, 4 audits και 22 scripts
 συμπεριφοράς.
 
 ### Τι ελέγχουν τα tests
@@ -86,6 +86,7 @@ npm run audit      # όρια modules, προσβασιμότητα, συμβά�
 | `audit-refresh.cjs` | Κάλυψη refreshers μετά κάθε μεταβολή |
 | `audit-contrast.cjs` | Κουμπιά με background αλλά χωρίς `color` |
 | `audit-style.cjs` | Όρια modules, προσβασιμότητα, συμβάσεις, dead code |
+| `audit-tauri-acl.cjs` | Κλήσεις Tauri του frontend απέναντι στις άδειες |
 
 ## Δομή
 

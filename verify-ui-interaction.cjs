@@ -1143,23 +1143,6 @@ console.log('\n12n) a close that fails re-arms the guard instead of giving up');
   view.cleanup();
 }
 
-console.log('\n12r) the capabilities grant what CloseGuard is allowed to do');
-{
-  // Pinning a real failure: the installed app refused plugin:window|close and
-  // CloseGuard could only report it. The guard tests above drive a fake window,
-  // so nothing in them ever asks the ACL - this does. The two commands the
-  // component calls are checked against the file the app is actually built
-  // with, so dropping either one fails here instead of on a user's machine.
-  const caps = JSON.parse(fs.readFileSync(
-    path.join(__dirname, 'src-tauri', 'capabilities', 'default.json'), 'utf8'));
-
-  check('the window close is granted', caps.permissions.includes('core:window:allow-close'));
-  // The listener behind onCloseRequested; core:default covers the event system
-  // the window events are delivered over, which is what makes the guard fire.
-  check('and the core defaults the listener needs are granted',
-    caps.permissions.includes('core:default'));
-}
-
 console.log('\n12l) a report row folds only the client that was clicked');
 {
   // The bug: one shared boolean, handed to every row, so clicking any client
