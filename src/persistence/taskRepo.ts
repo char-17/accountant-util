@@ -164,35 +164,3 @@ export async function taskNameExists(
   const target = foldGreek(name);
   return results.some((row) => foldGreek(row.name) === target);
 }
-
-export async function bulkInsertTaskTypes(
-  db: Database,
-  tasks: Array<Pick<TaskType, "name" | "color" | "description">>
-): Promise<{ inserted: number; skipped: number }> {
-  let inserted = 0;
-  let skipped = 0;
-
-  // Names read once, for the same reason as in bulkInsertClients: the fold
-  // happens in JS, so asking the question per task would re-read the table.
-  const existing = new Set(
-    (await db.select<Array<{ name: string }>>("SELECT name FROM task_types")).map((r) =>
-      foldGreek(r.name)
-    )
-  );
-
-  for (const task of tasks) {
-    if (existing.has(foldGreek(task.name))) {
-      skipped++;
-      continue;
-    }
-    try {
-      await createTaskType(db, task);
-      existing.add(foldGreek(task.name));
-      inserted++;
-    } catch {
-      skipped++;
-    }
-  }
-
-  return { inserted, skipped };
-}

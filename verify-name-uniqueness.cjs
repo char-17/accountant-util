@@ -160,21 +160,32 @@ function main() {
         await repo.clientNameExists(db, '') === false);
     }
 
-    console.log('\n4) the batch insert skips a folded duplicate, once');
+    console.log('\n4) the second of two spellings is refused, in the order the app does it');
     {
+      // useClients checks then inserts. Driving the same two steps here keeps
+      // the rule covered now that bulkInsertClients, which used to be the only
+      // caller of a batch, is gone with the Excel import.
       const batchTag = tag + 'B';
       const before = raw.prepare('SELECT COUNT(*) c FROM clients').get().c;
-      const result = await repo.bulkInsertClients(db, [
-        { name: `BATCH ΜΙΣΘΟΔΟΣΙΑ ${batchTag}`, taxId: null, notes: null, professionId: null },
+      const spellings = [
+        `BATCH ΜΙΣΘΟΔΟΣΙΑ ${batchTag}`,
         // The same name spelled differently. Without the fold this would have
         // been written as a second row.
-        { name: `batch μισθοδοσια ${batchTag.toLowerCase()}`, taxId: null, notes: null, professionId: null },
-        { name: `BATCH ΕΝΦΚΑ ${batchTag}`, taxId: null, notes: null, professionId: null },
-      ]);
-      check('the folded pair is counted as one', result.inserted === 2, `- got ${JSON.stringify(result)}`);
-      check('and one is skipped', result.skipped === 1, `- got ${result.skipped}`);
-      check('the table grew by exactly two',
-        raw.prepare('SELECT COUNT(*) c FROM clients').get().c === before + 2);
+        `batch μισθοδοσια ${batchTag.toLowerCase()}`,
+      ];
+
+      let written = 0;
+      for (const spelling of spellings) {
+        if (await repo.clientNameExists(db, spelling)) continue;
+        await repo.createClient(db, { name: spelling, taxId: null, notes: null, professionId: null });
+        written++;
+      }
+
+      check('only the first spelling is written', written === 1, `- got ${written}`);
+      check('the table grew by exactly one',
+        raw.prepare('SELECT COUNT(*) c FROM clients').get().c === before + 1);
+      check('and the second spelling now reads as a duplicate',
+        await repo.clientNameExists(db, spellings[1]) === true);
     }
 
     raw.close();

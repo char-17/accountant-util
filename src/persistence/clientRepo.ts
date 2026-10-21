@@ -103,38 +103,3 @@ export async function clientNameExists(
   const target = foldGreek(name);
   return results.some((row) => foldGreek(row.name) === target);
 }
-
-export async function bulkInsertClients(
-  db: Database,
-  clients: Array<Omit<Client, "id" | "createdAt" | "updatedAt">>
-): Promise<{ inserted: number; skipped: number }> {
-  let inserted = 0;
-  let skipped = 0;
-
-  // Read the names once. clientNameExists loads the list itself, and calling it
-  // from here per client would re-read the same rows n times over.
-  const existing = new Set(
-    (await db.select<Array<{ name: string }>>("SELECT name FROM clients")).map((r) =>
-      foldGreek(r.name)
-    )
-  );
-
-  for (const client of clients) {
-    if (existing.has(foldGreek(client.name))) {
-      skipped++;
-      continue;
-    }
-    try {
-      // The set is updated too, so two spellings of one name inside the same
-      // batch are caught as well - the database has no such constraint to fall
-      // back on.
-      await createClient(db, client);
-      existing.add(foldGreek(client.name));
-      inserted++;
-    } catch {
-      skipped++;
-    }
-  }
-
-  return { inserted, skipped };
-}
