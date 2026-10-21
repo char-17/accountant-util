@@ -54,8 +54,8 @@ npm run typecheck
 npm run audit      # όρια modules, προσβασιμότητα, συμβάσεις
 ```
 
-`npm run verify` τρέχει 21 ελέγχους: `tsc`, ESLint, 3 audits, έναν έλεγχο
-dependency pins και 15 scripts συμπεριφοράς.
+`npm run verify` τρέχει 27 ελέγχους: `tsc`, ESLint, 3 audits και 22 scripts
+συμπεριφοράς.
 
 ### Τι ελέγχουν τα tests
 
@@ -64,6 +64,10 @@ dependency pins και 15 scripts συμπεριφοράς.
 | `verify-recurrence.mjs` | Περιοδικότητα, λήξεις, clamping μηνών |
 | `verify-seed.cjs` | Seed ανά μήνα, σεβασμός περιοδικότητας, idempotency |
 | `verify-seed-period.cjs` | Δεν γεμίζει μήνες πριν την έναρξη ανάθεσης (regression) |
+| `verify-profession-seed.cjs` | Προεπιλεγμένα επαγγέλματα, μετρήσεις χρήσης |
+| `verify-greek-search.cjs` | Αναζήτηση ελληνικών: κεφαλαία, τόνοι, τελικό ς |
+| `verify-name-uniqueness.cjs` | Μοναδικότητα ονόματος με fold — πελάτες, εργασίες, επαγγέλματα |
+| `verify-duplicates.cjs` | Διπλά ids/labels/keys σε ολόκληρη την οθόνη |
 | `verify-worklist-filters.cjs` | Φίλτρα πελάτη/εργασίας/κατάστασης, σύνοψη |
 | `verify-export-report.cjs` | CSV escaping, Excel formula injection, δομή αναφοράς |
 | `verify-backup-restore.cjs` | `VACUUM INTO`, αποκατάσταση, ακεραιότητα WAL |
@@ -76,10 +80,12 @@ dependency pins και 15 scripts συμπεριφοράς.
 | `verify-mutations.cjs` | Κάθε write path |
 | `verify-e2e-assignment.cjs` | Ανάθεση → εμφανίζεται στη λίστα μήνα |
 | `verify-confirm-toggle.cjs` | Επιβεβαίωση πριν/μετά την αλλαγή |
-| `verify-xlsx-version.cjs` | Το `xlsx` παραμένει στην ασφαλή, pinned εκδοση |
+| `verify-money.cjs` | Ποσά, στρογγυλοποίηση σε λεπτά |
+| `verify-report.cjs` | Αναφορά ανά πελάτη και περίοδο |
+| `verify-payment.cjs` | Είσπραξη, τιμολόγηση, κατάσταση πληρωμής |
 | `audit-refresh.cjs` | Κάλυψη refreshers μετά κάθε μεταβολή |
 | `audit-contrast.cjs` | Κουμπιά με background αλλά χωρίς `color` |
-| `audit-style.cjs` | Όρια modules, accessibilité, συμβάσεις, dead code |
+| `audit-style.cjs` | Όρια modules, προσβασιμότητα, συμβάσεις, dead code |
 
 ## Δομή
 
@@ -111,7 +117,7 @@ src-tauri/
    αλλαγές.
 
 Σχήμα: `clients`, `task_types`, `client_task_assignments`, `monthly_task_status`,
-`task_reminders` — κανονικοποιημένες σχέσεις με FK και `UNIQUE` περιορισμούς.
+`professions` — κανονικοποιημένες σχέσεις με FK και `UNIQUE` περιορισμούς.
 
 ## Import από Excel
 

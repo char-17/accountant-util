@@ -24,7 +24,6 @@ const RESTORE_ORDER = [
   { table: "task_types" },
   { table: "client_task_assignments" },
   { table: "monthly_task_status" },
-  { table: "task_reminders" },
 ] as const;
 
 const SEQUENCE_TABLE = "sqlite_sequence";
@@ -35,7 +34,6 @@ export interface TableCounts {
   task_types: number;
   client_task_assignments: number;
   monthly_task_status: number;
-  task_reminders: number;
 }
 
 /** Whether `schema` (main, or an attached name) holds `table`. */
@@ -151,13 +149,18 @@ export async function inspectBackup(
 export async function countBackup(db: Database, path: string): Promise<TableCounts> {
   await db.execute(`ATTACH DATABASE '${escapeSqlLiteral(path)}' AS backup_candidate`);
   try {
+    // Only the four tables every snapshot is known to carry. Asking for a count
+    // of a table the file does not have makes the whole query throw, which is
+    // why task_reminders is not listed: a snapshot taken after that table was
+    // retired does not contain it, and an older one merely carries an empty
+    // shape nobody reads. The same reasoning is why professions is counted
+    // separately below rather than here.
     const rows = await db.select<Omit<TableCounts, "professions">[]>(
       `SELECT
          (SELECT COUNT(*) FROM backup_candidate.clients)                    AS clients,
          (SELECT COUNT(*) FROM backup_candidate.task_types)                 AS task_types,
          (SELECT COUNT(*) FROM backup_candidate.client_task_assignments)     AS client_task_assignments,
-         (SELECT COUNT(*) FROM backup_candidate.monthly_task_status)        AS monthly_task_status,
-         (SELECT COUNT(*) FROM backup_candidate.task_reminders)             AS task_reminders`
+         (SELECT COUNT(*) FROM backup_candidate.monthly_task_status)        AS monthly_task_status`
     );
     // Counted separately: a snapshot taken before professions existed has no
     // such table, and asking for its count in the query above would make the

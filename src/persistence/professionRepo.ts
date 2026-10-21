@@ -152,16 +152,23 @@ export async function seedDefaultProfessions(db: Database): Promise<number> {
   return added;
 }
 
+/**
+ * Whether another profession already holds this name.
+ *
+ * Folded in JS, same as the client and task checks - see the comment in
+ * clientRepo.clientNameExists for why SQL cannot do this.
+ */
 export async function professionNameExists(
   db: Database,
   name: string,
   excludeId?: number
 ): Promise<boolean> {
-  const rows = await db.select<Array<{ count: number }>>(
-    "SELECT COUNT(*) as count FROM professions WHERE name = $1 AND id != $2",
-    [name.trim(), excludeId ?? -1]
+  const results = await db.select<Array<{ id: number; name: string }>>(
+    "SELECT id, name FROM professions WHERE id != $1",
+    [excludeId ?? -1]
   );
-  return rows[0]?.count > 0;
+  const target = foldGreek(name);
+  return results.some((row) => foldGreek(row.name) === target);
 }
 
 export async function countClientsWithProfession(

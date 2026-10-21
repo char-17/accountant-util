@@ -124,7 +124,7 @@ export function FileMenu({
             }
             onClick={() => run(() => void onExportCsv())}
           >
-            {exporting ? "Εξαγωγή..." : "Εισαγωγή CSV"}
+            {exporting ? "Εξαγωγή..." : "Εξαγωγή CSV"}
           </button>
 
           <button
@@ -158,7 +158,7 @@ export function FileMenu({
             title="Αντικαθιστά τα τωρινά δεδομένα με αυτά του αντιγράφου"
             onClick={() => run(onRestore)}
           >
-            {busy === "restore" ? "Επαναφορά..." : "Επαναφορή από αντιγραφο"}
+            {busy === "restore" ? "Επαναφορά..." : "Επαναφορή από αντιγράφου"}
           </button>
         </div>
       )}

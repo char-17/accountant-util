@@ -387,7 +387,7 @@ console.log('\n9) the file menu opens, and its export item runs the export');
   check('the menu no longer repeats the count and the filters',
     findAll((n) => n.classList?.contains('file-menu-scope')).length === 0);
 
-  const csvBtn = byText('Εισαγωγή CSV');
+  const csvBtn = byText('Εξαγωγή CSV');
   check('the CSV item is present', Boolean(csvBtn));
   check('it is enabled with rows to export', csvBtn.disabled === false);
   check('and its tooltip counts what will be exported',
@@ -425,14 +425,14 @@ console.log('\n10) the menu names the filtered scope, and blocks export with not
   };
 
   const named = await openMenu({ filters: { ...ui.DEFAULT_FILTERS, clientId: 10, taskTypeId: 2 } });
-  const namedTitle = byText('Εισαγωγή CSV').getAttribute('title') || '';
+  const namedTitle = byText('Εξαγωγή CSV').getAttribute('title') || '';
   check('the client is named, not its id',
     namedTitle.includes('πελάτης: "ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ"'), `- got: ${namedTitle}`);
   check('the task is named too', namedTitle.includes('εργασία: "ΕΝΦΚΑ"'));
   named.cleanup();
 
   const byStatus = await openMenu({ filters: { ...ui.DEFAULT_FILTERS, status: 'completed' } });
-  const statusTitle = byText('Εισαγωγή CSV').getAttribute('title') || '';
+  const statusTitle = byText('Εξαγωγή CSV').getAttribute('title') || '';
   check('a status filter is described', statusTitle.includes('φίλτρα: Ολοκληρωμένες'), `- got: ${statusTitle}`);
   byStatus.cleanup();
 
@@ -440,7 +440,7 @@ console.log('\n10) the menu names the filtered scope, and blocks export with not
     summary: { year: 2026, month: 1, totalClients: 0, totalTasks: 0, completedTasks: 0, pendingTasks: 0, clientProgress: [] },
     filters: ui.DEFAULT_FILTERS,
   });
-  const csvEmpty = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Εισαγωγή CSV'));
+  const csvEmpty = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Εξαγωγή CSV'));
   check('export is disabled with nothing to export', csvEmpty.disabled === true);
   check('and it says why', (csvEmpty.getAttribute('title') || '').includes('Δεν υπάρχουν εργασίες'), '- needs an explanatory title');
   const printEmpty = findAll((n) => n.tagName === 'BUTTON').find((b) => b.textContent.includes('Εκτύπωση'));
@@ -468,7 +468,7 @@ console.log('\n11) restore is marked as the risky item, and busy locks the menu'
 
   const view = renderMenu(null);
   await openIt();
-  const restoreBtn = byText('Επαναφορή από αντιγραφο');
+  const restoreBtn = byText('Επαναφορή από αντιγράφου');
   check('restore is styled as a warning, not a peer of the others',
     restoreBtn.classList.contains('file-menu-item-warning'), '- restore should be visually distinct');
   check('restore explains that it replaces the data',
@@ -484,7 +484,7 @@ console.log('\n11) restore is marked as the risky item, and busy locks the menu'
   check('and the menu closed after the choice', findAll((n) => n.id === 'file-menu-list').length === 0);
 
   await openIt();
-  click(byText('Επαναφορή από αντιγραφο'));
+  click(byText('Επαναφορή από αντιγράφου'));
   checkEq('restore fired', restores, 1);
   view.cleanup();
 
@@ -495,13 +495,13 @@ console.log('\n11) restore is marked as the risky item, and busy locks the menu'
   // not stop the accountant exporting what is on screen. The backup item's own
   // label changes to "in progress", so it is found by that instead.
   const backupBusy = byText('Δημιουργία...');
-  const restoreBusy = byText('Επαναφορή από αντιγραφο');
+  const restoreBusy = byText('Επαναφορή από αντιγράφου');
   check('the running backup reports progress', backupBusy !== undefined, '- needs a busy label');
   check('restore is still offered under its own name', restoreBusy !== undefined);
   check('busy locks both database items',
     Boolean(backupBusy) && backupBusy.disabled === true && restoreBusy.disabled === true,
     '- backup in progress should lock backup and restore');
-  const csvWhileBusy = byText('Εισαγωγή CSV');
+  const csvWhileBusy = byText('Εξαγωγή CSV');
   check('a read-only export stays available while backup runs',
     csvWhileBusy !== undefined && csvWhileBusy.disabled === false, '- backup must not block reading the month');
   busyView.cleanup();

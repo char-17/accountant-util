@@ -1,6 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import type { TaskType } from "../domain/types";
 import { normalizeTasks } from "../utils/db";
+import { foldGreek } from "../utils/greek";
 
 /**
  * What a task is currently attached to, for the delete confirmation.
@@ -143,16 +144,25 @@ export async function isColorUsed(
   return results[0]?.count > 0;
 }
 
+/**
+ * Whether another task already holds this name.
+ *
+ * Folded in JS rather than compared in SQL: SQLite's `=` folds ASCII only, so
+ * "Μισθοδοσία" and "ΜΙΣΘΟΔΟΣΙΑ" would both be accepted and then sit next to each
+ * other in the catalogue, indistinguishable. Same reasoning as the client
+ * search - see the comment in clientRepo.clientNameExists.
+ */
 export async function taskNameExists(
   db: Database,
   name: string,
   excludeId?: number
 ): Promise<boolean> {
-  const results = await db.select<Array<{ count: number }>>(
-    "SELECT COUNT(*) as count FROM task_types WHERE name = $1 AND id != $2",
-    [name.trim(), excludeId ?? -1]
+  const results = await db.select<Array<{ id: number; name: string }>>(
+    "SELECT id, name FROM task_types WHERE id != $1",
+    [excludeId ?? -1]
   );
-  return results[0]?.count > 0;
+  const target = foldGreek(name);
+  return results.some((row) => foldGreek(row.name) === target);
 }
 
 export async function bulkInsertTaskTypes(
@@ -162,14 +172,22 @@ export async function bulkInsertTaskTypes(
   let inserted = 0;
   let skipped = 0;
 
+  // Names read once, for the same reason as in bulkInsertClients: the fold
+  // happens in JS, so asking the question per task would re-read the table.
+  const existing = new Set(
+    (await db.select<Array<{ name: string }>>("SELECT name FROM task_types")).map((r) =>
+      foldGreek(r.name)
+    )
+  );
+
   for (const task of tasks) {
-    const exists = await taskNameExists(db, task.name);
-    if (exists) {
+    if (existing.has(foldGreek(task.name))) {
       skipped++;
       continue;
     }
     try {
       await createTaskType(db, task);
+      existing.add(foldGreek(task.name));
       inserted++;
     } catch {
       skipped++;

@@ -77,11 +77,6 @@ const SCHEMA = `
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(client_id, task_type_id, year, month));
-  CREATE TABLE task_reminders (id INTEGER PRIMARY KEY AUTOINCREMENT,
-    assignment_id INTEGER NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
-    remind_on TEXT NOT NULL, due_on TEXT NOT NULL, is_dismissed INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(assignment_id, year, month));
 `;
 
 const raw = new Database(dbPath);
@@ -109,7 +104,6 @@ checkEq('clients captured', counts.clients, 2);
 checkEq('task types captured', counts.task_types, 2);
 checkEq('assignments captured', counts.client_task_assignments, 1);
 checkEq('monthly statuses captured', counts.monthly_task_status, 1);
-checkEq('reminders captured (empty is fine)', counts.task_reminders, 0);
 
 console.log('\n2) the snapshot really holds the data, not just the schema');
 const snap = new Database(backupPath, { readonly: true });
@@ -273,6 +267,48 @@ checkEq('the profession list is emptied, not left behind',
 // filter while the worklist still joined on it.
 checkEq('and no client is left pointing at a row that is gone',
   lraw.prepare('SELECT COUNT(*) c FROM clients WHERE profession_id IS NOT NULL').get().c, 0);
+
+// ── 12) a snapshot that still carries the retired task_reminders table ────────
+// Every backup made before the table was dropped has one, and an empty one at
+// that - nothing ever wrote to it. It is not in RESTORE_ORDER any more, so
+// restoring such a file must neither fail on the extra table nor bring it back.
+console.log('\n12) an older snapshot with task_reminders still restores');
+
+const OLD_SCHEMA = `
+  CREATE TABLE professions (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE,
+    description TEXT, is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')));
+  CREATE TABLE task_reminders (id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id INTEGER NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL,
+    remind_on TEXT NOT NULL, due_on TEXT NOT NULL, is_dismissed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(assignment_id, year, month));
+`;
+
+const oldBackup = path.join(tmp, 'old-with-reminders.db');
+const oraw = new Database(oldBackup);
+oraw.exec(SCHEMA + OLD_SCHEMA);
+oraw.exec('ALTER TABLE clients ADD COLUMN profession_id INTEGER REFERENCES professions(id)');
+oraw.prepare('INSERT INTO professions (name) VALUES (?)').run('ΠΑΛΙΟ ΕΠΑΓΓΕΛΜΑ');
+oraw.prepare('INSERT INTO clients (name, profession_id) VALUES (?, ?)').run('ΠΑΛΙΟΣ ΠΕΛΑΤΗΣ', 1);
+oraw.close();
+
+let oldRestoreOk = true;
+try {
+  await repo.restoreFromBackup(ldb, oldBackup);
+} catch (err) {
+  oldRestoreOk = false;
+  console.log(`       threw: ${err.message}`);
+}
+check('restoring it does not fail on the retired table', oldRestoreOk);
+checkEq('its data comes across',
+  lraw.prepare('SELECT COUNT(*) c FROM clients WHERE name = ?').get('ΠΑΛΙΟΣ ΠΕΛΑΤΗΣ').c, 1);
+checkEq('and the retired table is not recreated',
+  lraw.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='task_reminders'").get(),
+  undefined);
+checkEq('so the confirmation text never mentions it',
+  repo.describeCounts(await repo.countBackup(ldb, oldBackup)).includes('υπενθύμισ'), false);
 
 lraw.close();
 

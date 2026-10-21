@@ -28,16 +28,10 @@ function applyMigrations(database) {
     `ALTER TABLE client_task_assignments ADD COLUMN periodicity TEXT NOT NULL DEFAULT 'monthly'`,
     `ALTER TABLE client_task_assignments ADD COLUMN due_day INTEGER NOT NULL DEFAULT 28`,
     `ALTER TABLE client_task_assignments ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 5`,
-    `CREATE TABLE IF NOT EXISTS task_reminders (
-       id INTEGER PRIMARY KEY AUTOINCREMENT,
-       assignment_id INTEGER NOT NULL,
-       year INTEGER NOT NULL, month INTEGER NOT NULL,
-       remind_on TEXT NOT NULL, due_on TEXT NOT NULL,
-       is_dismissed INTEGER NOT NULL DEFAULT 0,
-       created_at TEXT NOT NULL DEFAULT (datetime('now')),
-       FOREIGN KEY (assignment_id) REFERENCES client_task_assignments(id) ON DELETE CASCADE,
-       UNIQUE(assignment_id, year, month)
-     )`,
+    // Retired: nothing ever wrote to it, so the launch that first sees it drops
+    // it. Tolerated the same way as the ADD COLUMN above - a database that
+    // never had the table has nothing to drop.
+    `DROP TABLE IF EXISTS task_reminders`,
   ]) {
     try { database.exec(m); }
     catch (e) {
@@ -53,8 +47,8 @@ const cols = db.prepare('PRAGMA table_info(client_task_assignments)').all().map(
 check('periodicity column added', cols.includes('periodicity'));
 check('due_day column added', cols.includes('due_day'));
 check('reminder_days column added', cols.includes('reminder_days'));
-check('task_reminders table created',
-  db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='task_reminders'").get() !== undefined);
+check('reminders table retired, not left behind',
+  db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='task_reminders'").get() === undefined);
 
 console.log('\nmigrations are idempotent (run twice):');
 try { applyMigrations(db); check('second run succeeds', true); }

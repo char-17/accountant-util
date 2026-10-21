@@ -27,7 +27,10 @@ function check(label, condition, detail = '') {
   else { failures++; console.log(`  FAIL  ${label} ${detail}`); }
 }
 
-// Mirrors src/persistence/clientRepo.ts. Note: better-sqlite3 uses ? placeholders,
+// Mirrors src/persistence/clientRepo.ts, except clientNameExists. That check
+// now folds Greek in JS and is covered by verify-name-uniqueness.cjs; the SQL
+// below is the UNIQUE index, which is the backstop and compares bytes.
+// Note: better-sqlite3 uses ? placeholders,
 // while the Tauri plugin uses $1 — the SQL is otherwise identical.
 const insertClient = db.prepare(
   'INSERT INTO clients (name, tax_id, notes) VALUES (?,?,?)'
@@ -49,7 +52,7 @@ check('row is retrievable', selectOne(newId)?.name === name);
 check('row count increased', db.prepare('SELECT COUNT(*) AS c FROM clients').get().c === before + 1);
 check('taxId maps to camelCase', selectOne(newId)?.taxId === '123456789');
 check('no raw tax_id key', !('tax_id' in selectOne(newId)));
-check('duplicate name is detected', nameExists(name) === true);
+check('the UNIQUE index detects an exact duplicate name', nameExists(name) === true);
 check('search matches name', (() => {
   const q = 'TEST CLIENT';
   return db.prepare(`SELECT ${CLIENT_COLUMNS} FROM clients WHERE name LIKE ?`)

@@ -57,20 +57,14 @@ const MIGRATIONS = [
   `ALTER TABLE client_task_assignments ADD COLUMN due_day INTEGER NOT NULL DEFAULT 28`,
   `ALTER TABLE client_task_assignments ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 5`,
 
-  // Effective reminder date per assignment+period, so a reminder fires at a
-  // fixed point in time rather than drifting when the user changes settings.
-  `CREATE TABLE IF NOT EXISTS task_reminders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    assignment_id INTEGER NOT NULL,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL,
-    remind_on TEXT NOT NULL,
-    due_on TEXT NOT NULL,
-    is_dismissed INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (assignment_id) REFERENCES client_task_assignments(id) ON DELETE CASCADE,
-    UNIQUE(assignment_id, year, month)
-  )`,
+  // Effective reminder date per assignment+period. This used to be a table,
+  // task_reminders, that nothing ever wrote to: the reminder list is derived
+  // from the assignments and their periods each time it is shown, so a stored
+  // row would have had to be kept in step by hand and would have gone stale the
+  // moment an assignment changed. It carried no history anyone could read, so
+  // the table is dropped here rather than left behind as a permanent empty
+  // shape in every database and every backup.
+  `DROP TABLE IF EXISTS task_reminders`,
 
   // --- Money: fee, collection and invoicing, per client+task+month --------
   // Nullable amount: a month's row is seeded before anyone types anything, so a

@@ -1,5 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import type { Client } from "../domain/types";
+import { foldGreek } from "../utils/greek";
 
 // See taskRepo.ts: SQLite columns are snake_case, domain types are camelCase.
 const CLIENT_COLUMNS = `
@@ -80,16 +81,27 @@ export async function deleteClient(db: Database, id: number): Promise<void> {
   await db.execute("DELETE FROM clients WHERE id = $1", [id]);
 }
 
+/**
+ * Whether another client already holds this name.
+ *
+ * Compared in JS through foldGreek rather than in SQL. SQLite folds case for
+ * ASCII only, so `name = 'Μισθοδοσία'` finds a row stored as exactly that and
+ * nothing else - an accountant typing the same name a different way would be
+ * handed a second client that looks identical in the list. The table holds
+ * dozens of rows, so reading it costs one query, the same as the COUNT this
+ * replaced.
+ */
 export async function clientNameExists(
   db: Database,
   name: string,
   excludeId?: number
 ): Promise<boolean> {
-  const results = await db.select<Array<{ count: number }>>(
-    "SELECT COUNT(*) as count FROM clients WHERE name = $1 AND id != $2",
-    [name.trim(), excludeId ?? -1]
+  const results = await db.select<Array<{ id: number; name: string }>>(
+    "SELECT id, name FROM clients WHERE id != $1",
+    [excludeId ?? -1]
   );
-  return results[0]?.count > 0;
+  const target = foldGreek(name);
+  return results.some((row) => foldGreek(row.name) === target);
 }
 
 export async function bulkInsertClients(
@@ -99,13 +111,25 @@ export async function bulkInsertClients(
   let inserted = 0;
   let skipped = 0;
 
+  // Read the names once. clientNameExists loads the list itself, and calling it
+  // from here per client would re-read the same rows n times over.
+  const existing = new Set(
+    (await db.select<Array<{ name: string }>>("SELECT name FROM clients")).map((r) =>
+      foldGreek(r.name)
+    )
+  );
+
   for (const client of clients) {
-    if (await clientNameExists(db, client.name)) {
+    if (existing.has(foldGreek(client.name))) {
       skipped++;
       continue;
     }
     try {
+      // The set is updated too, so two spellings of one name inside the same
+      // batch are caught as well - the database has no such constraint to fall
+      // back on.
       await createClient(db, client);
+      existing.add(foldGreek(client.name));
       inserted++;
     } catch {
       skipped++;

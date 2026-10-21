@@ -3,7 +3,7 @@ import Database from "@tauri-apps/plugin-sql";
 import type { Profession } from "../domain/types";
 import * as professionRepo from "../persistence/professionRepo";
 import { getAvailableColor } from "../utils/colors";
-import { toMessage } from "../utils/errors";
+import { toMessage, DUPLICATE_PROFESSION } from "../utils/errors";
 
 export interface ProfessionInput {
   name: string;
@@ -42,6 +42,11 @@ export function useProfessions(db: Database | null) {
 
   const createProfession = async (data: ProfessionInput): Promise<number> => {
     if (!db) return 0;
+    // Folded comparison rather than the UNIQUE index alone: see the same check
+    // in useTasks, and the reason in professionNameExists.
+    if (await professionRepo.professionNameExists(db, data.name)) {
+      throw new Error(DUPLICATE_PROFESSION);
+    }
     const id = await professionRepo.createProfession(db, data);
     await loadProfessions();
     return id;
@@ -52,6 +57,12 @@ export function useProfessions(db: Database | null) {
     data: Partial<ProfessionInput> & { isActive?: boolean }
   ): Promise<void> => {
     if (!db) return;
+    // Only when a name was sent: updateProfession reads an absent name as
+    // "leave it alone", and checking one that is not changing would reject a
+    // colour change on the row's own name.
+    if (data.name && (await professionRepo.professionNameExists(db, data.name, id))) {
+      throw new Error(DUPLICATE_PROFESSION);
+    }
     await professionRepo.updateProfession(db, id, data);
     await loadProfessions();
   };

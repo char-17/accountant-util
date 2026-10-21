@@ -17,7 +17,9 @@ console.log('\nExpected:');
 for (const c of ['periodicity', 'due_day', 'reminder_days']) {
   console.log(`  ${c}: ${cols.includes(c) ? 'present' : 'MISSING'}`);
 }
-console.log(`  task_reminders table: ${tables.includes('task_reminders') ? 'present' : 'MISSING'}`);
+console.log(`  task_reminders table dropped: ${
+  tables.includes('task_reminders') ? 'STILL THERE' : 'gone'
+}`);
 
 console.log('\nData intact:');
 console.log('  clients:', db.prepare('SELECT COUNT(*) AS c FROM clients').get().c);

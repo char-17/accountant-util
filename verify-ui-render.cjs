@@ -264,7 +264,7 @@ const menuClosed = render(React.createElement(ui.FileMenu, {
 }));
 check('the trigger is labelled Αρχείο', text(menuClosed).includes('Αρχείο'));
 check('it starts collapsed', menuClosed.includes('aria-expanded="false"'));
-check('no menu items are in the DOM yet', !menuClosed.includes('Εισαγωγή CSV'));
+check('no menu items are in the DOM yet', !menuClosed.includes('Εξαγωγή CSV'));
 check('and the list it controls is not rendered', !menuClosed.includes('id="file-menu-list"'));
 console.log('\n8) toasts are announced to screen readers');
 const toastHtml = render(React.createElement(ui.Toaster, {

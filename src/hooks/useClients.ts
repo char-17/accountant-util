@@ -3,7 +3,7 @@ import Database from "@tauri-apps/plugin-sql";
 import type { Client } from "../domain/types";
 import * as clientRepo from "../persistence/clientRepo";
 import { greekIncludes } from "../utils/greek";
-import { toMessage } from "../utils/errors";
+import { toMessage, DUPLICATE_CLIENT } from "../utils/errors";
 
 export type ClientInput = Omit<Client, "id" | "createdAt" | "updatedAt">;
 
@@ -46,7 +46,7 @@ export function useClients(db: Database | null) {
   const createClient = async (data: ClientInput): Promise<number> => {
     if (!db) throw new Error("Η βάση δεδομένων δεν είναι έτοιμη.");
     if (await clientRepo.clientNameExists(db, data.name)) {
-      throw new Error("Υπάρχει ήδη πελάτης με αυτό το όνομα.");
+      throw new Error(DUPLICATE_CLIENT);
     }
     const id = await clientRepo.createClient(db, data);
     await loadClients();
@@ -56,7 +56,7 @@ export function useClients(db: Database | null) {
   const updateClient = async (id: number, data: Partial<ClientInput>): Promise<void> => {
     if (!db) throw new Error("Η βάση δεδομένων δεν είναι έτοιμη.");
     if (data.name && (await clientRepo.clientNameExists(db, data.name, id))) {
-      throw new Error("Υπάρχει ήδη πελάτης με αυτό το όνομα.");
+      throw new Error(DUPLICATE_CLIENT);
     }
     await clientRepo.updateClient(db, id, data);
     await loadClients();

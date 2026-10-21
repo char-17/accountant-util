@@ -4,6 +4,7 @@ import type { TaskType } from "../domain/types";
 import * as taskRepo from "../persistence/taskRepo";
 import type { TaskUsage } from "../persistence/taskRepo";
 import { getAvailableColor } from "../utils/colors";
+import { DUPLICATE_TASK } from "../utils/errors";
 
 export function useTasks(db: Database | null) {
   const [tasks, setTasks] = useState<TaskType[]>([]);
@@ -31,12 +32,22 @@ export function useTasks(db: Database | null) {
 
   const createTask = async (data: Pick<TaskType, "name" | "color" | "description">) => {
     if (!db) return;
+    // Checked here rather than left to the UNIQUE index, which compares bytes:
+    // "Μισθοδοσία" and "ΜΙΣΘΟΔΟΣΙΑ" are one task to an accountant and two rows to
+    // SQLite. The index still runs - it is the backstop for a race, not the
+    // only defence.
+    if (await taskRepo.taskNameExists(db, data.name)) {
+      throw new Error(DUPLICATE_TASK);
+    }
     await taskRepo.createTaskType(db, data);
     await loadTasks();
   };
 
   const updateTask = async (id: number, data: Partial<TaskType>) => {
     if (!db) return;
+    if (data.name && (await taskRepo.taskNameExists(db, data.name, id))) {
+      throw new Error(DUPLICATE_TASK);
+    }
     await taskRepo.updateTaskType(db, id, data);
     await loadTasks();
   };
