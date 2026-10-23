@@ -50,7 +50,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ1OTczMUIyMjE3QUIzQUEKUldTcXMzb2hzakdYUlV3R1BYRjluK0FScGZ1NU9CZU5zZm1MZ0p2MUd3VlprNmtRVkhFUzFXVFAK",
       "endpoints": [
-        "https://github.com/YOUR_GITHUB_USER/REPO_NAME/releases/latest/download/latest.json"
+        "https://github.com/char-17/accountant-util/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
