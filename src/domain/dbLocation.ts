@@ -13,7 +13,9 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-export const DB_FILE_NAME = "accountant.db";
+// The file's name is an application property, not a detail of locating it, so
+// it lives in appConfig with the rest. This module is about the move.
+export { DB_FILE_NAME } from "./appConfig";
 
 export interface MigrationResult {
   /** True when a database was carried over from the previous identifier. */

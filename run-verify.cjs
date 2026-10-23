@@ -56,7 +56,7 @@ const ciOnly = process.argv.includes('--ci');
 
 // Scripts that inspect the code instead of running it; they are audits, and one
 // of them deliberately reproduces a bug, so its "failure" is the expected pass.
-const AUDIT = ['audit-refresh.cjs', 'audit-contrast.cjs', 'audit-style.cjs', 'audit-tauri-acl.cjs'];
+const AUDIT = ['audit-refresh.cjs', 'audit-contrast.cjs', 'audit-style.cjs', 'audit-tauri-acl.cjs', 'audit-config.cjs'];
 
 
 

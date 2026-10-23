@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { TOAST_TIMEOUT_MS } from "../domain/appConfig";
 
 export type ToastKind = "success" | "error" | "info";
 
@@ -12,7 +13,7 @@ export interface Toast {
  * Central feedback for every user action. Wraps an async operation so success
  * and failure are always reported, and nothing fails silently.
  */
-export function useToasts(timeoutMs = 3500) {
+export function useToasts(timeoutMs = TOAST_TIMEOUT_MS) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(1);
   const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);

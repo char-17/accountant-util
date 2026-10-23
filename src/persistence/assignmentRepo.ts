@@ -1,5 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import type { ClientTaskAssignment, TaskType, Periodicity } from "../domain/types";
+import { DUE_DAY_MIN, DUE_DAY_MAX, REMINDER_DAYS_MIN, REMINDER_DAYS_MAX } from "../domain/appConfig";
 import { normalizeTasks } from "../utils/db";
 
 // Joins return the assignment columns plus the task's display fields.
@@ -77,9 +78,16 @@ export function normalizeSchedule(partial?: Partial<AssignmentSchedule>): Assign
 
   // 0 is a valid choice for reminderDays ("warn me on the day itself"), so the
   // range checks must be explicit rather than relying on truthiness.
-  const validDueDay = Number.isFinite(dueDay) && dueDay >= 1 && dueDay <= 31;
+  //
+  // These are the same bounds the form offers, and they used to be a second
+  // copy of those numbers - which meant the form could accept something this
+  // normaliser would quietly fall back from.
+  const validDueDay =
+    Number.isFinite(dueDay) && dueDay >= DUE_DAY_MIN && dueDay <= DUE_DAY_MAX;
   const validReminder =
-    Number.isFinite(reminderDays) && reminderDays >= 0 && reminderDays <= 90;
+    Number.isFinite(reminderDays) &&
+    reminderDays >= REMINDER_DAYS_MIN &&
+    reminderDays <= REMINDER_DAYS_MAX;
 
   return {
     periodicity,

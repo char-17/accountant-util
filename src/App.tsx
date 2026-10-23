@@ -28,6 +28,7 @@ import { UpdateDialog } from "./components/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
 import { currentDeadline, reminderState, describeDeadline } from "./domain/recurrence";
+import { HIGHLIGHT_PULSE_MS, UPDATE_CHECK_DELAY_MS } from "./domain/appConfig";
 import "./App.css";
 
 type View = "dashboard" | "tasks" | "professions" | "reports";
@@ -124,7 +125,7 @@ function App() {
     setSelectedClientId(id);
     setHighlightClientId(id);
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
-    highlightTimer.current = window.setTimeout(() => setHighlightClientId(null), 2600);
+    highlightTimer.current = window.setTimeout(() => setHighlightClientId(null), HIGHLIGHT_PULSE_MS);
   };
 
   useEffect(() => {
@@ -175,11 +176,9 @@ function App() {
   useEffect(() => {
     if (!db || autoChecked.current) return;
     autoChecked.current = true;
-    // Delayed so the update check never competes with the database in the
-    // first seconds, which is when it would be least welcome anyway.
     const timer = window.setTimeout(() => {
       void updater.check();
-    }, 4000);
+    }, UPDATE_CHECK_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [db, updater.check]);
 

@@ -5,6 +5,7 @@ import * as assignmentRepo from "../persistence/assignmentRepo";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
 import type { ClientInput } from "../hooks/useClients";
 import type { Periodicity } from "../domain/types";
+import { DUE_DAY_MIN, DUE_DAY_MAX, REMINDER_DAYS_MIN, REMINDER_DAYS_MAX } from "../domain/appConfig";
 import {
   PERIODICITY_LABELS,
   currentDeadline,
@@ -216,8 +217,8 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
             <input
               id="na-due"
               type="number"
-              min={1}
-              max={31}
+              min={DUE_DAY_MIN}
+              max={DUE_DAY_MAX}
               value={newDueDay}
               onChange={(e) => setNewDueDay(e.target.value)}
               title="Ημέρα του μήνα που λήγει η εργασία"
@@ -229,8 +230,8 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
             <input
               id="na-remind"
               type="number"
-              min={0}
-              max={90}
+              min={REMINDER_DAYS_MIN}
+              max={REMINDER_DAYS_MAX}
               value={newReminderDays}
               onChange={(e) => setNewReminderDays(e.target.value)}
               title="Πόσες μέρες πριν τη λήξη να εμφανιστεί ειδοποίηση"
