@@ -14,6 +14,8 @@ interface FileMenuProps {
   onBackup: () => void;
   onRestore: () => void;
   busy: "backup" | "restore" | null;
+  onCheckUpdates: () => Promise<void>;
+  checkingUpdates: boolean;
 }
 
 function describeScope(
@@ -53,6 +55,8 @@ export function FileMenu({
   onBackup,
   onRestore,
   busy,
+  onCheckUpdates,
+  checkingUpdates,
 }: FileMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -159,6 +163,20 @@ export function FileMenu({
             onClick={() => run(onRestore)}
           >
             {busy === "restore" ? "Επαναφορά..." : "Επαναφορή από αντιγράφου"}
+          </button>
+
+          {/* Independent of the backup/restore pair: checking for an update
+              reads nothing local, so a running backup does not disable it. */}
+          <div className="file-menu-separator" role="separator" />
+
+          <button
+            className="file-menu-item"
+            role="menuitem"
+            disabled={checkingUpdates}
+            title="Ελέγχει αν υπάρχει νεότερη έκδοση του προγράμματος"
+            onClick={() => run(() => void onCheckUpdates())}
+          >
+            {checkingUpdates ? "Έλεγχος..." : "Έλεγχος ενημερώσεων"}
           </button>
         </div>
       )}

@@ -33,6 +33,12 @@ const SET_COVERAGE = {
     'notification:allow-is-permission-granted',
     'notification:allow-request-permission',
   ],
+  'updater:default': [
+    'updater:allow-check',
+    'updater:allow-download',
+    'updater:allow-install',
+    'updater:allow-download-and-install',
+  ],
 };
 
 // A set is only justified while the package that needs it is imported.
@@ -43,6 +49,7 @@ const SET_USAGE = {
   'notification:default': '@tauri-apps/plugin-notification',
   'fs:default': '@tauri-apps/plugin-fs',
   'core:app:default': '@tauri-apps/api/app',
+  'updater:default': '@tauri-apps/plugin-updater',
 };
 
 // Named imports -> the permission the command behind them needs.
@@ -67,6 +74,32 @@ const NAMED_RULES = {
     isPermissionGranted: 'notification:allow-is-permission-granted',
     requestPermission: 'notification:allow-request-permission',
   },
+};
+
+// Plugins reached through a bare dynamic import, where no named binding ever
+// appears in the import statement: `const mod = await import("pkg")` followed
+// by `mod.check(...)`. The NAMED_RULES pass cannot see these, which is the same
+// blind spot CloseGuard exposed - the close that was silently refused was
+// reached exactly this way. Both halves are required: the package has to be
+// imported by the file, and the call has to be there, so an import that is
+// never used asks for nothing.
+const DYNAMIC_RULES = {
+  '@tauri-apps/plugin-updater': [
+    // Both spellings: `updater.check()` and a bare `check()`. Anchoring on the
+    // dot alone would miss the second, and it would miss it silently.
+    { pattern: /\bcheck\s*\(/, permission: 'updater:allow-check', what: 'updater.check' },
+    {
+      pattern: /\bdownloadAndInstall\s*\(/,
+      permission: 'updater:allow-download-and-install',
+      what: 'update.downloadAndInstall',
+    },
+  ],
+  '@tauri-apps/plugin-process': [
+    { pattern: /\brelaunch\s*\(/, permission: 'process:allow-restart', what: 'relaunch' },
+    // Present so that calling exit() is caught as a missing grant rather than
+    // as a dead one. Nothing calls it today.
+    { pattern: /\bexit\s*\(/, permission: 'process:allow-exit', what: 'exit' },
+  ],
 };
 
 // Default import -> call patterns on it, and the permission each needs.
@@ -161,6 +194,16 @@ for (const [file, source] of sources) {
       if (!permission) continue;
       const called = new RegExp(`(?<![\\w$.])${name}\\s*\\(`).test(source.replace(/^import[\s\S]*?from\s*["'][^"']+["']/gm, ''));
       if (called) require_(permission, file, `${name}()`);
+    }
+  }
+
+  // Dynamically imported plugins: no named binding appears in an import
+  // statement, so the package being present in the file is what scopes the
+  // rules. Both conditions still required, as above.
+  for (const [pkg, rules] of Object.entries(DYNAMIC_RULES)) {
+    if (!packages.includes(pkg)) continue;
+    for (const rule of rules) {
+      if (rule.pattern.test(source)) require_(rule.permission, file, rule.what);
     }
   }
 

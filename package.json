@@ -10,6 +10,7 @@
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "verify": "node run-verify.cjs",
+    "verify:ci": "node run-verify.cjs --ci",
     "audit": "node audit-style.cjs"
   },
   "dependencies": {
@@ -17,17 +18,19 @@
     "@tauri-apps/plugin-dialog": "^2.8.1",
     "@tauri-apps/plugin-fs": "^2.6.0",
     "@tauri-apps/plugin-notification": "^2.5.1",
+    "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-sql": "^2.5.0",
+    "@tauri-apps/plugin-updater": "^2.14.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "better-sqlite3": "^13.0.3",
     "@eslint/js": "^9.39.5",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.2",
+    "better-sqlite3": "^13.0.3",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",

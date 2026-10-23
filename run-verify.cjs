@@ -1,5 +1,8 @@
 // Runs every check in one command: types, lint, architecture audit, and the
 // behavioural tests. Prints a summary and exits non-zero if anything failed.
+//
+// `--ci` drops the tests that read the live development database, which no
+// runner has. See LIVE_DB below for why, and which ones they are.
 const { spawnSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -20,6 +23,7 @@ const VERIFY = [
   'verify-backup-restore.cjs',
   'verify-ui-render.cjs',
   'verify-ui-interaction.cjs',
+  'verify-auto-update.cjs',
   'verify-periodicity.cjs',
   'verify-fix.cjs',
   'verify-startdate-fix.cjs',
@@ -31,6 +35,24 @@ const VERIFY = [
   'verify-report.cjs',
   'verify-payment.cjs',
 ];
+
+// Scripts that read the live development database through lib/dbPath.cjs.
+// There is no such database on a CI runner and no application to create one,
+// so `npm run verify -- --ci` skips them rather than failing on an absent
+// file. They are the ones that catch a regression against real client data,
+// so the local run - which is where they are meant to be used - runs
+// everything.
+const LIVE_DB = new Set([
+  'verify-client-crud.cjs',
+  'verify-fix.cjs',
+  'verify-greek-search.cjs',
+  'verify-mutations.cjs',
+  'verify-name-uniqueness.cjs',
+  'verify-periodicity.cjs',
+  'verify-profession-seed.cjs',
+]);
+
+const ciOnly = process.argv.includes('--ci');
 
 // Scripts that inspect the code instead of running it; they are audits, and one
 // of them deliberately reproduces a bug, so its "failure" is the expected pass.
@@ -62,8 +84,14 @@ for (const script of AUDIT) {
   if (fs.existsSync(path.join(root, script))) run(script, 'node', [script]);
 }
 
+const skipped = [];
 for (const script of VERIFY) {
-  if (fs.existsSync(path.join(root, script))) run(script, 'node', [script]);
+  if (!fs.existsSync(path.join(root, script))) continue;
+  if (ciOnly && LIVE_DB.has(script)) {
+    skipped.push(script);
+    continue;
+  }
+  run(script, 'node', [script]);
 }
 
 const failed = results.filter((r) => !r.ok);
@@ -73,6 +101,9 @@ for (const r of results) {
   const mark = r.ok ? 'PASS' : 'FAIL';
   const time = r.ms >= 1000 ? `${(r.ms / 1000).toFixed(1)}s` : `${r.ms}ms`;
   console.log(`  ${mark}  ${r.label.padEnd(28)} ${time.padStart(7)}`);
+}
+if (skipped.length > 0) {
+  console.log(`  --  ${'skipped, needs live db'.padEnd(28)} ${String(skipped.length).padStart(7)}`);
 }
 console.log('='.repeat(64));
 

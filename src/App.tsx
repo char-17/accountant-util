@@ -24,6 +24,8 @@ import { useWorklistFilters } from "./hooks/useWorklistFilters";
 import { useExportReport } from "./hooks/useExportReport";
 import { useBackup } from "./hooks/useBackup";
 import { CloseGuard } from "./components/CloseGuard";
+import { UpdateDialog } from "./components/UpdateDialog";
+import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
 import { currentDeadline, reminderState, describeDeadline } from "./domain/recurrence";
 import "./App.css";
@@ -160,6 +162,44 @@ function App() {
   const desktop = useDesktopNotifications(desktopNotifications);
 
   const exporter = useExportReport();
+
+  // Update checking. The startup pass is silent: it runs against the network,
+  // and a machine with no connection must not be told about it every morning.
+  // The check itself is a stable callback, which is what the effect depends on
+  // rather than the whole hook - the hook returns a fresh object each render,
+  // and depending on that would clear the timer on every one of them, so the
+  // check would never actually be scheduled.
+  const updater = useAutoUpdate();
+  const autoChecked = useRef(false);
+
+  useEffect(() => {
+    if (!db || autoChecked.current) return;
+    autoChecked.current = true;
+    // Delayed so the update check never competes with the database in the
+    // first seconds, which is when it would be least welcome anyway.
+    const timer = window.setTimeout(() => {
+      void updater.check();
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [db, updater.check]);
+
+  // A manual check always answers - up to date, an update, or why it failed -
+  // because the accountant clicked something and is waiting. The result comes
+  // back from check() rather than being read from the hook's state, which would
+  // still hold the previous value at this point.
+  const handleCheckUpdates = async () => {
+    const result = await updater.check({ manual: true });
+    if (result.status === "update" || result.status === "busy") return;
+    if (result.status === "error") {
+      toasts.error(`Αποτυχία ελέγχου ενημερώσεων: ${result.message}`);
+      return;
+    }
+    if (result.status === "unavailable") {
+      toasts.info("Ο έλεγχος ενημερώσεων δεν είναι διαθέσιμος σε αυτή την έκδοση.");
+      return;
+    }
+    toasts.success("Είστε ήδη στην πιο πρόσφατη έκδοση.");
+  };
 
   // Exports the rows the user is actually looking at, with the active filters
   // noted in the file so the numbers are traceable later.
@@ -470,6 +510,8 @@ function App() {
           onBackup={handleBackup}
           onRestore={handleRestore}
           busy={backup.busy}
+          onCheckUpdates={handleCheckUpdates}
+          checkingUpdates={updater.phase === "checking"}
         />
 
         {/* Right: the screens and the month they apply to. Both change what the
@@ -669,6 +711,16 @@ function App() {
           and anything half-typed on a client, so it asks first. Renders nothing
           until a close is actually requested. */}
       <CloseGuard />
+      {/* Offered rather than forced: the dialog only appears once a newer
+          version has actually been found. onInstalled fires only where the
+          update landed and the process survived - on Windows the installer
+          takes the application with it, so there is nothing left to say. */}
+      <UpdateDialog
+        update={updater}
+        onInstalled={() =>
+          toasts.info("Η ενημέρωση εγκαταστάθηκε. Κάντε χειροκίνητη επανεκκίνηση του προγράμματος.")
+        }
+      />
       <Toaster toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </div>
   );

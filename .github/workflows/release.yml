@@ -1,0 +1,73 @@
+# Builds the signed Windows installer and publishes it as a GitHub Release.
+#
+# Why here and not on the workstation: the installer must be signed with the
+# private key, and that key exists only as a repository secret. Building on the
+# accountant's own PC would mean the key sits on a machine several people have
+# access to, and a release could be produced from any copy of the source.
+# Losing the key is the worse half of this: every copy already installed would
+# stop trusting updates, permanently.
+#
+# A release is cut by pushing a tag:
+#
+#   npm version patch        (bumps package.json and creates the tag)
+#   git push --follow-tags
+#
+# tauri-action uploads the installer and writes latest.json, the file the
+# updater fetches on the accountant's machine.
+#
+# The repository has to be public for that to work. GitHub requires
+# authentication to download the assets of a private repository, and the
+# updater runs unauthenticated - it would get a 404 on every check and report
+# nothing at all. The source code is what is public; the client database lives
+# outside the repository and is not part of any build.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Before anything is signed. The full suite needs the live database,
+      # which does not exist here - verify:ci is the part that can run, and a
+      # tag that fails it should not become a release.
+      - name: Check
+        run: npm run verify:ci
+
+      - name: Build and publish
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Accountant Util ${{ github.ref_name }}"
+          # Draft on purpose: the installer is unsigned by Windows' rules (no
+          # code-signing certificate), so a release is worth a look before it
+          # becomes the thing the updater points every machine at.
+          releaseDraft: true
+          prerelease: false
