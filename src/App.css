@@ -3589,8 +3589,9 @@ input[type="search"]::-webkit-search-results-decoration {
   font-family: inherit;
 }
 
-/* The Excel import UI was removed in d5802e3; its styles went with it. The
-   import path is now the one-off import-data.cjs script, which has no UI. */
+/* The Excel import was removed in d5802e3: its UI and styles first, and then
+   the one-off import script that had no UI of its own. There is no import
+   path left to point at. */
 
 .loading {
   text-align: center;

@@ -38,11 +38,16 @@ export const DB_FILE_NAME = "accountant.db";
 export const HIGHLIGHT_PULSE_MS = 2600;
 
 /**
- * Delay before the startup update check runs. It is deferred rather than run
- * on mount so the check never competes with the database in the first seconds
- * of the application, which is when it would be least welcome anyway.
+ * Delay before the startup update check runs.
+ *
+ * It is deferred rather than run on mount so the check never competes with the
+ * database in the first seconds of the application, which is when it would be
+ * least welcome anyway. Half a minute is long enough for the window to be
+ * usable and the queries to have settled, and short enough that a machine
+ * which has been on since the morning hears about a new version without
+ * anyone having to ask for it.
  */
-export const UPDATE_CHECK_DELAY_MS = 4000;
+export const UPDATE_CHECK_DELAY_MS = 30000;
 
 /** How long a toast stays on screen before it dismisses itself. */
 export const TOAST_TIMEOUT_MS = 3500;
