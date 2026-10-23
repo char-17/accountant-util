@@ -49,8 +49,16 @@ jobs:
         with:
           workspaces: "./src-tauri"
 
+      # better-sqlite3 has no install script and no prebuild download, so npm
+      # compiles it from source with node-gyp every time. The node-gyp bundled
+      # with npm could not read the Visual Studio on the runner and stopped the
+      # install before anything else ran, so the project carries its own and
+      # npm_config_node_gyp points at it. It is installed by the step above
+      # before any install script runs, which is when it is needed.
       - name: Install frontend dependencies
         run: npm ci
+        env:
+          npm_config_node_gyp: ${{ github.workspace }}/node_modules/node-gyp/bin/node-gyp.js
 
       # Before anything is signed. The full suite needs the live database,
       # which does not exist here - verify:ci is the part that can run, and a
