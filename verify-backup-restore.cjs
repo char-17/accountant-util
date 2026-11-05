@@ -182,9 +182,17 @@ checkEq('forward slashes are respected too',
   repo.sanitizeBackupName('/home/user/a"b.db'), '/home/user/ab.db');
 checkEq('a name of only forbidden characters falls back',
   repo.sanitizeBackupName('C:\\dir\\""".db'), 'C:\\dir\\backup.db');
-checkEq('default name is date-stamped',
-  repo.defaultBackupName(new Date(2026, 9, 7)), 'backup-2026-10-07.db');
+// Timestamped rather than dated: two snapshots before lunch must not collide,
+// because VACUUM INTO will not write onto an existing file and the folder is
+// no longer one a dialog lets the user rename in.
+checkEq('default name carries date and time',
+  repo.defaultBackupName(new Date(2026, 9, 7, 14, 30, 5)), 'backup-2026-10-07_14-30-05.db');
 check('default name has no double quote', !repo.defaultBackupName().includes('"'));
+check('default name has no colon or other forbidden character',
+  !/["*:<>?|]/.test(repo.defaultBackupName()));
+checkEq('two snapshots a second apart are different files',
+  repo.defaultBackupName(new Date(2026, 9, 7, 14, 30, 5)) !==
+  repo.defaultBackupName(new Date(2026, 9, 7, 14, 30, 6)), true);
 
 // The probe found that VACUUM INTO fails on a quote; prove the sanitiser fixes it.
 console.log('\n10) a quoted path works once sanitised');
@@ -199,6 +207,40 @@ check('sanitised path is accepted by VACUUM INTO', vacuumOk);
 // was taken from the live database, so it holds the current client count.
 const roundTrip = await repo.countBackup(db, cleaned);
 checkEq('the sanitised backup is readable', roundTrip.clients, raw.prepare('SELECT COUNT(*) c FROM clients').get().c);
+
+// ── 10b) the statement itself, under a directory containing an apostrophe ─────
+// The paths now arrive from Rust, under the user's own profile, where a folder
+// called O'Brien is entirely legal. An apostrophe is a legitimate character in
+// a Windows directory name, so the sanitiser must not strip it - that would
+// aim the write at a folder that does not exist - and dropping it silently is
+// exactly the kind of failure nobody sees until the backup is needed.
+console.log('\n10b) vacuumIntoStatement quotes the path rather than rewriting it');
+
+checkEq('an apostrophe inside the path is doubled',
+  repo.vacuumIntoStatement("C:\\Users\\O'Brien\\backup.db"),
+  "VACUUM INTO 'C:\\Users\\O''Brien\\backup.db'");
+checkEq('the file name is still sanitised',
+  repo.vacuumIntoStatement('C:\\dir\\my"file.db'),
+  "VACUUM INTO 'C:\\dir\\myfile.db'");
+checkEq('a plain path comes back unchanged',
+  repo.vacuumIntoStatement('C:\\dir\\backup.db'),
+  "VACUUM INTO 'C:\\dir\\backup.db'");
+checkEq('the directory separator survives',
+  repo.vacuumIntoStatement('/home/user/a\\b.db').includes("/home/user/"), true);
+
+// Looking right is not enough: run it.
+const oddDir = path.join(tmp, "O'Brien");
+fs.mkdirSync(oddDir, { recursive: true });
+const stated = path.join(oddDir, 'stated backup.db');
+let statementOk = true;
+try { raw.exec(repo.vacuumIntoStatement(stated)); }
+catch (err) { statementOk = false; console.log(`       threw: ${err.message}`); }
+check('the built statement is accepted by SQLite', statementOk);
+check('and the snapshot landed in the odd directory', fs.existsSync(stated));
+
+const statedInfo = await repo.countBackup(db, stated);
+checkEq('so the backup it wrote is readable',
+  statedInfo.clients, raw.prepare('SELECT COUNT(*) c FROM clients').get().c);
 
 // ── 11) professions across a backup ───────────────────────────────────────────
 // The live database here predates professions on purpose - every check above
@@ -313,7 +355,17 @@ checkEq('so the confirmation text never mentions it',
 lraw.close();
 
 raw.close();
-for (const f of fs.readdirSync(tmp)) fs.unlinkSync(path.join(tmp, f));
+for (const f of fs.readdirSync(tmp)) {
+  const p = path.join(tmp, f);
+  // One fixture is a directory (the one called O'Brien), and unlink on a
+  // directory throws rather than doing nothing.
+  if (fs.statSync(p).isDirectory()) {
+    for (const g of fs.readdirSync(p)) fs.unlinkSync(path.join(p, g));
+    fs.rmdirSync(p);
+  } else {
+    fs.unlinkSync(p);
+  }
+}
 fs.rmdirSync(tmp);
 for (const f of [entry, bundle]) fs.unlinkSync(f);
 

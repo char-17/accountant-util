@@ -147,10 +147,10 @@ export function FileMenu({
             className="file-menu-item"
             role="menuitem"
             disabled={disabled}
-            title="Το αντίγραφο περιέχει όλους τους πελάτες, τις εργασίες και το ιστορικό ολοκληρώσεων. Μπορείτε να το κρατήσετε σε ασφαλές μέρος."
+            title="Το αντίγραφο περιέχει όλους τους πελάτες, τις εργασίες και το ιστορικό ολοκληρώσεων. Γράφεται αυτόματα στον φάκελο του προγράμματος, χωρίς να ρωτάει πού."
             onClick={() => run(onBackup)}
           >
-            {busy === "backup" ? "Δημιουργία..." : "Αντίγραφο ασφαλείας"}
+            {busy === "backup" ? "Δημιουργία..." : "Δημιουργία αντιγράφου ασφαλείας"}
           </button>
 
           {/* Restore replaces the current data, so it is the one item in the

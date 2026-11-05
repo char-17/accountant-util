@@ -49,6 +49,16 @@ export const HIGHLIGHT_PULSE_MS = 2600;
  */
 export const UPDATE_CHECK_DELAY_MS = 30000;
 
+/**
+ * Hour of the day the automatic backup runs, in local time.
+ *
+ * Chosen by the accountant, not derived: 3 PM is between the morning's work
+ * and the end of the day, and late enough that the day's changes are in. The
+ * schedule itself, including what happens when the program is closed at that
+ * hour, lives in `domain/autoBackup.ts`.
+ */
+export const AUTO_BACKUP_HOUR = 15;
+
 /** How long a toast stays on screen before it dismisses itself. */
 export const TOAST_TIMEOUT_MS = 3500;
 

@@ -1,0 +1,145 @@
+// Cross-checks the Tauri commands the frontend invokes against the ones the
+// Rust side registers.
+//
+// Why this exists: a command name is a string in one language and an
+// identifier in another, with nothing between them. Typecheck cannot see it -
+// `invoke<BackupArea>("prepare_backup_area")` type-checks whatever string is
+// inside the quotes. ESLint cannot see it. `audit-tauri-acl.cjs` cannot see it
+// either: that audit compares plugin permissions against capability entries,
+// and application commands are registered through `generate_handler!` and
+// appear in no capability file at all.
+//
+// So a renamed or mistyped command is invisible in every check this project
+// runs, and only fails when someone clicks the button in an installed build -
+// where the error arrives as a rejected promise and, for anything launched
+// from a timer, as nothing at all. Two directions are checked, plus one:
+//
+//   GAP    invoked but not registered   -> throws when the user asks for it
+//   STALE  declared but not registered  -> can never run, wherever it is called
+//   DEAD   registered but never called  -> dead code kept alive by a registration
+//
+// A command registered and declared but invoked under a different spelling
+// shows up as GAP, because the name the frontend uses is what has to match.
+
+const fs = require('fs');
+const path = require('path');
+
+const SRC_DIR = 'src';
+const RUST_DIR = path.join('src-tauri', 'src');
+
+// invoke<MigrationResult>("migrate_legacy_database")
+// invoke("promote_auto_backup")
+//
+// The generic is optional and the argument must be a plain string literal, so
+// a computed name is deliberately not matched: nothing here builds one, and a
+// pattern loose enough to catch that would also catch every other string in
+// the file.
+const INVOKE_RE = /\binvoke\s*(?:<[^<>]*>)?\s*\(\s*["']([a-z_][a-z0-9_]*)["']/g;
+
+// #[tauri::command]
+// pub fn prepare_backup_area() -> ...
+//
+// The attribute has to sit directly above the function. Doc comments go above
+// the attribute - see backup_fs.rs and migration.rs - so nothing is allowed
+// between them: allowing arbitrary lines would reach for the next function in
+// the file and report a registration that does not exist.
+const COMMAND_RE = /#\[tauri::command\]\s*(?:pub\s+)?fn\s+([a-z_][a-z0-9_]*)/g;
+
+// .invoke_handler(tauri::generate_handler![a::b, c::d])
+const HANDLER_RE = /generate_handler!\[([\s\S]*?)\]/g;
+
+function listSources(dir, ext) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listSources(p, ext));
+    else if (ext.test(entry.name)) out.push(p);
+  }
+  return out;
+}
+
+function matches(source, re) {
+  const found = [];
+  for (const m of source.matchAll(re)) found.push(m[1]);
+  return found;
+}
+
+// ── What the frontend invokes ─────────────────────────────────────────────────
+
+const tsFiles = listSources(SRC_DIR, /\.(ts|tsx)$/);
+const called = new Map(); // name -> [file that invokes it]
+for (const file of tsFiles) {
+  const source = fs.readFileSync(file, 'utf8');
+  for (const name of matches(source, INVOKE_RE)) {
+    const list = called.get(name) || [];
+    list.push(file);
+    called.set(name, list);
+  }
+}
+
+// ── What Rust declares and registers ──────────────────────────────────────────
+
+const rustFiles = listSources(RUST_DIR, /\.rs$/);
+const declared = new Set();
+const registered = new Set();
+const registrationSite = new Map(); // name -> file
+
+for (const file of rustFiles) {
+  const source = fs.readFileSync(file, 'utf8');
+  for (const name of matches(source, COMMAND_RE)) declared.add(name);
+
+  for (const block of matches(source, HANDLER_RE)) {
+    // `migration::migrate_legacy_database` -> `migrate_legacy_database`. The
+    // path is irrelevant to dispatch; only the last segment is the name the
+    // frontend sends.
+    for (const entry of block.split(',')) {
+      const trimmed = entry.trim();
+      if (!trimmed) continue;
+      const name = trimmed.split('::').pop().trim();
+      registered.add(name);
+      registrationSite.set(name, file);
+    }
+  }
+}
+
+// ── Report ────────────────────────────────────────────────────────────────────
+
+let problems = 0;
+
+console.log(
+  `Tauri command cross-check: ${called.size} invoked in ${tsFiles.length} files ` +
+    `vs ${registered.size} registered in ${rustFiles.length} files\n`
+);
+
+// Direction one: invoked but not registered.
+for (const [name, users] of [...called.entries()].sort()) {
+  if (registered.has(name)) {
+    console.log(`  OK    ${name.padEnd(34)} <- ${users[0]}`);
+  } else {
+    problems++;
+    console.log(`  GAP   ${name.padEnd(34)} <- ${users.join(', ')}; not in generate_handler!`);
+  }
+}
+
+// Direction two: declared without a registration. Only reported when nothing
+// invokes it, because otherwise direction one has already said so.
+for (const name of [...declared].sort()) {
+  if (registered.has(name)) continue;
+  if (called.has(name)) continue;
+  problems++;
+  console.log(`  STALE ${name.padEnd(34)} <- #[tauri::command] but never registered`);
+}
+
+// Direction three: registered but never invoked.
+for (const name of [...registered].sort()) {
+  if (called.has(name)) continue;
+  problems++;
+  console.log(`  DEAD  ${name.padEnd(34)} <- registered in ${registrationSite.get(name)}, called nowhere`);
+}
+
+console.log(
+  problems === 0
+    ? '\nEvery command the frontend invokes is registered, and none is registered for nothing.'
+    : `\n${problems} command problem(s). A GAP throws when the user asks for it; a DEAD registration is code that cannot be reached.`
+);
+process.exit(problems === 0 ? 0 : 1);

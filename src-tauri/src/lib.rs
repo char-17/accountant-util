@@ -1,3 +1,4 @@
+mod backup_fs;
 mod migration;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,7 +16,14 @@ pub fn run() {
         // Only relaunch() is granted. exit() is not, and the ACL audit reports
         // it as dead if a future change adds the grant without a call site.
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![migration::migrate_legacy_database])
+        // Registration order carries no meaning; migration runs on the first
+        // launch only, and the backup pair is called on demand - once before
+        // any backup is written, once at startup to read the schedule state.
+        .invoke_handler(tauri::generate_handler![
+            migration::migrate_legacy_database,
+            backup_fs::prepare_backup_area,
+            backup_fs::promote_auto_backup
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -111,12 +111,39 @@ export function sanitizeBackupName(path: string): string {
   return directory + (hasContent ? cleaned : "backup.db");
 }
 
-/** "backup-2026-10-07.db", with the extension forced to .db. */
+/**
+ * "backup-2026-10-07_14-30-05.db", with the extension forced to .db.
+ *
+ * The time is in the name because the folder is no longer one the user picks
+ * through a save dialog. Snapshots land beside each other in a fixed
+ * directory, `VACUUM INTO` refuses to write onto a file that is already
+ * there, and two backups before lunch used to be impossible only because the
+ * second one opened a dialog that suggested a different name. Seconds are
+ * enough: they are the unit a person can click twice in.
+ */
 export function defaultBackupName(date = new Date()): string {
-  const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate()
-  ).padStart(2, "0")}`;
-  return sanitizeBackupName(`backup-${iso}.db`);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const iso = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const clock = `${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+  return sanitizeBackupName(`backup-${iso}_${clock}.db`);
+}
+
+/**
+ * The `VACUUM INTO` statement for a full path: sanitised, then quoted.
+ *
+ * Both steps are load-bearing and neither is enough alone. The sanitiser
+ * strips the double quote, which alone makes `VACUUM INTO` fail. The escaping
+ * handles an apostrophe, which the sanitiser must not touch because it is a
+ * legitimate character in both a directory name and a filename - dropping it
+ * from `C:\Users\O'Brien\` would aim the write at a folder that does not
+ * exist. Quoting it twice instead keeps the path intact and the SQL valid.
+ *
+ * The directory part is preserved as-is: only the final component is ever
+ * rewritten, so the drive letter's colon and every separator survive.
+ */
+export function vacuumIntoStatement(path: string): string {
+  const safe = sanitizeBackupName(path);
+  return "VACUUM INTO '" + safe.replace(/'/g, "''") + "'";
 }
 
 /** Confirms the chosen file really is an Accountant Util database. */

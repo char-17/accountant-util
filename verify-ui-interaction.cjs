@@ -474,7 +474,7 @@ console.log('\n11) restore is marked as the risky item, and busy locks the menu'
   check('restore explains that it replaces the data',
     (restoreBtn.getAttribute('title') || '').includes('Αντικαθιστά'), '- needs a warning title');
 
-  const backupBtn = byText('Αντίγραφο ασφαλείας');
+  const backupBtn = byText('Δημιουργία αντιγράφου ασφαλείας');
   check('backup is not styled as a risk', !backupBtn.classList.contains('file-menu-item-warning'));
   check('backup explains what it contains',
     (backupBtn.getAttribute('title') || '').includes('ιστορικό'), '- needs a descriptive title');

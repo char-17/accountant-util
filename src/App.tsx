@@ -23,6 +23,7 @@ import { useToasts } from "./hooks/useToasts";
 import { useWorklistFilters } from "./hooks/useWorklistFilters";
 import { useExportReport } from "./hooks/useExportReport";
 import { useBackup } from "./hooks/useBackup";
+import { useAutoBackup } from "./hooks/useAutoBackup";
 import { CloseGuard } from "./components/CloseGuard";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
@@ -308,14 +309,20 @@ function App() {
   // A restore replaces every table, so everything on screen has to reload.
   const backup = useBackup(db, handleRefresh);
 
+  // The daily backup at 3 PM, or on the next launch if that moment passed
+  // while the program was closed. `toasts.error` is passed rather than a
+  // wrapper around it: it is a useCallback with stable dependencies, so the
+  // effect does not restart on every render - a fresh arrow function here
+  // would clear the timer each time and the schedule would never fire.
+  useAutoBackup(db, backup.autoBackup, toasts.error);
+
   const handleBackup = async () => {
     await toasts.run(
       async () => {
+        // No dialog to dismiss: the menu item says where it writes, so a null
+        // back used to mean "cancelled" and now can only mean "refused". Both
+        // surface through the failure toast below.
         const path = await backup.backup();
-        if (path === null) {
-          toasts.info("Η αποθήκευση ακυρώθηκε.");
-          return;
-        }
         toasts.success(`Αντίγραφο αποθηκεύτηκε:\n${path}`);
       },
       { success: "", failure: "Αποτυχία δημιουργίας αντιγράφου" }

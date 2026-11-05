@@ -21,6 +21,7 @@ const VERIFY = [
   'verify-worklist-filters.cjs',
   'verify-export-report.cjs',
   'verify-backup-restore.cjs',
+  'verify-auto-backup.cjs',
   'verify-ui-render.cjs',
   'verify-ui-interaction.cjs',
   'verify-auto-update.cjs',
@@ -56,7 +57,7 @@ const ciOnly = process.argv.includes('--ci');
 
 // Scripts that inspect the code instead of running it; they are audits, and one
 // of them deliberately reproduces a bug, so its "failure" is the expected pass.
-const AUDIT = ['audit-refresh.cjs', 'audit-contrast.cjs', 'audit-style.cjs', 'audit-tauri-acl.cjs', 'audit-config.cjs'];
+const AUDIT = ['audit-refresh.cjs', 'audit-contrast.cjs', 'audit-style.cjs', 'audit-tauri-acl.cjs', 'audit-tauri-commands.cjs', 'audit-config.cjs'];
 
 
 
@@ -83,6 +84,20 @@ run('lint', 'npx', ['eslint', 'src']);
 for (const script of AUDIT) {
   if (fs.existsSync(path.join(root, script))) run(script, 'node', [script]);
 }
+
+// The file handling behind the backups lives in Rust, where no frontend test
+// can reach it: the ACL gives the window `fs:allow-write-text-file` and
+// nothing else, so whether a snapshot replaced yesterday's or destroyed it is
+// simply not observable from JavaScript. Those are the assertions worth the
+// cost - `promote` refusing to run with nothing staged is the difference
+// between a subsystem that fails and one that deletes.
+//
+// Cargo is required to build this project at all, and the release workflow
+// installs the toolchain before this runs, so an absent cargo is not a case
+// worth handling. The first run compiles the test profile; after that it is a
+// few seconds, and `cargo test` shares nothing with the release profile the
+// build uses, so neither invalidates the other.
+run('cargo test', 'cargo', ['test', '--lib', '--manifest-path', 'src-tauri/Cargo.toml']);
 
 const skipped = [];
 for (const script of VERIFY) {
