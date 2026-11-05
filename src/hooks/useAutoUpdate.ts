@@ -23,7 +23,25 @@ export interface UpdaterApi {
   check: (options?: { timeout?: number }) => Promise<UpdateHandle | null>;
 }
 
-export type UpdatePhase = "idle" | "checking" | "ready" | "installing";
+/**
+ * Where the offer is.
+ *
+ * `asking` and `declined` exist because of what the installer does on Windows:
+ * it is handed the executable and the application exits through
+ * `std::process::exit(0)` - not through the window's close request, so the
+ * CloseGuard never sees it and never asks its question. The consent has to be
+ * taken here, before the install starts, or the accountant watches the program
+ * disappear with no question having been asked of them.
+ */
+export type UpdatePhase =
+  | "idle"
+  | "checking"
+  | "ready"
+  /** The question about closing is on screen. Nothing has been downloaded. */
+  | "asking"
+  | "installing"
+  /** The question was answered with no. The update did not run. */
+  | "declined";
 
 /**
  * What one install concluded.
@@ -63,6 +81,13 @@ export interface AutoUpdate {
   /** Null when the server sent no length, or before the download started. */
   total: number | null;
   check: (options?: { manual?: boolean }) => Promise<CheckResult>;
+  /** Puts the pre-install question on screen. The install refuses to run
+   *  until it has been answered, so this is the only way in. */
+  ask: () => void;
+  /** The answer that stops the update. The application stays open, and the
+   *  dialog says why nothing was installed. */
+  decline: () => void;
+  /** Runs the install. Only reachable from `asking` - see the guard inside. */
   install: () => Promise<InstallResult>;
   dismiss: () => void;
   /** True once the plugin resolved, so callers can hide an entry that would
@@ -71,9 +96,24 @@ export interface AutoUpdate {
 }
 
 /**
+ * Why nothing was installed, in the words the accountant sees.
+ *
+ * Shown when the answer to the closing question is no. The application stays
+ * open and the current version keeps working, which is the honest state of
+ * affairs: the update is not pending, it simply did not happen.
+ */
+const DECLINED_MESSAGE =
+  "Η ενημέρωση σταμάτησε επειδή το πρόγραμμα έμενε ανοιχτό. Η τρέχουσα έκδοση " +
+  "παραμένει σε χρήση — δοκιμάστε ξανά αργότερα.";
+
+/** What the install says when it is called without the question being answered. */
+const UNASKED_MESSAGE =
+  "Η εγκατάσταση δεν ξεκίνησε: πρέπει πρώτα να απαντηθεί το ερώτημα για το κλείσιμο.";
+
+/**
  * Checks for a newer version and installs it.
  *
- * Three things shape this, none of them visible from the plugin's API:
+ * Four things shape this, none of them visible from the plugin's API:
  *
  *  - **A failed check must not nag.** The auto-check at startup runs against
  *    the network; on a machine with no connection, or while GitHub is down,
@@ -86,6 +126,12 @@ export interface AutoUpdate {
  *    is exited as part of `downloadAndInstall`. The relaunch call that follows
  *    is therefore usually a no-op on the platform this ships on, and is wrapped
  *    so a rejection there is not mistaken for a failed install.
+ *
+ *  - **That exit does not ask.** It goes through `std::process::exit(0)`
+ *    (tauri-plugin-updater, `install_inner`), never through the window's close
+ *    request, so CloseGuard does not see it. The question therefore has to be
+ *    asked here, before the install starts, and `install` refuses to run until
+ *    it has been answered.
  *
  *  - **The plugin is absent outside an installed build.** In `npm run dev` and
  *    in the jsdom tests there is no updater to talk to. Resolving that once and
@@ -170,10 +216,36 @@ export function useAutoUpdate(deps?: {
     setTotal(null);
   }, []);
 
+  /**
+   * Brings up the question about closing.
+   *
+   * Only from `ready`: asking when there is nothing to install would put a
+   * question about an update that does not exist in front of the accountant.
+   * From any other phase the click is ignored rather than re-armed - a second
+   * click while the question is already up must not stack a second one.
+   */
+  const ask = useCallback(() => {
+    setPhase((current) => (current === "ready" ? "asking" : current));
+  }, []);
+
+  /** The no answer: the update stops here, and says so. */
+  const decline = useCallback(() => {
+    setPhase("declined");
+    setError(DECLINED_MESSAGE);
+  }, []);
+
   const install = useCallback(async (): Promise<InstallResult> => {
     const current = update;
     if (!current) {
       return { status: "failed", message: "Δεν υπάρχει ενημέρωση προς εγκατάσταση." };
+    }
+
+    // The question comes first, every time. The installer exits the process
+    // itself and never raises a close request, so nothing downstream gets a
+    // second chance to ask - this guard is the only thing standing between an
+    // unasked question and an application that closes without one.
+    if (phase !== "asking") {
+      return { status: "failed", message: UNASKED_MESSAGE };
     }
 
     setPhase("installing");
@@ -216,7 +288,7 @@ export function useAutoUpdate(deps?: {
     // the caller is told what is left to do.
     dismiss();
     return { status: "installed_restart_manually" };
-  }, [update, dismiss]);
+  }, [update, phase, dismiss]);
 
-  return { phase, update, error, downloaded, total, check, install, dismiss, available };
+  return { phase, update, error, downloaded, total, check, ask, decline, install, dismiss, available };
 }

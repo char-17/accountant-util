@@ -1,6 +1,6 @@
 // The update flow: what the hook concludes, and what the dialog then shows.
 //
-// Three things here are worth a test and invisible without one:
+// Four things here are worth a test and invisible without one:
 //
 //   - The plugin is absent in `npm run dev` and in this harness. That has to
 //     read as "unavailable" and not as a failure, or every launch outside an
@@ -13,6 +13,11 @@
 //   - Where no restart happens, the dialog has to withdraw itself. It is in
 //     "installing" by then, which disables the button and blocks Escape, so
 //     staying on screen leaves the application with no way out but a kill.
+//
+//   - The install is asked about before it starts, and refuses to run without
+//     an answer. The installer exits through std::process::exit(0), never
+//     through the window's close request, so nothing after it gets a chance to
+//     ask - the question is the only one the accountant will ever see.
 
 const path = require('path');
 const fs = require('fs');
@@ -118,6 +123,12 @@ const click = (node) => {
 };
 const text = () => container.textContent.replace(/\s+/g, ' ').trim();
 
+/** The two steps every install now takes: offer, then yes to closing. */
+async function approveInstall() {
+  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await act(async () => { await buttonWith('Κλείσιμο και ενημέρωση').click(); });
+}
+
 // ── Fakes ─────────────────────────────────────────────────────────────────────
 const updateHandle = (over = {}) => ({
   version: '0.2.0',
@@ -206,7 +217,98 @@ console.log('\ncheck() results');
   handle.cleanup();
 }
 
-// ── 3. Installing ─────────────────────────────────────────────────────────────
+// ── 3. The question before the install ────────────────────────────────────────
+
+console.log('\nthe question before the install');
+
+{
+  // Clicking install must ask, not start: on Windows the installer takes the
+  // process with it through std::process::exit(0), never through the window's
+  // close request, so nothing downstream gets a second chance to ask.
+  let downloaded = false;
+  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const { handle } = await drive({ updater: { check: async () => found } }, (s) => s.check());
+  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  check('the install asks before it starts', text().includes('Θέλετε να συνεχίσετε;'));
+  checkEq('nothing has been downloaded yet', downloaded, false);
+  checkEq('the question is the only thing up', container.querySelectorAll('.update-modal').length, 1);
+  handle.cleanup();
+}
+
+{
+  // The no answer stops the update and says why, then one button takes
+  // everything down - an error with no way out is the dead end of trap 14.
+  let downloaded = false;
+  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const { handle } = await drive({ updater: { check: async () => found } }, (s) => s.check());
+  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await act(async () => { await buttonWith('Άκυρο').click(); });
+  check('the decline gives a reason', text().includes('σταμάτησε επειδή το πρόγραμμα έμενε ανοιχτό'));
+  checkEq('and nothing was downloaded', downloaded, false);
+  checkEq('exactly one way out is offered', !!buttonWith('ΟΚ'), true);
+  await act(async () => { await buttonWith('ΟΚ').click(); });
+  checkEq('pressing it closes everything', container.querySelectorAll('.update-modal').length, 0);
+  handle.cleanup();
+}
+
+{
+  // Escape is the same answer as the button beside it - no - rather than a
+  // silent escape from the question, which would leave the offer up with no
+  // explanation of why nothing happened.
+  let downloaded = false;
+  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const { handle } = await drive({ updater: { check: async () => found } }, (s) => s.check());
+  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  act(() => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+  check('Escape answers the question with no', text().includes('σταμάτησε επειδή το πρόγραμμα έμενε ανοιχτό'));
+  checkEq('the download never started', downloaded, false);
+  handle.cleanup();
+}
+
+{
+  // The guard: the install refuses to run when nobody has been asked. Without
+  // it a future refactor could call install() straight from the offer and the
+  // question would exist on screen but not in the flow.
+  let downloaded = false;
+  let outcome = null;
+  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const { handle, seen } = await drive({ updater: { check: async () => found } }, (s) => s.check());
+  // By now the renders have flushed, so this is the offer as it stands: ready,
+  // with an update, and nobody asked yet.
+  const fresh = seen[seen.length - 1];
+  checkEq('the offer is ready and unasked', fresh.phase, 'ready');
+  await act(async () => { outcome = await fresh.install(); });
+  checkEq('install() without the question refuses', outcome && outcome.status, 'failed');
+  check('and says why', !!outcome && outcome.message.includes('πρέπει πρώτα να απαντηθεί'));
+  checkEq('nothing was downloaded', downloaded, false);
+  handle.cleanup();
+}
+
+{
+  // Asking twice must not stack two questions: one answer has to be enough.
+  const found = updateHandle();
+  const { handle } = await drive({ updater: { check: async () => found } }, async (s) => {
+    await s.check();
+    s.ask();
+    s.ask();
+  });
+  await act(async () => { await buttonWith('Άκυρο').click(); });
+  check('one answer settles a question asked twice', text().includes('σταμάτησε επειδή'));
+  handle.cleanup();
+}
+
+{
+  // Asking with nothing to install shows nothing: there is no update to ask
+  // about, and a question about nothing is worse than no question.
+  const { handle } = await drive({ updater: { check: async () => null } }, async (s) => {
+    await s.check();
+    s.ask();
+  });
+  checkEq('no update, no question', container.querySelectorAll('.update-modal').length, 0);
+  handle.cleanup();
+}
+
+// ── 4. Installing ─────────────────────────────────────────────────────────────
 
 console.log('\ninstall()');
 
@@ -223,7 +325,7 @@ console.log('\ninstall()');
     },
     (s) => s.check()
   );
-  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await approveInstall();
   await act(async () => { await Promise.resolve(); });
   check('the installer is handed the update', downloaded);
   check('relaunch is attempted after a successful install', relaunched);
@@ -249,7 +351,7 @@ console.log('\ninstall()');
     },
     (s) => s.check()
   );
-  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await approveInstall();
   await act(async () => { await Promise.resolve(); });
   errorShown = find((n) => n.className === 'error-banner');
   checkEq('a rejected relaunch is not reported as a failure', errorShown, undefined);
@@ -268,7 +370,7 @@ console.log('\ninstall()');
     { updater: { check: async () => found }, relaunch: async () => {} },
     (s) => s.check()
   );
-  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await approveInstall();
   await act(async () => { await Promise.resolve(); });
   const banner = find((n) => n.className === 'error-banner');
   check('a failed install is reported', !!banner && banner.textContent.includes('disk full'));
@@ -286,7 +388,7 @@ console.log('\ninstall()');
     { updater: { check: async () => found }, relaunch: async () => {} },
     (s) => s.check()
   );
-  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await approveInstall();
   checkEq('the dialog cannot be dismissed mid-install', container.querySelectorAll('.update-modal').length, 1);
   act(() => { document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
   checkEq('and Escape does not remove it either', container.querySelectorAll('.update-modal').length, 1);
@@ -294,7 +396,7 @@ console.log('\ninstall()');
   handle.cleanup();
 }
 
-// ── 4. Progress without a length ──────────────────────────────────────────────
+// ── 5. Progress without a length ──────────────────────────────────────────────
 
 {
   // Held open so the bar is on screen while it runs: the dialog goes away by
@@ -312,7 +414,7 @@ console.log('\ninstall()');
     { updater: { check: async () => found }, relaunch: async () => {} },
     (s) => s.check()
   );
-  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await approveInstall();
   const track = find((n) => n.getAttribute && n.getAttribute('role') === 'progressbar');
   checkEq('the bar is indeterminate without a length', !!track && track.className.includes('indeterminate'), true);
   checkEq('it does not claim a percentage', text().includes('%'), false);
@@ -336,7 +438,7 @@ console.log('\ninstall()');
     { updater: { check: async () => found }, relaunch: async () => {} },
     (s) => s.check()
   );
-  await act(async () => { await buttonWith('Εγκατάσταση').click(); });
+  await approveInstall();
   const track = find((n) => n.getAttribute && n.getAttribute('role') === 'progressbar');
   checkEq('the bar knows its width', track && track.getAttribute('aria-valuenow'), '50');
   await act(async () => { release(); await Promise.resolve(); });

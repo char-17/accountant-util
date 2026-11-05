@@ -169,6 +169,25 @@ function importsOf(source) {
   return { named, defaults, anyDynamic };
 }
 
+// What the rules below are matched against: the file without its comments.
+//
+// The rules match text, and text includes documentation. A doc comment that
+// quotes `std::process::exit(0)` is not a call site; reporting it as a missing
+// grant would be a false alarm, and a false alarm teaches the reader to skip
+// the report - which costs more than the blind spot the report exists to close.
+// The import statements are stripped separately, by the pass that needs it.
+//
+// Strings are left alone apart from the `//` that cannot open a comment: a
+// URL's `//` follows a `:`, so it survives and a call on the same line is not
+// swallowed with it. A line that is only a comment goes; so does a trailing
+// one; so does a block comment wherever it sits.
+function codeOnly(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^[ \t]*(?:\/\/|\*).*$/gm, '')
+    .replace(/(?<![:/])\/\/.*$/gm, '');
+}
+
 // ── Collect what the frontend requires ────────────────────────────────────────
 
 const files = listSources(SRC_DIR);
@@ -192,7 +211,9 @@ for (const [file, source] of sources) {
     for (const name of names) {
       const permission = NAMED_RULES[pkg] && NAMED_RULES[pkg][name];
       if (!permission) continue;
-      const called = new RegExp(`(?<![\\w$.])${name}\\s*\\(`).test(source.replace(/^import[\s\S]*?from\s*["'][^"']+["']/gm, ''));
+      const called = new RegExp(`(?<![\\w$.])${name}\\s*\\(`).test(
+        codeOnly(source).replace(/^import[\s\S]*?from\s*["'][^"']+["']/gm, '')
+      );
       if (called) require_(permission, file, `${name}()`);
     }
   }
@@ -203,7 +224,7 @@ for (const [file, source] of sources) {
   for (const [pkg, rules] of Object.entries(DYNAMIC_RULES)) {
     if (!packages.includes(pkg)) continue;
     for (const rule of rules) {
-      if (rule.pattern.test(source)) require_(rule.permission, file, rule.what);
+      if (rule.pattern.test(codeOnly(source))) require_(rule.permission, file, rule.what);
     }
   }
 
@@ -217,7 +238,7 @@ for (const [file, source] of sources) {
       || new RegExp(`import\\s+type\\s+${binding}\\b`).test(source);
     if (!importsIt) continue;
     for (const call of rules.calls) {
-      if (call.pattern.test(source)) require_(call.permission, file, call.what);
+      if (call.pattern.test(codeOnly(source))) require_(call.permission, file, call.what);
     }
   }
 
@@ -225,7 +246,7 @@ for (const [file, source] of sources) {
   const usesWindow = packages.includes('@tauri-apps/api/window');
   if (usesWindow) {
     for (const rule of WINDOW_PERMISSIONS) {
-      if (rule.pattern.test(source)) require_(rule.permission, file, rule.pattern.source);
+      if (rule.pattern.test(codeOnly(source))) require_(rule.permission, file, rule.pattern.source);
     }
   }
 }
