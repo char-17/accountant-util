@@ -1,6 +1,8 @@
 import { useCallback, useState } from "react";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import Database from "@tauri-apps/plugin-sql";
+import { toMessage } from "../utils/errors";
+import { logEvent } from "../utils/logging";
 import {
   defaultBackupName,
   describeCounts,
@@ -63,6 +65,9 @@ export function useBackup(db: Database | null, onRestored: () => void): UseBacku
       const target = joinBackupPath(area.manualDir, defaultBackupName());
       await db.execute(vacuumIntoStatement(target));
       return target;
+    } catch (err) {
+      await logEvent("error", `Το χειροκίνητο αντίγραφο ασφαλείας δεν ολοκληρώθηκε: ${toMessage(err)}`);
+      throw err;
     } finally {
       setBusy(null);
     }
@@ -81,6 +86,9 @@ export function useBackup(db: Database | null, onRestored: () => void): UseBacku
       await db.execute(vacuumIntoStatement(area.autoStaging));
       await promoteAutoBackup();
       return area.autoFinal;
+    } catch (err) {
+      await logEvent("error", `Το αυτόματο αντίγραφο ασφαλείας δεν ολοκληρώθηκε: ${toMessage(err)}`);
+      throw err;
     } finally {
       setBusy(null);
     }
@@ -129,6 +137,9 @@ export function useBackup(db: Database | null, onRestored: () => void): UseBacku
       await restoreFromBackup(db, path);
       onRestored();
       return counts;
+    } catch (err) {
+      await logEvent("error", `Η επαναφορά αντιγράφου δεν ολοκληρώθηκε: ${toMessage(err)}`);
+      throw err;
     } finally {
       setBusy(null);
     }

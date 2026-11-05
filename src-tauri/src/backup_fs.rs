@@ -24,6 +24,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use crate::logger;
+use crate::paths::install_dir;
+
 /// The folder, inside the installation directory, that holds every backup.
 ///
 /// It sits beside the executable rather than in the app data directory because
@@ -87,20 +90,6 @@ fn modified_ms(path: &Path) -> Option<i64> {
     let since_epoch =
         fs::metadata(path).ok()?.modified().ok()?.duration_since(UNIX_EPOCH).ok()?;
     Some(since_epoch.as_millis() as i64)
-}
-
-/// The directory the running executable sits in.
-///
-/// `current_exe` rather than the resource directory: this has to be `$INSTDIR`
-/// exactly, because that is the folder the installer leaves alone. On a normal
-/// install that is `%LOCALAPPDATA%\Programs\Accountant Util\`; in development
-/// it is `target\debug\`, inside the repository's ignored tree and harmless.
-fn install_dir() -> Result<PathBuf, String> {
-    let exe = std::env::current_exe()
-        .map_err(|err| format!("Δεν ήταν δυνατή η εύρεση του εκτελέσιμου: {err}"))?;
-    exe.parent().map(Path::to_path_buf).ok_or_else(|| {
-        "Δεν ήταν δυνατό να προσδιοριστεί ο φάκελος εγκατάστασης του προγράμματος.".to_string()
-    })
 }
 
 fn backup_dir(kind: &str) -> Result<PathBuf, String> {
@@ -180,15 +169,32 @@ fn promote(staging: &Path, final_path: &Path) -> Result<(), String> {
     })
 }
 
+/// Resolves the backup area: creates the folders, clears a staging file left
+/// by an interrupted run, and reports the age of the automatic backup.
+///
+/// The failure is recorded here rather than left to whoever called, because
+/// this command runs from the menu, from the 3 PM schedule, and from the
+/// startup read of the schedule's state - and only the first of those is
+/// guaranteed to have somebody watching the screen.
 #[tauri::command]
 pub fn prepare_backup_area() -> Result<BackupArea, String> {
-    prepare(&backup_dir(MANUAL_DIR)?, &backup_dir(AUTO_DIR)?)
+    let result = backup_dir(MANUAL_DIR).and_then(|manual| {
+        let auto = backup_dir(AUTO_DIR)?;
+        prepare(&manual, &auto)
+    });
+    logger::record_failure(result, "Αποτυχία προετοιμασίας της περιοχής αντιγράφων")
 }
 
+/// Swaps yesterday's automatic backup for the one just staged.
+///
+/// Recorded here for the same reason as `prepare_backup_area`: the schedule
+/// calls it at 3 PM, and the moment it matters most is the one with nobody
+/// watching.
 #[tauri::command]
 pub fn promote_auto_backup() -> Result<(), String> {
-    let auto = backup_dir(AUTO_DIR)?;
-    promote(&auto.join(AUTO_STAGING), &auto.join(AUTO_FINAL))
+    let result = backup_dir(AUTO_DIR)
+        .and_then(|auto| promote(&auto.join(AUTO_STAGING), &auto.join(AUTO_FINAL)));
+    logger::record_failure(result, "Αποτυχία αντικατάστασης του αυτόματου αντιγράφου")
 }
 
 #[cfg(test)]

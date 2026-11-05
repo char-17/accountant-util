@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { toMessage } from "../utils/errors";
+import { logEvent } from "../utils/logging";
+import type { LogLevel } from "../utils/logging";
 
 /** As the updater plugin delivers it. `contentLength` is null when the server
  *  did not send one, which is common - the progress bar then runs indeterminate
@@ -141,6 +143,8 @@ export function useAutoUpdate(deps?: {
   /** Only for tests; the app resolves the real plugin lazily. */
   updater?: UpdaterApi | null;
   relaunch?: () => Promise<void>;
+  /** Only for tests; the app writes through the Rust command. */
+  log?: (level: LogLevel, message: string) => Promise<void>;
 }): AutoUpdate {
   const [phase, setPhase] = useState<UpdatePhase>("idle");
   const [update, setUpdate] = useState<UpdateHandle | null>(null);
@@ -168,6 +172,16 @@ export function useAutoUpdate(deps?: {
     }
   }, []);
 
+  /**
+   * Sends one line to the log. Fire and forget, unless the caller awaits it -
+   * the install has to, because on Windows the process can exit as part of the
+   * very next step it drives.
+   */
+  const write = useCallback((level: LogLevel, message: string): Promise<void> => {
+    const send = depsRef.current?.log ?? logEvent;
+    return Promise.resolve(send(level, message)).catch(() => {});
+  }, []);
+
   const check = useCallback(
     async (options?: { manual?: boolean }): Promise<CheckResult> => {
       const manual = options?.manual ?? false;
@@ -192,6 +206,7 @@ export function useAutoUpdate(deps?: {
         if (found) {
           setUpdate(found);
           setPhase("ready");
+          void write("info", `Βρέθηκε διαθέσιμη ενημέρωση: ${found.version}`);
           return { status: "update", update: found };
         }
         setPhase("idle");
@@ -200,12 +215,13 @@ export function useAutoUpdate(deps?: {
         const message = toMessage(err);
         setPhase("idle");
         setError(message);
+        void write("warn", `Ο έλεγχος ενημερώσεων απέτυχε: ${message}`);
         return { status: "error", message };
       } finally {
         inFlight.current = false;
       }
     },
-    [resolveUpdater]
+    [resolveUpdater, write]
   );
 
   const dismiss = useCallback(() => {
@@ -232,7 +248,8 @@ export function useAutoUpdate(deps?: {
   const decline = useCallback(() => {
     setPhase("declined");
     setError(DECLINED_MESSAGE);
-  }, []);
+    void write("info", "Η ενημέρωση σταμάτησε: ο λογιστής απέρριψε το κλείσιμο του προγράμματος.");
+  }, [write]);
 
   const install = useCallback(async (): Promise<InstallResult> => {
     const current = update;
@@ -253,6 +270,11 @@ export function useAutoUpdate(deps?: {
     setDownloaded(0);
     setTotal(null);
 
+    // The line has to land before the process can take the installer with it:
+    // on Windows the exit happens inside downloadAndInstall, so anything after
+    // the awaited call may never run.
+    await write("info", `Η εγκατάσταση της ενημέρωσης ${current.version} ξεκίνησε.`);
+
     try {
       await current.downloadAndInstall((event) => {
         if (event.event === "Started") {
@@ -265,6 +287,7 @@ export function useAutoUpdate(deps?: {
       const message = toMessage(err);
       setPhase("ready");
       setError(message);
+      void write("error", `Η εγκατάσταση απέτυχε: ${message}`);
       return { status: "failed", message };
     }
 
@@ -286,9 +309,15 @@ export function useAutoUpdate(deps?: {
     // install button is disabled and Escape does nothing, and there would be
     // no way out but killing the process. The offer is withdrawn instead and
     // the caller is told what is left to do.
+    // A restart that works never returns, so this line is only for the path
+    // where no restart happened. The path where the process exits inside
+    // downloadAndInstall leaves the line written before it, and the new
+    // version's own startup line follows as its "success".
+    void write("info", `Η ενημέρωση ${current.version} εγκαταστάθηκε χωρίς να γίνει επανεκκίνηση.`);
+
     dismiss();
     return { status: "installed_restart_manually" };
-  }, [update, phase, dismiss]);
+  }, [update, phase, dismiss, write]);
 
   return { phase, update, error, downloaded, total, check, ask, decline, install, dismiss, available };
 }

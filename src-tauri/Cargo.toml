@@ -25,6 +25,10 @@ tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# For the log file's daily names and timestamps. Already in the dependency
+# graph at 0.4.45 with the local-time features enabled, so this adds no new
+# crate to the build - only the right to name it.
+chrono = "0.4"
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-fs = "2.6.0"
 

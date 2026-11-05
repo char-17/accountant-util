@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
 import { migrateLegacyDatabase, DB_FILE_NAME } from "../domain/dbLocation";
 import { seedDefaultProfessions } from "../persistence/professionRepo";
+import { logEvent } from "../utils/logging";
 
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS clients (
@@ -199,12 +200,14 @@ export function useDatabase() {
         }
         if (result.warning) {
           setMigrationWarning(result.warning);
+          void logEvent("warn", `Προειδοποίηση μεταφοράς της βάσης δεδομένων: ${result.warning}`);
         }
 
         const database = await Database.load(`sqlite:${DB_FILE_NAME}`);
         const columnWarning = await applyMigrations(database);
         if (columnWarning) {
           setMigrationWarning(columnWarning);
+          void logEvent("warn", `Πρόσκαιμη προειδοποίηση εκμετάλλευσης της βάσης: ${columnWarning}`);
         }
         setDb(database);
       } catch (err) {
@@ -212,6 +215,7 @@ export function useDatabase() {
         // instead of a generic message that hides the cause.
         const reason = err instanceof Error ? err.message : String(err);
         console.error("Database init error:", reason);
+        void logEvent("error", `Η βάση δεδομένων δεν άνοιξε: ${reason}`);
         setError(reason);
       } finally {
         setLoading(false);

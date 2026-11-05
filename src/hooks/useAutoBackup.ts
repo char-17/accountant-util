@@ -3,6 +3,7 @@ import type Database from "@tauri-apps/plugin-sql";
 import { AUTO_BACKUP_HOUR } from "../domain/appConfig";
 import { planAutoBackup, tomorrowAt } from "../domain/autoBackup";
 import { prepareBackupArea } from "../persistence/backupArea";
+import { logEvent } from "../utils/logging";
 
 /**
  * Runs the automatic backup at 3 PM, or as soon as the program is next opened
@@ -59,8 +60,13 @@ export function useAutoBackup(
       } catch (err) {
         // Without the folders there is nothing to schedule against, and no
         // moment worth retrying at - the same call would fail the same way.
-        // Reported once, rather than on a timer forever.
-        if (!cancelled) reportFailure(describe(err));
+        // Reported once, rather than on a timer forever, and logged before the
+        // next attempt is scheduled, so the failure reaches the file even when
+        // nobody is watching.
+        if (!cancelled) {
+          reportFailure(describe(err));
+          void logEvent("error", describe(err));
+        }
         return;
       }
       if (cancelled) return;
@@ -78,7 +84,10 @@ export function useAutoBackup(
       try {
         await runBackup();
       } catch (err) {
-        if (!cancelled) reportFailure(describe(err));
+        if (!cancelled) {
+          reportFailure(describe(err));
+          void logEvent("error", describe(err));
+        }
       }
       if (cancelled) return;
 

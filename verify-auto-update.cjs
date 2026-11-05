@@ -1,6 +1,6 @@
 // The update flow: what the hook concludes, and what the dialog then shows.
 //
-// Four things here are worth a test and invisible without one:
+// Five things here are worth a test and invisible without one:
 //
 //   - The plugin is absent in `npm run dev` and in this harness. That has to
 //     read as "unavailable" and not as a failure, or every launch outside an
@@ -18,6 +18,11 @@
 //     an answer. The installer exits through std::process::exit(0), never
 //     through the window's close request, so nothing after it gets a chance to
 //     ask - the question is the only one the accountant will ever see.
+
+//   - The log: which events reach the file, at which level, and in which
+//     words. The install that ends the process has to write before it drives,
+//     and the decline has to write what it declined - both are lines that only
+//     the writer can produce, so they are checked where they are produced.
 
 const path = require('path');
 const fs = require('fs');
@@ -63,10 +68,15 @@ import type { UpdaterApi } from "./src/hooks/useAutoUpdate";
 export function UpdateHarness(props: {
   updater?: UpdaterApi | null;
   relaunch?: () => Promise<void>;
+  log?: (level: "info" | "warn" | "error", message: string) => Promise<void>;
   onInstalled?: () => void;
   onState?: (s: ReturnType<typeof useAutoUpdate>) => void;
 }) {
-  const state = useAutoUpdate({ updater: props.updater, relaunch: props.relaunch });
+  const state = useAutoUpdate({
+    updater: props.updater,
+    relaunch: props.relaunch,
+    log: props.log,
+  });
   props.onState?.(state);
   return (
     <>
@@ -442,6 +452,87 @@ console.log('\ninstall()');
   const track = find((n) => n.getAttribute && n.getAttribute('role') === 'progressbar');
   checkEq('the bar knows its width', track && track.getAttribute('aria-valuenow'), '50');
   await act(async () => { release(); await Promise.resolve(); });
+  handle.cleanup();
+}
+
+// ── 6. What reaches the log ───────────────────────────────────────────────────
+
+console.log('\nwhat reaches the log');
+
+/** An injected log: records what it was given, in the order it was given. */
+const recordingLog = (calls) => async (level, message) => { calls.push({ level, message }); };
+
+{
+  const calls = [];
+  const failingCheck = async () => { throw new Error('GitHub denied the check'); };
+  const { handle } = await drive(
+    { updater: { check: failingCheck }, relaunch: async () => {}, log: recordingLog(calls) },
+    (s) => s.check()
+  );
+  checkEq('a failed check reaches the log once', calls.length, 1);
+  checkEq('as a warning', calls[0].level, 'warn');
+  check('and it names the failing check', calls[0].message.includes('denied'), true);
+  handle.cleanup();
+}
+
+{
+  const calls = [];
+  const found = updateHandle({ downloadAndInstall: async () => {} });
+  const { handle } = await drive(
+    { updater: { check: async () => found }, relaunch: async () => {}, log: recordingLog(calls) },
+    (s) => s.check()
+  );
+  checkEq('a found update reaches the log once', calls.length, 1);
+  checkEq('as info', calls[0].level, 'info');
+  check('and it names the version', calls[0].message.includes('0.2.0'), true);
+  handle.cleanup();
+}
+
+{
+  const calls = [];
+  const found = updateHandle({ downloadAndInstall: async () => {} });
+  const { handle } = await drive(
+    {
+      updater: { check: async () => found },
+      relaunch: async () => {},
+      log: recordingLog(calls),
+    },
+    async (s) => { await s.check(); s.decline(); }
+  );
+  checkEq('the check and the decline are two lines', calls.length, 2);
+  check('and it says it declined', calls[1].message.includes('απέρριψε'), true);
+  handle.cleanup();
+}
+
+{
+  const calls = [];
+  const found = updateHandle({
+    version: '0.1.0',
+    downloadAndInstall: async () => { throw new Error('The installer failed.'); },
+  });
+  const { handle } = await drive(
+    { updater: { check: async () => found }, relaunch: async () => {}, log: recordingLog(calls) },
+    async (s) => { await s.check(); }
+  );
+  await approveInstall();
+  checkEq('an install writes its start and then its failure', calls.length, 3);
+  checkEq('the start was info', calls[1].level, 'info');
+  check('the start named the version', calls[1].message.includes('0.1.0'), true);
+  checkEq('the failure was error', calls[2].level, 'error');
+  check('the failure is named', calls[2].message.includes('The installer failed'), true);
+  handle.cleanup();
+}
+
+{
+  let downloaded = false;
+  const failingLog = async () => { throw new Error('the folder is not writable'); };
+  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const { handle } = await drive(
+    { updater: { check: async () => found }, relaunch: async () => {}, log: failingLog },
+    async (s) => { await s.check(); }
+  );
+  await approveInstall();
+  checkEq('an install still runs when the log fails', downloaded, true);
   handle.cleanup();
 }
 

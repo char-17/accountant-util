@@ -20,6 +20,14 @@
 //
 // A command registered and declared but invoked under a different spelling
 // shows up as GAP, because the name the frontend uses is what has to match.
+//
+// There is a second spelling layer to the same drift, and it is just as silent:
+// the names match and the words still do not. An invoked command with arguments
+// has to name the arguments its Rust signature declares - `invoke("log_event",
+// { level, message })` against `pub fn log_event(level: String, message: String)`.
+// Renaming one side is invisible in the name-only checks above, and only shows
+// up as a rejected invoke on a machine where the frontend and the backend are
+// finally allowed to talk. It is checked as direction four.
 
 const fs = require('fs');
 const path = require('path');
@@ -34,19 +42,41 @@ const RUST_DIR = path.join('src-tauri', 'src');
 // a computed name is deliberately not matched: nothing here builds one, and a
 // pattern loose enough to catch that would also catch every other string in
 // the file.
-const INVOKE_RE = /\binvoke\s*(?:<[^<>]*>)?\s*\(\s*["']([a-z_][a-z0-9_]*)["']/g;
+const INVOKE_RE = /\binvoke\s*(?:<[^<>]*>)?\s*\(\s*["']([a-z_][a-z0-9_]*)["']\s*(?:,\s*\{([^}]*)\})?/g;
 
 // #[tauri::command]
 // pub fn prepare_backup_area() -> ...
+// pub fn log_event(level: String, message: String) -> ...
 //
 // The attribute has to sit directly above the function. Doc comments go above
 // the attribute - see backup_fs.rs and migration.rs - so nothing is allowed
 // between them: allowing arbitrary lines would reach for the next function in
-// the file and report a registration that does not exist.
-const COMMAND_RE = /#\[tauri::command\]\s*(?:pub\s+)?fn\s+([a-z_][a-z0-9_]*)/g;
+// the file and report a registration that does not exist. The parameter list is
+// captured alongside the name, because the frontend has to spell the same words
+// back: `invoke("log_event", { level, message })`, and a rename on either side
+// is the silent kind of drift this audit was written to catch.
+const COMMAND_RE = /#\[tauri::command\]\s*(?:pub\s+)?fn\s+([a-z_][a-z0-9_]*)\s*\(([^)]*)\)/g;
 
 // .invoke_handler(tauri::generate_handler![a::b, c::d])
 const HANDLER_RE = /generate_handler!\[([\s\S]*?)\]/g;
+
+// Rust spells arguments snake_case and the frontend spells them camelCase; the
+// transformation Tauri performs between the two is the one this compares, so a
+// multi-word parameter has to be spelled identically on both sides.
+function camelCase(name) {
+  return name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+// Tauri injects some command arguments itself; the frontend never names them.
+const INJECTABLE = new Set(["app", "app_handle", "manager", "state"]);
+
+function sameArgs(a, b) {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  for (let i = 0; i < left.length; i++) if (left[i] !== right[i]) return false;
+  return true;
+}
 
 function listSources(dir, ext) {
   const out = [];
@@ -68,12 +98,23 @@ function matches(source, re) {
 
 const tsFiles = listSources(SRC_DIR, /\.(ts|tsx)$/);
 const called = new Map(); // name -> [file that invokes it]
+const invokedArgs = new Map(); // name -> [args the frontend passed]
 for (const file of tsFiles) {
   const source = fs.readFileSync(file, 'utf8');
-  for (const name of matches(source, INVOKE_RE)) {
-    const list = called.get(name) || [];
+  for (const m of source.matchAll(INVOKE_RE)) {
+    const list = called.get(m[1]) || [];
     list.push(file);
-    called.set(name, list);
+    called.set(m[1], list);
+
+    // The arguments the invocation was made with, in the order it made them.
+    // An invocation with no object carries none, which is right for the
+    // commands this project invokes without arguments.
+    const args = [];
+    for (const piece of (m[2] || '').split(',')) {
+      const key = piece.trim().match(/^([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (key) args.push(camelCase(key[1]));
+    }
+    invokedArgs.set(m[1], args);
   }
 }
 
@@ -81,12 +122,16 @@ for (const file of tsFiles) {
 
 const rustFiles = listSources(RUST_DIR, /\.rs$/);
 const declared = new Set();
+const declaredArgs = new Map(); // command -> the argument names its signature declares, in order
 const registered = new Set();
 const registrationSite = new Map(); // name -> file
 
 for (const file of rustFiles) {
   const source = fs.readFileSync(file, 'utf8');
-  for (const name of matches(source, COMMAND_RE)) declared.add(name);
+  for (const m of source.matchAll(COMMAND_RE)) {
+    declared.add(m[1]);
+    declaredArgs.set(m[1], m[2].split(',').map((p) => p.trim().split(/[\s:]+/).filter(Boolean)[0]).filter(Boolean));
+  }
 
   for (const block of matches(source, HANDLER_RE)) {
     // `migration::migrate_legacy_database` -> `migrate_legacy_database`. The
@@ -135,6 +180,21 @@ for (const name of [...registered].sort()) {
   if (called.has(name)) continue;
   problems++;
   console.log(`  DEAD  ${name.padEnd(34)} <- registered in ${registrationSite.get(name)}, called nowhere`);
+}
+
+// Direction four: an invocation must name the arguments its signature takes.
+// A command that takes no argument is invoked without an object, and both sides
+// end up with nothing to say - which is the same answer the comparison makes.
+for (const [name, args] of [...invokedArgs.entries()].sort()) {
+  const declaredHere = declaredArgs.get(name);
+  if (!declaredHere) continue; // no declaration: already reported as a GAP
+  const declaredNames = declaredHere.filter((p) => !INJECTABLE.has(p));
+  const invokedNames = args.filter((a) => !INJECTABLE.has(a));
+  if (sameArgs(invokedNames, declaredNames)) continue;
+  problems++;
+  console.log(
+    `  NAME   ${name.padEnd(34)} <- invoke args [${args.join(', ')}] do not match the Rust signature [${declaredHere.join(', ')}]`
+  );
 }
 
 console.log(
