@@ -22,7 +22,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 
 /// The folder, inside the installation directory, that holds every backup.
 ///
@@ -194,7 +194,7 @@ pub fn promote_auto_backup() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     /// A scratch directory per test, cleared first so a leftover from an
     /// earlier run cannot satisfy an assertion by accident.
