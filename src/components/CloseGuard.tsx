@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toMessage } from "../utils/errors";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 /**
  * The slice of the Tauri window API this component uses.
@@ -113,16 +114,7 @@ export function CloseGuard({
     return () => dispose?.();
   }, [win]);
 
-  // Escape is the same answer as Cancel: a modal you cannot back out of with the
-  // keyboard is a modal people close with Alt+F4.
-  useEffect(() => {
-    if (!isAsking) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsAsking(false);
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [isAsking]);
+  const dialogRef = useDialogA11y<HTMLDivElement>(isAsking, () => setIsAsking(false));
 
   if (!isAsking) return null;
 
@@ -130,6 +122,7 @@ export function CloseGuard({
     <div className="modal-backdrop" onClick={() => setIsAsking(false)}>
       <div
         className="modal"
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}

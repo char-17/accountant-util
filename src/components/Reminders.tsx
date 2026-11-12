@@ -1,11 +1,7 @@
 import { useMemo } from "react";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
-import {
-  PERIODICITY_LABELS,
-  currentDeadline,
-  describeDeadline,
-  reminderState,
-} from "../domain/recurrence";
+import { PERIODICITY_LABELS } from "../domain/recurrence";
+import { getReminderCandidates, type ReminderCandidate } from "../domain/notifications";
 
 interface RemindersProps {
   assignments: ClientTaskWithTask[];
@@ -20,14 +16,16 @@ interface RemindersProps {
    */
   completedKeys: Set<string>;
   /** Called with the client whose work should be highlighted in the worklist. */
-  onFocusClient: (clientId: number) => void;
+  onFocusClient: (clientId: number, year: number, month: number) => void;
 }
 
 interface ReminderItem {
   assignment: ClientTaskWithTask;
-  state: ReturnType<typeof reminderState>;
+  state: ReminderCandidate["state"];
   label: string;
   dueOn: string;
+  year: number;
+  month: number;
   daysUntilDue: number;
 }
 
@@ -47,26 +45,16 @@ export function Reminders({
   const now = useMemo(() => new Date(), []);
 
   const items = useMemo<ReminderItem[]>(() => {
-    return assignments
-      .filter((a) => a.isActive)
-      .map((a) => {
-        const deadline = currentDeadline(a, now);
-        if (!deadline) return null;
-        return {
-          assignment: a,
-          state: reminderState(deadline, now, a.reminderDays),
-          label: describeDeadline(deadline),
-          dueOn: deadline.dueOn,
-          daysUntilDue: deadline.daysUntilDue,
-        } satisfies ReminderItem;
-      })
-      .filter((x): x is ReminderItem => x !== null)
-      // Work already recorded as completed for this deadline's month is not
-      // outstanding any more, so it is not a reminder.
-      .filter(
-        (x) => !completedKeys.has(`${x.assignment.clientId}:${x.assignment.taskTypeId}:${deadlineMonth(x.dueOn)}`)
-      )
-      .filter((x) => x.state === "overdue" || x.state === "due_soon")
+    return getReminderCandidates(assignments, completedKeys, now)
+      .map(({ assignment, state, label, deadline }) => ({
+        assignment,
+        state,
+        label,
+        dueOn: deadline.dueOn,
+        year: deadline.year,
+        month: deadline.month,
+        daysUntilDue: deadline.daysUntilDue,
+      }))
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
   }, [assignments, now, completedKeys]);
 
@@ -123,7 +111,7 @@ export function Reminders({
           <li key={item.assignment.id} className={`reminder-item ${item.state}`}>
             <button
               className="reminder-link"
-              onClick={() => onFocusClient(item.assignment.clientId)}
+              onClick={() => onFocusClient(item.assignment.clientId, item.year, item.month)}
               title={`Εργασίες μήνα για ${item.assignment.clientName}`}
             >
               <span
@@ -147,10 +135,4 @@ export function Reminders({
       </ul>
     </div>
   );
-}
-
-/** The month number of an ISO date, used to match a deadline to its status row. */
-function deadlineMonth(dueOn: string): number {
-  const m = /^(\d{4})-(\d{2})/.exec(dueOn);
-  return m ? Number(m[2]) : 0;
 }

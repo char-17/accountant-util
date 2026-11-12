@@ -28,11 +28,50 @@ import { CloseGuard } from "./components/CloseGuard";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
-import { currentDeadline, reminderState, describeDeadline } from "./domain/recurrence";
+import { currentDeadline } from "./domain/recurrence";
+import { getReminderCandidates } from "./domain/notifications";
 import { HIGHLIGHT_PULSE_MS, UPDATE_CHECK_DELAY_MS } from "./domain/appConfig";
 import "./App.css";
 
 type View = "dashboard" | "tasks" | "professions" | "reports";
+
+type NavIconName = "home" | "tasks" | "professions" | "reports";
+
+function NavIcon({ name }: { name: NavIconName }) {
+  return (
+    <span className="nav-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" focusable="false">
+        {name === "home" && (
+          <>
+            <path d="m3.5 10.5 8.5-7 8.5 7" />
+            <path d="M5.5 9.5V21h13V9.5M9.5 21v-6h5v6" />
+          </>
+        )}
+        {name === "tasks" && (
+          <>
+            <path d="m4 6.5 1.5 1.5L8 5.5M10.5 7H20" />
+            <path d="m4 12 1.5 1.5L8 11M10.5 12.5H20" />
+            <path d="m4 17.5 1.5 1.5L8 16.5M10.5 18H20" />
+          </>
+        )}
+        {name === "professions" && (
+          <>
+            <rect x="4" y="4" width="6" height="6" rx="1" />
+            <rect x="14" y="4" width="6" height="6" rx="1" />
+            <rect x="4" y="14" width="6" height="6" rx="1" />
+            <rect x="14" y="14" width="6" height="6" rx="1" />
+          </>
+        )}
+        {name === "reports" && (
+          <>
+            <path d="M5 20V11M12 20V4M19 20v-6" />
+            <path d="M3.5 20h17" />
+          </>
+        )}
+      </svg>
+    </span>
+  );
+}
 
 function App() {
   const {
@@ -45,6 +84,7 @@ function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<View>("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showClientTab, setShowClientTab] = useState(false);
   // The client roster is collapsed by default: the accountant's actual work is
   // the month's worklist in the centre, and with 44 clients the roster is long
@@ -122,7 +162,8 @@ function App() {
   // A reminder points at a client in the month's worklist: select them and pulse
   // their card so the eye lands on it. The pulse is cleared by a timer so it can
   // never sit on the wrong card afterwards.
-  const focusClientInWorklist = (id: number) => {
+  const focusClientInWorklist = (id: number, reminderYear: number, reminderMonth: number) => {
+    setCurrentDate(new Date(reminderYear, reminderMonth - 1, 1));
     setSelectedClientId(id);
     setHighlightClientId(id);
     if (highlightTimer.current) window.clearTimeout(highlightTimer.current);
@@ -226,24 +267,8 @@ function App() {
   // includes the due date so a new period notifies again, and completed work is
   // left out so a finished task does not keep popping up a Windows toast.
   useEffect(() => {
-    const due = assignments.filter((a) => {
-      if (!a.isActive) return false;
-      const d = currentDeadline(a, new Date());
-      if (!d) return false;
-      const s = reminderState(d, new Date(), a.reminderDays);
-      if (s !== "overdue" && s !== "due_soon") return false;
-      const m = Number(/^\d{4}-(\d{2})/.exec(d.dueOn)?.[1] ?? 0);
-      return !completedKeys.has(`${a.clientId}:${a.taskTypeId}:${m}`);
-    });
-
-    void desktop.notify(
-      due,
-      (a) => `${a.id}:${currentDeadline(a, new Date())?.dueOn ?? ""}`,
-      (a) => {
-        const d = currentDeadline(a, new Date());
-        return `${a.clientName} — ${a.taskName} (${d ? describeDeadline(d) : ""})`;
-      }
-    );
+    const due = getReminderCandidates(assignments, completedKeys, new Date());
+    void desktop.notify(due, (item) => item.key, (item) => item.body);
   }, [assignments, desktop, completedKeys]);
 
   const selectedClient = clients.find((c) => c.id === selectedClientId) || null;
@@ -503,67 +528,88 @@ function App() {
         </div>
       )}
 
-      <header className="app-header">
-        {/* Left: the file menu. Everything that leaves the app or replaces the
-            whole database lives here. */}
-        <FileMenu
-          summary={filters.summary}
-          filters={filters.filters}
-          clientOptions={clientOptions}
-          taskOptions={taskOptions}
-          onExportCsv={handleExportCsv}
-          exporting={exporter.exporting}
-          onBackup={handleBackup}
-          onRestore={handleRestore}
-          busy={backup.busy}
-          onCheckUpdates={handleCheckUpdates}
-          checkingUpdates={updater.phase === "checking"}
-        />
+      <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <aside className="app-sidebar">
+          <div className="sidebar-brand" aria-label="Accountant Util">
+            <div className="brand-main">
+              <span className="brand-symbol" aria-hidden="true">A</span>
+              <span className="brand-name">accountant<span>.util</span></span>
+            </div>
+          </div>
 
-        {/* Right: the screens and the month they apply to. Both change what the
-            app shows; neither changes the data. */}
-        <div className="app-header-bar">
+          <div className="sidebar-section-label">Workspace</div>
           <nav className="app-nav" aria-label="Κύριες λειτουργίες">
             <button
               className={activeView === "dashboard" ? "active" : ""}
               onClick={() => setActiveView("dashboard")}
             >
+              <NavIcon name="home" />
               Κεντρική
             </button>
             <button
               className={activeView === "tasks" ? "active" : ""}
               onClick={() => setActiveView("tasks")}
             >
+              <NavIcon name="tasks" />
               Εργασίες
             </button>
             <button
               className={activeView === "professions" ? "active" : ""}
               onClick={() => setActiveView("professions")}
             >
+              <NavIcon name="professions" />
               Επαγγέλματα
             </button>
             <button
               className={activeView === "reports" ? "active" : ""}
               onClick={() => setActiveView("reports")}
             >
+              <NavIcon name="reports" />
               Αναφορές
             </button>
           </nav>
 
-          {/* Month navigation sits on the same line as the tabs but keeps its
-              own bordered block, so the two read as different kinds of control:
-              one changes the screen, the other changes the month inside it. */}
-          <div className="month-nav-group">
-            <MonthPicker
-              year={year}
-              month={month}
-              onChange={(y, m) => setCurrentDate(new Date(y, m - 1, 1))}
-            />
-          </div>
-        </div>
-      </header>
+          <div className="sidebar-spacer" />
+          <button
+            type="button"
+            className="sidebar-toggle sidebar-bottom-toggle"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            aria-expanded={!sidebarCollapsed}
+            aria-label={sidebarCollapsed ? "Άνοιγμα πλευρικού μενού" : "Σύμπτυξη πλευρικού μενού"}
+            title={sidebarCollapsed ? "Άνοιγμα μενού" : "Σύμπτυξη μενού"}
+          >
+            <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
+          </button>
+        </aside>
 
-      <main className="app-main">
+        <div className="app-frame">
+          <header className="app-header">
+            <FileMenu
+              summary={filters.summary}
+              filters={filters.filters}
+              clientOptions={clientOptions}
+              taskOptions={taskOptions}
+              onExportCsv={handleExportCsv}
+              exporting={exporter.exporting}
+              onBackup={handleBackup}
+              onRestore={handleRestore}
+              busy={backup.busy}
+              onCheckUpdates={handleCheckUpdates}
+              checkingUpdates={updater.phase === "checking"}
+            />
+
+            <div className="app-header-bar">
+              <div className="month-nav-group">
+                <MonthPicker
+                  year={year}
+                  month={month}
+                  onChange={(y, m) => setCurrentDate(new Date(y, m - 1, 1))}
+                />
+              </div>
+            </div>
+          </header>
+
+          <main className="app-main">
         {activeView === "dashboard" && (
           <div className="dashboard">
             <div className="dashboard-content">
@@ -686,12 +732,14 @@ function App() {
             isEmpty={reports.isEmpty}
           />
         )}
-      </main>
+          </main>
+        </div>
+      </div>
 
       {/* Client detail lives in its own overlay so it never squeezes the
           dashboard columns. */}
       {showClientTab && selectedClient && (
-        <div className="client-tab-overlay" onClick={handleCloseClientTab}>
+        <div className="client-tab-overlay">
           <div
             className="client-tab-panel"
             role="dialog"

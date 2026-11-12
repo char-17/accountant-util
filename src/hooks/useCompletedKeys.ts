@@ -3,7 +3,7 @@ import Database from "@tauri-apps/plugin-sql";
 import * as statusRepo from "../persistence/statusRepo";
 
 interface UseCompletedKeysResult {
-  /** "clientId:taskTypeId:month" for every completed task in the given months. */
+  /** "clientId:taskTypeId:year:month" for every completed task in the given months. */
   keys: Set<string>;
   refresh: () => void;
 }

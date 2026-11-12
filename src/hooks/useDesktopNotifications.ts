@@ -4,6 +4,10 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
+import {
+  NotificationDeduper,
+  type NotificationStorage,
+} from "../domain/notificationQueue";
 
 /**
  * Desktop notifications that mirror the in-app reminder list.
@@ -15,7 +19,10 @@ import {
  */
 export function useDesktopNotifications(enabled: boolean) {
   const [permission, setPermission] = useState<"granted" | "denied" | "default">("default");
-  const notified = useRef<Set<string>>(new Set());
+  const notified = useRef<NotificationDeduper | null>(null);
+  if (notified.current === null) {
+    notified.current = new NotificationDeduper(getNotificationStorage());
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -52,24 +59,27 @@ export function useDesktopNotifications(enabled: boolean) {
     async <T,>(items: T[], keyOf: (item: T) => string, describe: (item: T) => string) => {
       if (!enabled || permission !== "granted" || items.length === 0) return;
 
-      for (const item of items) {
-        const key = keyOf(item);
-        if (notified.current.has(key)) continue;
-        notified.current.add(key);
-        try {
-          sendNotification({ title: "Accountant Util", body: describe(item) });
-        } catch {
-          // If the OS rejects it, drop the key so it can retry next time.
-          notified.current.delete(key);
-        }
-      }
+      notified.current?.send(
+        items,
+        keyOf,
+        describe,
+        (payload) => sendNotification(payload)
+      );
     },
     [enabled, permission]
   );
 
   const reset = useCallback(() => {
-    notified.current.clear();
+    notified.current?.reset();
   }, []);
 
   return { permission, askForPermission, notify, reset };
+}
+
+function getNotificationStorage(): NotificationStorage | undefined {
+  try {
+    return typeof window === "undefined" ? undefined : window.localStorage;
+  } catch {
+    return undefined;
+  }
 }

@@ -110,8 +110,8 @@ console.log('\nreminderState:');
 console.log('\ndescribeDeadline:');
 {
   const mk = (n) => ({ year: 2026, month: 3, dueOn: '2026-03-28', remindOn: '2026-03-23', daysUntilDue: n, isOverdue: n < 0 });
-  check('yesterday', R.describeDeadline(mk(-1)), 'Λήγησε χθες');
-  check('3 days late', R.describeDeadline(mk(-3)), 'Λήγησε πριν 3 ημέρες');
+  check('yesterday', R.describeDeadline(mk(-1)), 'Έληξε χθες');
+  check('3 days late', R.describeDeadline(mk(-3)), 'Έληξε πριν 3 ημέρες');
   check('today', R.describeDeadline(mk(0)), 'Λήγει σήμερα');
   check('tomorrow', R.describeDeadline(mk(1)), 'Λήγει αύριο');
   check('in 5 days', R.describeDeadline(mk(5)), 'Λήγει σε 5 ημέρες');

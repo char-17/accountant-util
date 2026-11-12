@@ -4,6 +4,7 @@ import type { TaskUsage } from "../persistence/taskRepo";
 import { DeleteImpact } from "./DeleteImpact";
 import { MUTED_PALETTE, isColorUsed } from "../utils/colors";
 import { toMessage } from "../utils/errors";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 interface TaskCatalogProps {
   tasks: TaskType[];
@@ -25,6 +26,9 @@ export function TaskCatalog({ tasks, usage = {}, onCreate, onUpdate, onDelete }:
   // month's history with it, and there was no way back from that.
   const [pendingDelete, setPendingDelete] = useState<TaskType | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const deleteDialogRef = useDialogA11y<HTMLDivElement>(Boolean(pendingDelete), () => {
+    if (!deleting) setPendingDelete(null);
+  });
 
   const usedColors = tasks.filter((t) => t.isActive).map((t) => t.color);
 
@@ -205,6 +209,7 @@ export function TaskCatalog({ tasks, usage = {}, onCreate, onUpdate, onDelete }:
         <div className="modal-backdrop" onClick={() => !deleting && setPendingDelete(null)}>
           <div
             className="modal"
+            ref={deleteDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Διαγραφή εργασίας"

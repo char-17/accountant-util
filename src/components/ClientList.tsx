@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Client } from "../domain/types";
 import type { ClientInput } from "../hooks/useClients";
 import { ClientForm } from "./ClientForm";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 interface ClientListProps {
   clients: Client[];
@@ -25,6 +26,7 @@ export function ClientList({
   loading,
 }: ClientListProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const createDialogRef = useDialogA11y<HTMLDivElement>(isAdding, () => setIsAdding(false));
 
   return (
     <div className="client-list" id="client-list-panel">
@@ -61,9 +63,10 @@ export function ClientList({
       </div>
 
       {isAdding && (
-        <div className="modal-backdrop" onClick={() => setIsAdding(false)}>
+        <div className="modal-backdrop">
           <div
             className="modal client-create-modal"
+            ref={createDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Νέος πελάτης"

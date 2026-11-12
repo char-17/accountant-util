@@ -116,7 +116,7 @@ for (const [name, file] of Object.entries(files)) {
   const src = require('fs').readFileSync(file, 'utf8');
 
   // Find async functions that call a repo mutation.
-  const fns = [...src.matchAll(/async function (\w+)\s*\([^)]*\)\s*\{([\s\S]*?)\n  \}/g)];
+  const fns = [...src.matchAll(/async function (\w+)\s*\([^)]*\)\s*(?:\:\s*[^\{]+)?\s*\{([\s\S]*?)\n  \}/g)];
   for (const [, fnName, fnBody] of fns) {
     const mutates = /Repo\.(create|update|deactivate|activate|delete|set)/.test(fnBody);
     if (!mutates) continue;

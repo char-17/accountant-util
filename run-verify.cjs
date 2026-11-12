@@ -11,6 +11,7 @@ const root = __dirname;
 
 // Verify scripts, in the order they build on each other.
 const VERIFY = [
+  'verify-notifications.mjs',
   'verify-recurrence.mjs',
   'verify-seed.cjs',
   'verify-seed-period.cjs',

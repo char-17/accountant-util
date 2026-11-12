@@ -56,7 +56,7 @@ catch (e) { check('second run succeeds', false, e.message); }
 
 console.log('\nnormalizeSchedule (mirrors assignmentRepo):');
 function normalizeSchedule(p = {}) {
-  const periodicity = ['monthly', 'quarterly', 'yearly'].includes(p.periodicity) ? p.periodicity : 'monthly';
+  const periodicity = ['monthly', 'quarterly', 'semiannual', 'yearly'].includes(p.periodicity) ? p.periodicity : 'monthly';
   const dueDay = Number(p.dueDay);
   const reminderDays = Number(p.reminderDays);
   const validDueDay = Number.isFinite(dueDay) && dueDay >= 1 && dueDay <= 31;
@@ -71,6 +71,8 @@ checkEq('defaults applied when empty', JSON.stringify(normalizeSchedule()),
   JSON.stringify({ periodicity: 'monthly', dueDay: 28, reminderDays: 5 }));
 checkEq('keeps valid values', JSON.stringify(normalizeSchedule({ periodicity: 'quarterly', dueDay: 10, reminderDays: 30 })),
   JSON.stringify({ periodicity: 'quarterly', dueDay: 10, reminderDays: 30 }));
+checkEq('keeps semiannual values', JSON.stringify(normalizeSchedule({ periodicity: 'semiannual', dueDay: 10, reminderDays: 30 })),
+  JSON.stringify({ periodicity: 'semiannual', dueDay: 10, reminderDays: 30 }));
 checkEq('rejects dueDay 0', normalizeSchedule({ dueDay: 0 }).dueDay, 28);
 checkEq('rejects dueDay 32', normalizeSchedule({ dueDay: 32 }).dueDay, 28);
 checkEq('rejects negative reminderDays', normalizeSchedule({ reminderDays: -1 }).reminderDays, 5);

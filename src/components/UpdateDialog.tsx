@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import type { AutoUpdate } from "../hooks/useAutoUpdate";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 /**
  * The update offered to the accountant.
@@ -60,19 +60,10 @@ export function UpdateDialog({ update, onInstalled }: UpdateDialogProps) {
     if (result.status === "installed_restart_manually") onInstalled?.();
   };
 
-  // Escape is the same answer as the button it sits next to: in the question it
-  // is "no", everywhere else it is "close". Never during an install - the
-  // process is on its way out and there is nothing left to answer.
-  useEffect(() => {
-    if (!available || installing) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (asking) decline();
-      else dismiss();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [available, installing, asking, decline, dismiss]);
+  const updateDialogRef = useDialogA11y<HTMLDivElement>(Boolean(available) && !installing, () => {
+    if (asking) decline();
+    else dismiss();
+  });
 
   if (!available) return null;
 
@@ -98,6 +89,7 @@ export function UpdateDialog({ update, onInstalled }: UpdateDialogProps) {
     >
       <div
         className="modal update-modal"
+        ref={updateDialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Διαθέσιμη ενημέρωση"

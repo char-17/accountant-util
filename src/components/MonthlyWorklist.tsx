@@ -3,6 +3,7 @@ import type { MonthlyStatusWithDetails } from "../domain/types";
 import type { WorklistFilters } from "../domain/worklist";
 import { WorklistFiltersBar } from "./WorklistFiltersBar";
 import { TaskPaymentRow } from "./TaskPaymentRow";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 interface MonthlyWorklistProps {
   /** Already filtered; the component does not re-apply the filters. */
@@ -86,6 +87,9 @@ export function MonthlyWorklist({
 }: MonthlyWorklistProps) {
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [saving, setSaving] = useState(false);
+  const confirmDialogRef = useDialogA11y<HTMLDivElement>(Boolean(pending), () => {
+    if (!saving) setPending(null);
+  });
 
   function requestToggle(item: MonthlyStatusWithDetails) {
     setPending({
@@ -247,6 +251,7 @@ export function MonthlyWorklist({
         >
           <div
             className="modal"
+            ref={confirmDialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="worklist-confirm-title"

@@ -236,7 +236,8 @@ export async function getClientsWithoutStatus(
  * re-running this for a month keeps any completed work.
  *
  * Only assignments whose periodicity makes them due in this month are seeded:
- * monthly always, quarterly in Jan/Apr/Jul/Oct, yearly in Jan.
+ * monthly always, quarterly in Jan/Apr/Jul/Oct, semiannual in Jan/Jul,
+ * yearly in Jan.
  *
  * The assignment has to *overlap* the month: it starts on or before the last
  * day of the month and, if it ends, not before the first day. Comparing against
@@ -264,6 +265,7 @@ export async function seedMonthFromAssignments(
        AND (
          a.periodicity = 'monthly'
          OR (a.periodicity = 'quarterly' AND (($2 - 1) % 3) = 0)
+         OR (a.periodicity = 'semiannual' AND (($2 - 1) % 6) = 0)
          OR (a.periodicity = 'yearly' AND $2 = 1)
        )
        AND NOT EXISTS (
@@ -294,14 +296,14 @@ export async function getCompletedKeys(
   // Placeholders are generated from the array length, never from its contents,
   // so the values still travel as bind parameters.
   const placeholders = months.map((_, i) => `$${i + 2}`).join(", ");
-  const rows = await db.select<Array<{ clientId: number; taskTypeId: number; month: number }>>(
-    `SELECT client_id AS clientId, task_type_id AS taskTypeId, month
+  const rows = await db.select<Array<{ clientId: number; taskTypeId: number; year: number; month: number }>>(
+    `SELECT client_id AS clientId, task_type_id AS taskTypeId, year, month
      FROM monthly_task_status
      WHERE year = $1 AND status = 'completed' AND month IN (${placeholders})`,
     [year, ...months]
   );
 
-  return new Set(rows.map((r) => `${r.clientId}:${r.taskTypeId}:${r.month}`));
+  return new Set(rows.map((r) => `${r.clientId}:${r.taskTypeId}:${r.year}:${r.month}`));
 }
 
 /** First and last day of a month as ISO dates. */

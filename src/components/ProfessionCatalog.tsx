@@ -3,6 +3,7 @@ import type { Profession } from "../domain/types";
 import { DeleteImpact } from "./DeleteImpact";
 import { MUTED_PALETTE, isColorUsed } from "../utils/colors";
 import { toMessage } from "../utils/errors";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 interface ProfessionCatalogProps {
   professions: Profession[];
@@ -36,6 +37,9 @@ export function ProfessionCatalog({
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Profession | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const deleteDialogRef = useDialogA11y<HTMLDivElement>(Boolean(pendingDelete), () => {
+    if (!deleting) setPendingDelete(null);
+  });
 
   const usedColors = professions.filter((p) => p.isActive).map((p) => p.color);
 
@@ -277,6 +281,7 @@ export function ProfessionCatalog({
         <div className="modal-backdrop" onClick={() => !deleting && setPendingDelete(null)}>
           <div
             className="modal"
+            ref={deleteDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Διαγραφή επαγγέλματος"

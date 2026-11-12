@@ -1493,16 +1493,32 @@ console.log('\n12e) the client panel scrolls itself, not the page');
     /overflow:\s*hidden/.test(overlay) && !/overflow-y:\s*auto/.test(overlay),
     `- got: ${overlay.trim().replace(/\s+/g, ' ')}`);
 
+  const appSource = require('fs').readFileSync(path.join(__dirname, 'src', 'App.tsx'), 'utf8');
+  check('clicking outside the client panel cannot discard edits',
+    !/className="client-tab-overlay"\s+onClick=\{handleCloseClientTab\}/.test(appSource));
+
+  const clientTabSource = require('fs').readFileSync(
+    path.join(__dirname, 'src', 'components', 'ClientTab.tsx'), 'utf8'
+  );
+  check('the client form reports dirty state', /onDirtyChange=\{setClientFormDirty\}/.test(clientTabSource));
+  check('the client tab offers a discard confirmation', /confirmClose/.test(clientTabSource));
+
   const panel = rule('.client-tab-panel');
-  check('the panel is bounded to the window', /max-height:\s*calc\(100vh/.test(panel));
+  check('the panel is bounded to the window', /max-height:\s*calc\(100(?:dvh|vh)/.test(panel));
   check('and is a flex column', /display:\s*flex/.test(panel) && /flex-direction:\s*column/.test(panel));
   check('and clips its own overflow', /overflow:\s*hidden/.test(panel));
 
-  const assignments = rule('.client-assignments');
-  check('the assignments section is the scroller', /overflow-y:\s*auto/.test(assignments));
-  check('and it is allowed to shrink', /min-height:\s*0/.test(assignments),
+  const body = rule('.client-tab-body');
+  check('the client body is the only content scroller', /overflow-y:\s*auto/.test(body));
+  check('and the body is allowed to shrink', /min-height:\s*0/.test(body),
     '- without this the flex child refuses to be smaller than its content');
-  check('and it takes the leftover height', /flex:\s*1 1 auto/.test(assignments));
+  check('and it takes the leftover height', /flex:\s*1 1 auto/.test(body));
+
+  const assignments = rule('.client-assignments');
+  check('the assignments section does not create a nested scroller',
+    !/overflow-y:\s*auto/.test(assignments));
+  check('the assignments heading is not sticky over rows',
+    !/position:\s*sticky/.test(rule('.client-assignments h3')));
 
   check('the header holds its place', /flex:\s*none/.test(rule('.client-tab-header')));
   check('the form holds its place', /flex:\s*none/.test(rule('.client-form')));

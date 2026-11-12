@@ -14,9 +14,10 @@ const check = (label, cond, detail = '') => {
 const checkEq = (label, actual, expected) =>
   check(label, actual === expected, `- expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 
-const entry = path.join(__dirname, '.tmp-seed-entry.ts');
-const bundle = path.join(__dirname, '.tmp-seed-bundle.cjs');
-fs.writeFileSync(entry, `type Database = any;\nexport * from "./src/persistence/statusRepo";`, 'utf8');
+const entry = path.join(os.tmpdir(), `au-seed-entry-${Date.now()}.ts`);
+const bundle = path.join(os.tmpdir(), `au-seed-bundle-${Date.now()}.cjs`);
+const statusRepoPath = path.join(__dirname, 'src', 'persistence', 'statusRepo').replaceAll(path.sep, '/');
+fs.writeFileSync(entry, `type Database = any;\nexport * from "${statusRepoPath}";`, 'utf8');
 esbuild.buildSync({ entryPoints: [entry], bundle: true, outfile: bundle, format: 'cjs', platform: 'node' });
 const repo = require(bundle);
 
@@ -139,14 +140,23 @@ checkEq('quarterly task appears in 4 months of 2026', quarters, 4);
 const qMonths = raw.prepare(`SELECT month FROM monthly_task_status WHERE year=2026 AND task_type_id=5 ORDER BY month`).all().map((r) => r.month);
 check('quarters are Jan/Apr/Jul/Oct', JSON.stringify(qMonths) === JSON.stringify([1, 4, 7, 10]), `- got ${JSON.stringify(qMonths)}`);
 
-console.log('\n9) yearly only appears in January');
+console.log('\n9) semiannual tasks appear in January and July');
+raw.prepare('INSERT INTO task_types VALUES (9, ?, 1)').run('SEMIANNUAL');
+raw.prepare(`INSERT INTO client_task_assignments (client_id, task_type_id, start_date, periodicity) VALUES (1,9,'2020-01-01','semiannual')`).run();
+for (let m = 1; m <= 12; m++) await repo.seedMonthFromAssignments(db, 2027, m);
+const semiannual = raw.prepare(`SELECT COUNT(*) c FROM monthly_task_status WHERE year=2027 AND task_type_id=9`).get().c;
+const semiannualMonths = raw.prepare(`SELECT month FROM monthly_task_status WHERE year=2027 AND task_type_id=9 ORDER BY month`).all().map((r) => r.month);
+checkEq('semiannual task appears twice in 2027', semiannual, 2);
+check('semiannual months are Jan/Jul', JSON.stringify(semiannualMonths) === JSON.stringify([1, 7]), `- got ${JSON.stringify(semiannualMonths)}`);
+
+console.log('\n10) yearly only appears in January');
 raw.prepare('INSERT INTO task_types VALUES (6, ?, 1)').run('ΕΤΗΣΙΑ');
 raw.prepare(`INSERT INTO client_task_assignments (client_id, task_type_id, start_date, periodicity) VALUES (1,6,'2020-01-01','yearly')`).run();
 for (let m = 1; m <= 12; m++) await repo.seedMonthFromAssignments(db, 2027, m);
 const yearly = raw.prepare(`SELECT COUNT(*) c FROM monthly_task_status WHERE year=2027 AND task_type_id=6`).get().c;
 checkEq('yearly task appears once in 2027', yearly, 1);
 
-console.log('\n10) re-seeding is idempotent and never overwrites completed work');
+console.log('\n11) re-seeding is idempotent and never overwrites completed work');
 // Reach a steady state first: new assignments added above legitimately seed the
 // months that have not been visited yet, so the baseline is taken after that.
 for (let m = 1; m <= 12; m++) {
@@ -162,7 +172,7 @@ check('the baseline was not empty', before > 0);
 const kept = raw.prepare(`SELECT status FROM monthly_task_status WHERE year=2026 AND month=10 AND task_type_id=1`).get();
 checkEq('completed work is not reset', kept.status, 'completed');
 
-console.log('\n11) inactive assignments and tasks are skipped');
+console.log('\n12) inactive assignments and tasks are skipped');
 raw.prepare('INSERT INTO task_types VALUES (7, ?, 0)').run('ΑΝΕΝΕΡΓΗ ΕΡΓΑΣΙΑ');
 raw.prepare('INSERT INTO client_task_assignments (client_id, task_type_id, start_date) VALUES (1,7,?)').run('2020-01-01');
 await repo.seedMonthFromAssignments(db, 2027, 5);

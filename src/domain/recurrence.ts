@@ -5,11 +5,12 @@
  * computed from plain dates so the rules can be unit tested without a database.
  */
 
-export type Periodicity = "monthly" | "quarterly" | "yearly";
+export type Periodicity = "monthly" | "quarterly" | "semiannual" | "yearly";
 
 export const PERIODICITY_LABELS: Record<Periodicity, string> = {
   monthly: "Μηνιαία",
   quarterly: "Τριμηνιαία",
+  semiannual: "\u0395\u03be\u03b1\u03bc\u03b7\u03bd\u03b9\u03b1\u03af\u03b1",
   yearly: "Ετήσια",
 };
 
@@ -24,19 +25,19 @@ export interface Deadline {
   isOverdue: boolean;
 }
 
-/** Months that a quarterly task falls due in (0-based quarter start months). */
-const QUARTER_START_MONTHS = [0, 3, 6, 9];
+/** Calendar months in which each schedule has a deadline. */
+const DUE_MONTHS: Record<Periodicity, readonly number[]> = {
+  monthly: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  quarterly: [1, 4, 7, 10],
+  semiannual: [1, 7],
+  yearly: [1],
+};
 
 function toIso(year: number, month: number, day: number): string {
   // Clamp the day so 31 Jan becomes 28/29 Feb rather than rolling into March.
   const lastDay = new Date(year, month, 0).getDate();
   const clamped = Math.min(Math.max(day, 1), lastDay);
   return `${year}-${String(month).padStart(2, "0")}-${String(clamped).padStart(2, "0")}`;
-}
-
-function parseIso(iso: string): { year: number; month: number; day: number } {
-  const [y, m, d] = iso.split("-").map(Number);
-  return { year: y, month: m, day: d };
 }
 
 function startOfDay(d: Date): Date {
@@ -49,20 +50,17 @@ function addDays(d: Date, days: number): Date {
   return next;
 }
 
+function dateIso(d: Date): string {
+  return toIso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+}
+
 /** Does this task fall due in the given month? `year` is accepted for symmetry. */
 export function isDueInMonth(
   periodicity: Periodicity,
   _year: number,
   month: number // 1-12
 ): boolean {
-  switch (periodicity) {
-    case "monthly":
-      return true;
-    case "quarterly":
-      return QUARTER_START_MONTHS.some((start) => start === month - 1);
-    case "yearly":
-      return month === 1; // annual deadline at the start of the year
-  }
+  return DUE_MONTHS[periodicity].includes(month);
 }
 
 /**
@@ -94,23 +92,9 @@ export function currentDeadline(
         continue;
       }
 
-      const dueDate = startOfDay(new Date(dueOn + "T00:00:00"));
-      const remindDate = addDays(dueDate, -reminderDays);
-      const daysUntilDue = Math.round(
-        (dueDate.getTime() - todayIso.getTime()) / 86400000
-      );
-
-      return {
-        year,
-        month,
-        dueOn,
-        remindOn: toIso(remindDate.getFullYear(), remindDate.getMonth() + 1, remindDate.getDate()),
-        daysUntilDue,
-        isOverdue: daysUntilDue < 0,
-      };
+      return buildDeadline(year, month, dueOn, reminderDays, todayIso);
     }
-    month -= 1;
-    if (month < 1) { month = 12; year -= 1; }
+    ({ year, month } = previousMonth(year, month));
   }
 
   return null;
@@ -126,44 +110,66 @@ export function nextDeadline(
   },
   today: Date
 ): Deadline | null {
-  const current = currentDeadline(assignment, today);
-  if (!current) return null;
-  if (current.daysUntilDue >= 0) return current;
+  const todayDate = startOfDay(today);
+  const todayIso = dateIso(todayDate);
+  const reminderDays = Math.max(0, assignment.reminderDays ?? 0);
+  let year = today.getFullYear();
+  let month = today.getMonth() + 1;
 
-  // Already past due this cycle: advance one period.
-  let { year, month } = (() => {
-    const d = parseIso(current.dueOn);
-    return { year: d.year, month: d.month + 1 };
-  })();
-  if (month > 12) { month = 1; year += 1; }
-
-  for (let i = 0; i < 12; i++) {
+  // Search forward directly. This also works when the assignment started after
+  // the last quarterly, semiannual, or yearly deadline.
+  for (let i = 0; i < 400; i++) {
     if (isDueInMonth(assignment.periodicity, year, month)) {
       const dueOn = toIso(year, month, assignment.dueDay);
-      if (dueOn < assignment.startDate) {
-        month += 1;
-        if (month > 12) { month = 1; year += 1; }
-        continue;
+      if (dueOn >= assignment.startDate && dueOn > todayIso) {
+        return buildDeadline(year, month, dueOn, reminderDays, todayDate);
       }
-      const dueDate = startOfDay(new Date(dueOn + "T00:00:00"));
-      const remindDate = addDays(dueDate, -Math.max(0, assignment.reminderDays ?? 0));
-      const daysUntilDue = Math.round(
-        (dueDate.getTime() - startOfDay(today).getTime()) / 86400000
-      );
-      return {
-        year,
-        month,
-        dueOn,
-        remindOn: toIso(remindDate.getFullYear(), remindDate.getMonth() + 1, remindDate.getDate()),
-        daysUntilDue,
-        isOverdue: false,
-      };
     }
-    month += 1;
-    if (month > 12) { month = 1; year += 1; }
+    ({ year, month } = nextMonth(year, month));
   }
 
   return null;
+}
+
+/** The deadline to show in an assignment card, including the first future one. */
+export function displayDeadline(
+  assignment: {
+    startDate: string;
+    periodicity: Periodicity;
+    dueDay: number;
+    reminderDays: number;
+  },
+  today: Date
+): Deadline | null {
+  return currentDeadline(assignment, today) ?? nextDeadline(assignment, today);
+}
+
+function buildDeadline(
+  year: number,
+  month: number,
+  dueOn: string,
+  reminderDays: number,
+  today: Date
+): Deadline {
+  const dueDate = startOfDay(new Date(dueOn + "T00:00:00"));
+  const remindDate = addDays(dueDate, -reminderDays);
+  const daysUntilDue = Math.round((dueDate.getTime() - today.getTime()) / 86400000);
+  return {
+    year,
+    month,
+    dueOn,
+    remindOn: toIso(remindDate.getFullYear(), remindDate.getMonth() + 1, remindDate.getDate()),
+    daysUntilDue,
+    isOverdue: daysUntilDue < 0,
+  };
+}
+
+function previousMonth(year: number, month: number): { year: number; month: number } {
+  return month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+}
+
+function nextMonth(year: number, month: number): { year: number; month: number } {
+  return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
 }
 
 export type ReminderState = "overdue" | "due_soon" | "upcoming" | "later";
@@ -186,7 +192,7 @@ export function reminderState(
 export function describeDeadline(deadline: Deadline): string {
   if (deadline.daysUntilDue < 0) {
     const n = Math.abs(deadline.daysUntilDue);
-    return n === 1 ? "Λήγησε χθες" : `Λήγησε πριν ${n} ημέρες`;
+    return n === 1 ? "Έληξε χθες" : `Έληξε πριν ${n} ημέρες`;
   }
   if (deadline.daysUntilDue === 0) return "Λήγει σήμερα";
   if (deadline.daysUntilDue === 1) return "Λήγει αύριο";

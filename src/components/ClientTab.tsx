@@ -8,12 +8,13 @@ import type { Periodicity } from "../domain/types";
 import { DUE_DAY_MIN, DUE_DAY_MAX, REMINDER_DAYS_MIN, REMINDER_DAYS_MAX } from "../domain/appConfig";
 import {
   PERIODICITY_LABELS,
-  currentDeadline,
-  describeDeadline,
+  displayDeadline,
   reminderState,
 } from "../domain/recurrence";
+import { describeDeadlineWithDistance } from "../domain/deadlineDisplay";
 import { ClientForm } from "./ClientForm";
 import { toMessage } from "../utils/errors";
+import { useDialogA11y } from "../hooks/useDialogA11y";
 
 interface ClientTabProps {
   db: Database;
@@ -48,6 +49,8 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
   // own footer box has mounted, which is why the row appears on the second
   // render rather than the first.
   const [actionsTarget, setActionsTarget] = useState<HTMLDivElement | null>(null);
+  const [clientFormDirty, setClientFormDirty] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   // Stable, so the effect below can depend on it honestly instead of silencing
   // the hooks rule.
@@ -63,6 +66,8 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
     setNewDueDay("28");
     setNewReminderDays("5");
     setAssignmentError("");
+    setClientFormDirty(false);
+    setConfirmClose(false);
     void loadAssignments();
   }, [client.id, loadAssignments]);
 
@@ -97,8 +102,9 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
     }
   }
 
-  async function handleToggleAssignment(assignmentId: number, isActive: boolean) {
+  async function handleToggleAssignment(assignmentId: number, isActive: boolean): Promise<boolean> {
     setAssignmentError("");
+    setDeletingAssignment(true);
     try {
       if (isActive) {
         await assignmentRepo.deactivateAssignment(db, assignmentId);
@@ -107,8 +113,12 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
       }
       await loadAssignments();
       onUpdate();
+      return true;
     } catch (err) {
       setAssignmentError(toMessage(err));
+      return false;
+    } finally {
+      setDeletingAssignment(false);
     }
   }
 
@@ -132,15 +142,30 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
     }
   }
 
+  function requestClose() {
+    if (clientFormDirty) {
+      setConfirmClose(true);
+      return;
+    }
+    onClose();
+  }
+
+  const clientDialogRef = useDialogA11y<HTMLDivElement>(!assignmentPendingDelete && !confirmClose, requestClose);
+  const assignmentDialogRef = useDialogA11y<HTMLDivElement>(
+    Boolean(assignmentPendingDelete),
+    () => !deletingAssignment && setAssignmentPendingDelete(null)
+  );
+  const closeDialogRef = useDialogA11y<HTMLDivElement>(confirmClose, () => setConfirmClose(false));
+
   const availableTasks = tasks.filter(
     (t) => t.isActive && !assignments.some((a) => a.taskTypeId === t.id)
   );
 
   return (
-    <div className="client-tab">
+    <div className="client-tab" ref={clientDialogRef}>
       <div className="client-tab-header">
         <h2>{client.name}</h2>
-        <button className="close-btn" onClick={onClose} aria-label="Κλείσιμο">
+        <button type="button" className="close-btn" onClick={requestClose} aria-label="Κλείσιμο">
           ✕
         </button>
       </div>
@@ -150,6 +175,7 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
           and portalled here, so this only has to own the empty box it lands in -
           a callback ref, because the portal target has to exist before the form
           first renders, and a plain ref would still be null at that point. */}
+      <div className="client-tab-body">
       <ClientForm
         key={client.id}
         actionsTarget={actionsTarget}
@@ -163,7 +189,8 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
         }}
         professions={professions}
         onSubmit={handleSave}
-        onCancel={onClose}
+        onCancel={requestClose}
+        onDirtyChange={setClientFormDirty}
         onDelete={async () => {
           await onDelete(client.id);
           onClose();
@@ -273,8 +300,9 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
             <p className="empty-message">Δεν έχουν ανατεθεί εργασίες</p>
           ) : (
             assignments.map((assignment) => {
+              const now = new Date();
               const deadline = assignment.isActive
-                ? currentDeadline(assignment, new Date())
+                ? displayDeadline(assignment, now)
                 : null;
               return (
                 <div
@@ -299,12 +327,12 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
                       <span
                         className={`deadline-badge ${reminderState(
                           deadline,
-                          new Date(),
+                          now,
                           assignment.reminderDays
                         )}`}
                         title={`Λήξη: ${deadline.dueOn}`}
                       >
-                        {describeDeadline(deadline)}
+                        {describeDeadlineWithDistance(deadline, now)}
                       </span>
                     )}
                     <button
@@ -351,6 +379,8 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
         </div>
       </div>
 
+      </div>
+
       {/* Confirmation for removing an assignment outright. Deactivating is the
           reversible option and it sits next to this one; this deletes the row,
           so the dialog spells out that the history stays and only the
@@ -359,6 +389,7 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
         <div className="modal-backdrop" onClick={() => !deletingAssignment && setAssignmentPendingDelete(null)}>
           <div
             className="modal"
+            ref={assignmentDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Αφαίρεση εργασίας"
@@ -391,17 +422,43 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
                 Άκυρο
               </button>
               <button
+                type="button"
                 className="btn-secondary btn-push-right"
-                onClick={() => {
+                onClick={async () => {
                   // Deactivating is the reversible answer, so it is offered
                   // here rather than making the user undo this afterwards.
-                  void handleToggleAssignment(assignmentPendingDelete.id, true);
-                  setAssignmentPendingDelete(null);
+                  const changed = await handleToggleAssignment(assignmentPendingDelete.id, true);
+                  if (changed) setAssignmentPendingDelete(null);
                 }}
                 disabled={deletingAssignment}
                 title="Κράτηση της εργασίας, απλώς χωρίς να παράγεται πλέον"
               >
                 Απενεργοποίηση αντί
+              </button>
+            </div>
+            {assignmentError && <div className="error-banner" role="alert">{assignmentError}</div>}
+          </div>
+        </div>
+      )}
+
+      {confirmClose && (
+        <div className="modal-backdrop" onClick={() => setConfirmClose(false)}>
+          <div
+            className="modal"
+            ref={closeDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Μη αποθηκευμένες αλλαγές"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Μη αποθηκευμένες αλλαγές</h3>
+            <p>Έχετε αλλαγές που δεν έχουν αποθηκευτεί. Θέλετε να φύγετε χωρίς αποθήκευση;</p>
+            <div className="form-actions">
+              <button type="button" className="btn-danger" onClick={onClose}>
+                Έξοδος χωρίς αποθήκευση
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmClose(false)}>
+                Συνέχεια επεξεργασίας
               </button>
             </div>
           </div>

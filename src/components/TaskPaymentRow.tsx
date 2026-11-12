@@ -147,7 +147,7 @@ export function TaskPaymentRow({
   return (
     <div className="task-payment">
       <div className="task-payment-fields">
-        <label className="task-payment-field">
+        <label className="task-payment-field task-payment-check">
           <input
             type="checkbox"
             checked={item.isPaid}
@@ -155,10 +155,10 @@ export function TaskPaymentRow({
             onChange={togglePaid}
             aria-label={`Εισπραξη για ${item.taskName}`}
           />
-          <span>Εισπραξη</span>
+          <span className="task-payment-check-label">Είσπραξη</span>
         </label>
 
-        <label className="task-payment-field">
+        <label className="task-payment-field task-payment-amount-field">
           <span className="task-payment-label">Ποσό</span>
           <input
             type="text"
@@ -179,8 +179,8 @@ export function TaskPaymentRow({
           />
         </label>
 
-        {item.isPaid && (
-          <label className="task-payment-field">
+        {item.isPaid ? (
+          <label className="task-payment-field task-payment-date-field">
             <span className="task-payment-label">Ημ. Είσπραξης</span>
             <input
               type="date"
@@ -191,9 +191,9 @@ export function TaskPaymentRow({
               aria-label={`Ημερομηνία είσπραξης για ${item.taskName}`}
             />
           </label>
-        )}
+        ) : null}
 
-        <label className="task-payment-field">
+        <label className="task-payment-field task-payment-check">
           <input
             type="checkbox"
             checked={item.isInvoiced}
@@ -201,11 +201,11 @@ export function TaskPaymentRow({
             onChange={toggleInvoiced}
             aria-label={`Τιμολόγιο για ${item.taskName}`}
           />
-          <span>Τιμολόγιο</span>
+          <span className="task-payment-check-label">Τιμολόγιο</span>
         </label>
 
-        {item.isInvoiced && (
-          <label className="task-payment-field">
+        {item.isInvoiced ? (
+          <label className="task-payment-field task-payment-date-field">
             <span className="task-payment-label">Ημ. Τιμολογίου</span>
             <input
               type="date"
@@ -216,15 +216,15 @@ export function TaskPaymentRow({
               aria-label={`Ημερομηνία τιμολογίου για ${item.taskName}`}
             />
           </label>
-        )}
+        ) : null}
       </div>
 
-      {item.isPaid && item.paidAt && (
+      {item.isPaid && item.paidAt ? (
         <span className="task-payment-hint">Εισπραξη: {formatDisplayDate(item.paidAt)}</span>
-      )}
-      {item.isInvoiced && item.invoicedAt && (
+      ) : null}
+      {item.isInvoiced && item.invoicedAt ? (
         <span className="task-payment-hint">Τιμολόγιο: {formatDisplayDate(item.invoicedAt)}</span>
-      )}
+      ) : null}
 
       {error && (
         <span className="task-payment-error" role="alert">

@@ -36,7 +36,8 @@ export function MonthlySummary({
   const hidden = isFiltered ? (totalTasks ?? summary.totalTasks) - summary.totalTasks : 0;
 
   return (
-    <div className="monthly-summary">
+    <>
+      <div className="monthly-summary">
       {/* Two rows of two: the row reads across as a pair, so the top row is
           the two counts that answer "how big is this month and how much is
           left" (clients, pending) and the bottom row is the arithmetic behind
@@ -71,9 +72,11 @@ export function MonthlySummary({
           {hidden} εργασίες αποκρύπτονται από τα φίλτρα.
         </p>
       )}
+      </div>
 
       {summary.clientProgress.length > 0 && (
-        <div className="client-progress-list">
+        <div className="client-progress-panel">
+          <div className="client-progress-list">
           <button
             className="client-progress-toggle"
             onClick={() => setExpanded((v) => !v)}
@@ -105,8 +108,9 @@ export function MonthlySummary({
               ))}
             </div>
           )}
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

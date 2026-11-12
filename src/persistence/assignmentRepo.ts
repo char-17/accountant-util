@@ -69,7 +69,10 @@ const DEFAULTS: AssignmentSchedule = {
 /** Keeps only values a person could have meant, falling back to the defaults. */
 export function normalizeSchedule(partial?: Partial<AssignmentSchedule>): AssignmentSchedule {
   const periodicity: Periodicity =
-    partial?.periodicity === "quarterly" || partial?.periodicity === "yearly" || partial?.periodicity === "monthly"
+    partial?.periodicity === "quarterly" ||
+    partial?.periodicity === "semiannual" ||
+    partial?.periodicity === "yearly" ||
+    partial?.periodicity === "monthly"
       ? partial.periodicity
       : DEFAULTS.periodicity;
 

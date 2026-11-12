@@ -8,6 +8,7 @@ import { ClientFilterSelect } from "./WorklistFiltersBar";
 interface ClientFormProps {
   onSubmit: (data: ClientInput) => Promise<void>;
   onCancel?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
   submitLabel?: string;
   initialData?: Partial<ClientInput>;
   /** Clear the fields after a successful submit. Right for "create", wrong for "edit". */
@@ -57,6 +58,7 @@ const EMPTY: FormState = {
 export function ClientForm({
   onSubmit,
   onCancel,
+  onDirtyChange,
   submitLabel = "Αποθήκευση",
   initialData,
   resetOnSuccess = false,
@@ -79,6 +81,22 @@ export function ClientForm({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const initialForm = {
+    name: initialData?.name ?? "",
+    professionId: initialData?.professionId != null ? String(initialData.professionId) : "",
+    taxId: initialData?.taxId ?? "",
+    notes: initialData?.notes ?? "",
+  };
+
+  useEffect(() => {
+    const dirty =
+      form.name !== initialForm.name ||
+      form.professionId !== initialForm.professionId ||
+      form.taxId !== initialForm.taxId ||
+      form.notes !== initialForm.notes;
+    onDirtyChange?.(dirty);
+  }, [form, initialForm.name, initialForm.professionId, initialForm.taxId, initialForm.notes, onDirtyChange]);
 
   // Clear the transient banners whenever the form is re-targeted.
   useEffect(() => {
@@ -139,6 +157,7 @@ export function ClientForm({
       if (resetOnSuccess) {
         setForm(EMPTY);
       }
+      onDirtyChange?.(false);
       setSuccess("Οι αλλαγές αποθηκεύτηκαν.");
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -272,7 +291,7 @@ export function ClientForm({
         </div>
 
         {success && <div className="success-banner" role="status">{success}</div>}
-        {submitError && <div className="error-banner">{submitError}</div>}
+        {submitError && <div className="error-banner" role="alert">{submitError}</div>}
 
         {confirmDelete && onDelete && (
           <div className="inline-confirm">
