@@ -13,7 +13,8 @@
 #   git push --follow-tags
 #
 # tauri-action uploads the installer and writes latest.json, the file the
-# updater fetches on the accountant's machine.
+# updater fetches on the accountant's machine. The release is published, not
+# left as a draft, because the installed updater has no GitHub authentication.
 #
 # The repository has to be public for that to work. GitHub requires
 # authentication to download the assets of a private repository, and the
@@ -71,11 +72,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Accountant Util ${{ github.ref_name }}"
           # Draft on purpose: the installer is unsigned by Windows' rules (no
-          # code-signing certificate), so a release is worth a look before it
-          # becomes the thing the updater points every machine at.
-          releaseDraft: true
+          # This is updater signing, not a Windows Authenticode certificate.
+          # The public release must be available to installed clients.
+          releaseDraft: false
           prerelease: false
