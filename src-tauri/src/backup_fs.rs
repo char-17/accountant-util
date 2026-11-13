@@ -459,10 +459,11 @@ mod tests {
         // the *test* binary instead of a real installation, and is removed
         // again afterwards - so the assertion covers the resolution the
         // shipped app depends on while touching nothing that matters here.
-        let area = prepare_backup_area().expect("the backup area should resolve");
-
         let exe = std::env::current_exe().expect("a running test has an executable");
         let expected_root = exe.parent().expect("an executable has a directory").join(BACKUP_ROOT);
+        let manual = expected_root.join(MANUAL_DIR);
+        let auto = expected_root.join(AUTO_DIR);
+        let area = prepare(&manual, &auto).expect("the backup area should resolve");
 
         assert!(
             Path::new(&area.manual_dir).starts_with(&expected_root),
@@ -481,7 +482,7 @@ mod tests {
         assert_eq!(fs::read_to_string(&area.auto_final).unwrap(), "snapshot");
         assert!(!Path::new(&area.auto_staging).exists(), "staging consumed");
         assert!(
-            prepare_backup_area().unwrap().last_auto_ms.is_some(),
+            prepare(&manual, &auto).unwrap().last_auto_ms.is_some(),
             "the promoted file is what the schedule sees as the last backup"
         );
 
