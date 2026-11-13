@@ -4,7 +4,6 @@ import {
   REPORT_PERIOD_LABELS,
   monthsInRange,
   reportRangeLabel,
-  reportTotals,
 } from "../domain/report";
 import { formatAmount } from "../domain/money";
 
@@ -38,23 +37,6 @@ const MONTH_OPTIONS = [
   { value: 12, label: "Δεκέμβριος" },
 ];
 
-/** "Εισπραγμένο" in green, otherwise an explicit grey "Εκκρεμεί". */
-function PaymentCell({ isPaid }: { isPaid: boolean }) {
-  return (
-    <span className={`report-paid ${isPaid ? "yes" : "no"}`}>
-      {isPaid ? "Εισπραγμένο" : "Εκκρεμεί"}
-    </span>
-  );
-}
-
-function InvoiceCell({ isInvoiced }: { isInvoiced: boolean }) {
-  return (
-    <span className={`report-invoiced ${isInvoiced ? "yes" : "no"}`}>
-      {isInvoiced ? "Εκδόθηκε" : "Εκκρεμεί"}
-    </span>
-  );
-}
-
 function formatDate(value?: string): string {
   if (!value) return "—";
   const iso = value.slice(0, 10);
@@ -65,11 +47,7 @@ function formatDate(value?: string): string {
 
 /**
  * The report: clients, each with their services indented underneath, and the
- * collection state per service.
- *
- * "Εισπραγμένο" is carried by colour *and* by the word itself, so the state is
- * still readable when printed in black and white or read by someone who cannot
- * distinguish the two colours.
+ * amount and dates for each service.
  */
 export function ReportsView({
   groups,
@@ -92,6 +70,8 @@ export function ReportsView({
   // together: clicking one client opened and closed all of them at once, which
   // is what it used to do.
   const [expandedIds, setExpandedIds] = useState<Set<number> | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [amountSort, setAmountSort] = useState<"asc" | "desc" | null>(null);
 
   // A new report starts fully open again. Adjusted during render rather than in
   // an effect: an effect would run after paint, so the previous period's
@@ -129,8 +109,30 @@ export function ReportsView({
             })()
           : { year, fromMonth: month, toMonth: month };
 
-  const totals = reportTotals(groups);
   const monthCount = monthsInRange(range).length;
+  const visibleGroups = selectedClientId === null
+    ? groups
+    : groups.filter((group) => group.clientId === selectedClientId);
+  const hasVisibleRows = visibleGroups.length > 0;
+  const orderedGroups = amountSort === null
+    ? visibleGroups
+    : [...visibleGroups]
+        .sort((a, b) => {
+          const difference = a.totalAmount - b.totalAmount;
+          return amountSort === "asc" ? difference : -difference;
+        })
+        .map((group) => ({
+          ...group,
+          rows: [...group.rows].sort((a, b) =>
+            amountSort === "asc" ? a.amount - b.amount : b.amount - a.amount
+          ),
+        }));
+
+  const cycleAmountSort = () => {
+    setAmountSort((current) =>
+      current === null ? "asc" : current === "asc" ? "desc" : null
+    );
+  };
 
   // Prints the page, not the app: the report is laid out for the screen, so the
   // controls, the totals strip and the client rows all have to say whether they
@@ -141,7 +143,9 @@ export function ReportsView({
     <div className="reports-view">
       <div className="reports-controls">
         <div className="reports-period" role="group" aria-label="Περίοδος αναφοράς">
-          {(Object.keys(REPORT_PERIOD_LABELS) as ReportPeriod[]).map((p) => (
+          {(Object.keys(REPORT_PERIOD_LABELS) as ReportPeriod[])
+            .filter((p) => p !== "custom")
+            .map((p) => (
             <button
               key={p}
               className={`status-filter-option ${period === p ? "active" : ""}`}
@@ -150,11 +154,20 @@ export function ReportsView({
             >
               {REPORT_PERIOD_LABELS[p]}
             </button>
-          ))}
+            ))}
         </div>
 
-        {period === "custom" && (
-          <div className="reports-custom-range">
+        <div className="reports-custom-group">
+          <button
+            className={`status-filter-option ${period === "custom" ? "active" : ""}`}
+            onClick={() => onPeriodChange("custom")}
+            aria-pressed={period === "custom"}
+          >
+            {REPORT_PERIOD_LABELS.custom}
+          </button>
+
+          {period === "custom" && (
+            <div className="reports-custom-range">
             <label>
               <span>Από</span>
               <select
@@ -183,8 +196,9 @@ export function ReportsView({
                 ))}
               </select>
             </label>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* The period in words sits between the buttons and the print action
             rather than on a line of its own: it describes what those buttons
@@ -202,44 +216,57 @@ export function ReportsView({
 
       {loading ? (
         <p className="empty-message">Φόρτωση...</p>
-      ) : isEmpty ? (
+      ) : isEmpty || !hasVisibleRows ? (
         <p className="empty-message">
-          Δεν υπάρχουν εργασίες για την περίοδο {reportRangeLabel(range)}.
+          {selectedClientId === null
+            ? `Δεν υπάρχουν εργασίες για την περίοδο ${reportRangeLabel(range)}.`
+            : "Ο επιλεγμένος πελάτης δεν έχει εργασίες για την επιλεγμένη περίοδο."}
         </p>
       ) : (
         <>
-          <div className="reports-totals">
-            <div className="report-total">
-              <span className="report-total-value">{formatAmount(totals.amount)} €</span>
-              <span className="report-total-label">Συνολικό ποσό</span>
-            </div>
-            <div className="report-total">
-              <span className="report-total-value paid">{formatAmount(totals.paid)} €</span>
-              <span className="report-total-label">Εισπραγμένα</span>
-            </div>
-            <div className="report-total">
-              <span className="report-total-value unpaid">{formatAmount(totals.unpaid)} €</span>
-              <span className="report-total-label">Ανείσπρακτα</span>
-            </div>
-            <div className="report-total">
-              <span className="report-total-value">{formatAmount(totals.invoiced)} €</span>
-              <span className="report-total-label">Τιμολογημένα</span>
-            </div>
+          <div className="reports-filter-row">
+            <label className="reports-client-filter">
+              <span>Πελάτης</span>
+              <select
+                value={selectedClientId ?? ""}
+                onChange={(event) => setSelectedClientId(event.target.value ? Number(event.target.value) : null)}
+                aria-label="Φίλτρο αναφορών ανά πελάτη"
+              >
+                <option value="">Όλοι οι πελάτες</option>
+                {groups.map((group) => (
+                  <option key={group.clientId} value={group.clientId}>
+                    {group.clientName}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           <div className="report-table-wrap">
             <table className="report-table">
               <thead>
                 <tr>
-                  <th scope="col">Πελάτης / Υπηρεσία</th>
-                  <th scope="col">Εισπραξη</th>
-                  <th scope="col">Έκδοση Τιμολογίου</th>
-                  <th scope="col">Ποσό</th>
-                  <th scope="col">Ημερομηνία Είσπραξης</th>
+                  <th scope="col">ΠΕΛΑΤΗΣ / ΥΠΗΡΕΣΙΑ</th>
+                  <th scope="col">
+                    <button
+                      type="button"
+                      className="report-sort-button"
+                      onClick={cycleAmountSort}
+                      aria-label={`Ταξινόμηση ποσού ${amountSort === "asc" ? "φθίνουσα" : "αύξουσα"}`}
+                      title="Ταξινόμηση με βάση το ποσό"
+                    >
+                      <span>ΠΟΣΟ</span>
+                      <span className="report-sort-arrows" aria-hidden="true">
+                        {amountSort === "asc" ? "↑" : amountSort === "desc" ? "↓" : "↕"}
+                      </span>
+                    </button>
+                  </th>
+                  <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΙΣΠΡΑΞΗΣ</th>
+                  <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΚΔΟΣΗΣ ΤΙΜΟΛΟΓΙΟΥ</th>
                 </tr>
               </thead>
               <tbody>
-                {groups.map((group) => (
+                {orderedGroups.map((group) => (
                   <ReportGroupRow
                     key={group.clientId}
                     group={group}
@@ -274,11 +301,8 @@ function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
             {group.clientName}
           </button>
         </th>
-        <td colSpan={2} />
         <td className="report-amount">{formatAmount(group.totalAmount)} €</td>
-        <td className="report-amount-muted">
-          {formatAmount(group.paidAmount)} € / {formatAmount(group.totalAmount)} €
-        </td>
+        <td colSpan={2} />
       </tr>
 
       {expanded &&
@@ -298,14 +322,9 @@ function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
                 })}
               </span>
             </td>
-            <td>
-              <PaymentCell isPaid={row.isPaid} />
-            </td>
-            <td>
-              <InvoiceCell isInvoiced={row.isInvoiced} />
-            </td>
             <td className="report-amount">{formatAmount(row.amount)} €</td>
             <td className="report-date">{formatDate(row.paidAt)}</td>
+            <td className="report-date">{formatDate(row.invoicedAt)}</td>
           </tr>
         ))}
     </>

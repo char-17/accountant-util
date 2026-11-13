@@ -593,6 +593,7 @@ function App() {
               onCheckUpdates={handleCheckUpdates}
               checkingUpdates={updater.phase === "checking"}
               lastUpdateAt={lastUpdateAt}
+              backupArea={backup.area}
             />
 
             <div className="app-header-bar">
@@ -687,6 +688,7 @@ function App() {
                   month={month}
                   isFiltered={filters.isFiltered}
                   totalTasks={filters.totalCount}
+                  onSelectClient={handleSelectClient}
                 />
               </div>
             </div>

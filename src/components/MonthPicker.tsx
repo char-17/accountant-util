@@ -11,6 +11,19 @@ interface MonthPickerProps {
   onChange: (year: number, month: number) => void;
 }
 
+function ArrowIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg
+      className={`month-arrow-icon ${direction === "right" ? "month-arrow-icon-right" : ""}`}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2Z" />
+    </svg>
+  );
+}
+
 export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -59,7 +72,7 @@ export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
   return (
     <div className="month-picker" ref={rootRef}>
       <button className="month-nav" onClick={goToPrevMonth} aria-label="Προηγούμενος μήνας" title="Προηγούμενος μήνας">
-        ←
+        <ArrowIcon direction="left" />
       </button>
       {/* The popover lives inside this wrapper rather than beside the button: CSS
           can only position an absolutely positioned element against an
@@ -113,7 +126,7 @@ export function MonthPicker({ year, month, onChange }: MonthPickerProps) {
         )}
       </div>
       <button className="month-nav" onClick={goToNextMonth} aria-label="Επόμενος μήνας" title="Επόμενος μήνας">
-        →
+        <ArrowIcon direction="right" />
       </button>
       <button className="month-current" onClick={goToCurrentMonth} title="Επιστροφή στον τρέχοντα μήνα">
         Τρέχων μήνας

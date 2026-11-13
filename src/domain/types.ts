@@ -97,6 +97,7 @@ export interface MonthlyStatusWithDetails extends MonthlyTaskStatus {
   clientName: string;
   taskName: string;
   taskColor: string;
+  periodicity: Periodicity;
   /** Carried down from the client so the worklist can filter without a join. */
   professionId?: number | null;
   professionName?: string | null;

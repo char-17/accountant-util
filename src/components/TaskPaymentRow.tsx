@@ -26,14 +26,6 @@ function toIsoDate(value?: string): string {
   return value.slice(0, 10);
 }
 
-function formatDisplayDate(value?: string): string {
-  const iso = toIsoDate(value);
-  if (!iso) return "";
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("el-GR");
-}
-
 /**
  * Fee, collection and invoicing for one month of one task.
  *
@@ -179,19 +171,17 @@ export function TaskPaymentRow({
           />
         </label>
 
-        {item.isPaid ? (
-          <label className="task-payment-field task-payment-date-field">
-            <span className="task-payment-label">Ημ. Είσπραξης</span>
-            <input
-              type="date"
-              className="task-payment-date"
-              value={toIsoDate(item.paidAt)}
-              disabled={busy}
-              onChange={(e) => changePaidAt(e.target.value)}
-              aria-label={`Ημερομηνία είσπραξης για ${item.taskName}`}
-            />
-          </label>
-        ) : null}
+        <label className="task-payment-field task-payment-date-field task-payment-paid-date">
+          <span className="task-payment-label">Ημ. Είσπραξης</span>
+          <input
+            type="date"
+            className="task-payment-date"
+            value={toIsoDate(item.paidAt)}
+            disabled={busy || !item.isPaid}
+            onChange={(e) => changePaidAt(e.target.value)}
+            aria-label={`Ημερομηνία είσπραξης για ${item.taskName}`}
+          />
+        </label>
 
         <label className="task-payment-field task-payment-check">
           <input
@@ -204,27 +194,18 @@ export function TaskPaymentRow({
           <span className="task-payment-check-label">Τιμολόγιο</span>
         </label>
 
-        {item.isInvoiced ? (
-          <label className="task-payment-field task-payment-date-field">
-            <span className="task-payment-label">Ημ. Τιμολογίου</span>
-            <input
-              type="date"
-              className="task-payment-date"
-              value={toIsoDate(item.invoicedAt)}
-              disabled={busy}
-              onChange={(e) => changeInvoicedAt(e.target.value)}
-              aria-label={`Ημερομηνία τιμολογίου για ${item.taskName}`}
-            />
-          </label>
-        ) : null}
+        <label className="task-payment-field task-payment-date-field">
+          <span className="task-payment-label">Ημ. Τιμολογίου</span>
+          <input
+            type="date"
+            className="task-payment-date"
+            value={toIsoDate(item.invoicedAt)}
+            disabled={busy || !item.isInvoiced}
+            onChange={(e) => changeInvoicedAt(e.target.value)}
+            aria-label={`Ημερομηνία τιμολογίου για ${item.taskName}`}
+          />
+        </label>
       </div>
-
-      {item.isPaid && item.paidAt ? (
-        <span className="task-payment-hint">Εισπραξη: {formatDisplayDate(item.paidAt)}</span>
-      ) : null}
-      {item.isInvoiced && item.invoicedAt ? (
-        <span className="task-payment-hint">Τιμολόγιο: {formatDisplayDate(item.invoicedAt)}</span>
-      ) : null}
 
       {error && (
         <span className="task-payment-error" role="alert">

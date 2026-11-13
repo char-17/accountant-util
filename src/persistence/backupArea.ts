@@ -17,6 +17,8 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export interface BackupArea {
+  /** Absolute path of the live database file. */
+  databasePath: string;
   /** Folder for snapshots the user asks for, one file per snapshot. */
   manualDir: string;
   /**

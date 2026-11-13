@@ -9,6 +9,8 @@ interface MonthlySummaryProps {
   isFiltered?: boolean;
   /** Unfiltered totals, kept for the "x hidden" note. */
   totalTasks?: number;
+  /** Selects the same client as clicking the name in the central worklist. */
+  onSelectClient?: (clientId: number) => void;
   /**
    * Whether the per-client progress list is open. Starts closed: with 44 clients
    * the list is long enough to push the worklist out of view, and the totals
@@ -21,6 +23,7 @@ export function MonthlySummary({
   summary,
   isFiltered,
   totalTasks,
+  onSelectClient,
   defaultExpanded = false,
 }: MonthlySummaryProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
@@ -92,7 +95,13 @@ export function MonthlySummary({
             <div className="client-progress-items">
               {summary.clientProgress.map((cp) => (
                 <div key={cp.clientId} className="client-progress-item">
-                  <span className="client-name">{cp.clientName}</span>
+                  <button
+                    type="button"
+                    className="client-name client-progress-client-button"
+                    onClick={() => onSelectClient?.(cp.clientId)}
+                  >
+                    {cp.clientName}
+                  </button>
                   <div className="mini-progress">
                     <div
                       className="mini-progress-fill"

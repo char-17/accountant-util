@@ -85,7 +85,7 @@ export function TaskCatalog({ tasks, usage = {}, onCreate, onUpdate, onDelete }:
   }
 
   return (
-    <div className="task-catalog">
+    <div className="task-catalog task-catalog-page">
       <div className="task-catalog-header">
         <h2>Κατάλογος Εργασιών</h2>
         <button className="btn-primary" onClick={() => setIsAdding(true)}>

@@ -112,7 +112,7 @@ export function ProfessionCatalog({
   }
 
   return (
-    <div className="task-catalog">
+    <div className="task-catalog profession-catalog">
       <div className="task-catalog-header">
         <h2>Κατάλογος Επαγγελμάτων</h2>
         <button className="btn-primary" onClick={startAdding}>

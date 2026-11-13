@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { MonthlyStatusWithDetails } from "../domain/types";
+import { PERIODICITY_LABELS } from "../domain/recurrence";
 import type { WorklistFilters } from "../domain/worklist";
 import { WorklistFiltersBar } from "./WorklistFiltersBar";
 import { TaskPaymentRow } from "./TaskPaymentRow";
@@ -137,12 +138,14 @@ export function MonthlyWorklist({
     // everything", which is a different situation for the user.
     return (
       <div className="worklist">
-        <h3 className="section-heading">
-          Εργασίες μήνα <span className="worklist-period">{month}/{year}</span>
-        </h3>
+        <div className="worklist-sticky-header">
+          <h3 className="section-heading">
+            Εργασίες <span className="worklist-period">{month}/{year}</span>
+          </h3>
+          {isFiltered && filterBar}
+        </div>
         {isFiltered ? (
           <>
-            {filterBar}
             <p className="empty-message">
               Καμία εργασία δεν ταιριάζει με τα φίλτρα.{" "}
               <button className="link-button" onClick={onFilterReset}>
@@ -171,11 +174,13 @@ export function MonthlyWorklist({
 
   return (
     <div className="worklist">
-      <h3 className="section-heading">
-        Εργασίες μήνα <span className="worklist-period">{month}/{year}</span>
-      </h3>
+      <div className="worklist-sticky-header">
+        <h3 className="section-heading">
+          Εργασίες <span className="worklist-period">{month}/{year}</span>
+        </h3>
 
-      {filterBar}
+        {filterBar}
+      </div>
 
       <div className="worklist-clients">
         {[...byClient.entries()].map(([clientId, group], index) => {
@@ -210,25 +215,33 @@ export function MonthlyWorklist({
                     key={item.id}
                     className={`worklist-item ${item.status === "completed" ? "done" : ""}`}
                   >
-                    <label className="worklist-item-main">
-                      <input
-                        type="checkbox"
-                        checked={item.status === "completed"}
-                        // Ask first; the parent only sees a confirmed change.
-                        onChange={() => requestToggle(item)}
-                      />
-                      <span
-                        className="task-color-dot"
-                        style={{ backgroundColor: item.taskColor }}
-                        aria-hidden="true"
-                      />
-                      <span className="worklist-task-name">{item.taskName}</span>
-                    </label>
-                    {item.completedAt && (
-                      <span className="worklist-completed-at">
-                        {new Date(item.completedAt).toLocaleDateString("el-GR")}
-                      </span>
-                    )}
+                    <div className="worklist-item-header">
+                      <label className="worklist-item-main">
+                        <input
+                          type="checkbox"
+                          checked={item.status === "completed"}
+                          // Ask first; the parent only sees a confirmed change.
+                          onChange={() => requestToggle(item)}
+                        />
+                        <span
+                          className="task-color-dot"
+                          style={{ backgroundColor: item.taskColor }}
+                          aria-hidden="true"
+                        />
+                        <span className="worklist-task-name">{item.taskName}</span>
+                      </label>
+
+                      <div className="worklist-item-meta">
+                        {item.completedAt && (
+                          <span className="worklist-completed-at">
+                            Ολοκληρώθηκε {new Date(item.completedAt).toLocaleDateString("el-GR")}
+                          </span>
+                        )}
+                        <span className={`worklist-periodicity ${item.periodicity}`}>
+                          {PERIODICITY_LABELS[item.periodicity]}
+                        </span>
+                      </div>
+                    </div>
 
                     <TaskPaymentRow
                       item={item}

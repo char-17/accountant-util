@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import type Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,6 +15,7 @@ import {
   joinBackupPath,
   prepareBackupArea,
   promoteAutoBackup,
+  type BackupArea,
 } from "../persistence/backupArea";
 
 interface UseBackupResult {
@@ -31,6 +32,7 @@ interface UseBackupResult {
   autoBackup: () => Promise<string>;
   /** Resolves to null when the dialog was dismissed or the user declined. */
   restore: () => Promise<TableCounts | null>;
+  area: BackupArea | null;
 }
 
 const NO_DATABASE = "Η βάση δεδομένων δεν είναι ακόμη διαθέσιμη.";
@@ -50,6 +52,12 @@ const NO_DATABASE = "Η βάση δεδομένων δεν είναι ακόμη
  */
 export function useBackup(db: Database | null): UseBackupResult {
   const [busy, setBusy] = useState<"backup" | "restore" | null>(null);
+  const [area, setArea] = useState<BackupArea | null>(null);
+
+  useEffect(() => {
+    if (!db) return;
+    void prepareBackupArea().then(setArea).catch(() => undefined);
+  }, [db]);
 
   const backup = useCallback(async (): Promise<string> => {
     if (!db) throw new Error(NO_DATABASE);
@@ -61,6 +69,7 @@ export function useBackup(db: Database | null): UseBackupResult {
       // so a path into a folder that is not there yet is a failure the user
       // would only learn about from a toast that does not say why.
       const area = await prepareBackupArea();
+      setArea(area);
       const target = joinBackupPath(area.manualDir, defaultBackupName());
       await db.execute(vacuumIntoStatement(target));
       return target;
@@ -78,6 +87,7 @@ export function useBackup(db: Database | null): UseBackupResult {
     setBusy("backup");
     try {
       const area = await prepareBackupArea();
+      setArea(area);
       // Staged, not written over yesterday's file: VACUUM INTO refuses an
       // existing target, and deleting first would leave no backup at all if
       // the write then failed. The swap behind it is a single rename, so the
@@ -144,5 +154,5 @@ export function useBackup(db: Database | null): UseBackupResult {
     }
   }, [db]);
 
-  return { busy, backup, autoBackup, restore };
+  return { busy, backup, autoBackup, restore, area };
 }

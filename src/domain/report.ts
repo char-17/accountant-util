@@ -19,7 +19,7 @@ export const REPORT_PERIOD_LABELS: Record<ReportPeriod, string> = {
   month: "Μηνιαία",
   quarter: "Τριμηνιαία",
   year: "Ετήσια",
-  custom: "Χειροκίνητη",
+  custom: "Προσαρμοσμένη περίοδος",
 };
 
 /** A year always runs inside one calendar year, so a range never wraps. */

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MonthlySummary } from "../domain/types";
 import { STATUS_FILTER_LABELS, type WorklistFilters } from "../domain/worklist";
 import { AboutDialog } from "./AboutDialog";
+import type { BackupArea } from "../persistence/backupArea";
 
 interface FileMenuProps {
   summary: MonthlySummary;
@@ -17,6 +18,7 @@ interface FileMenuProps {
   onCheckUpdates: () => Promise<void>;
   checkingUpdates: boolean;
   lastUpdateAt: string | null;
+  backupArea: BackupArea | null;
 }
 
 function describeScope(
@@ -59,6 +61,7 @@ export function FileMenu({
   onCheckUpdates,
   checkingUpdates,
   lastUpdateAt,
+  backupArea,
 }: FileMenuProps) {
   const [open, setOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -195,7 +198,13 @@ export function FileMenu({
         </div>
       )}
 
-      {aboutOpen && <AboutDialog lastUpdateAt={lastUpdateAt} onClose={() => setAboutOpen(false)} />}
+      {aboutOpen && (
+        <AboutDialog
+          lastUpdateAt={lastUpdateAt}
+          backupArea={backupArea}
+          onClose={() => setAboutOpen(false)}
+        />
+      )}
     </div>
   );
 }

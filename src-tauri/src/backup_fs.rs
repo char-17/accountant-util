@@ -69,6 +69,8 @@ const AUTO_FINAL: &str = "backup.db";
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupArea {
+    /// The live SQLite database used by the application.
+    pub database_path: String,
     /// Folder for snapshots the user asks for. The caller appends its own
     /// timestamped file name - the timestamp is made in the frontend, where
     /// the user's clock and locale already are.
@@ -137,6 +139,13 @@ fn prepare(manual: &Path, auto: &Path) -> Result<BackupArea, String> {
     }
 
     Ok(BackupArea {
+        database_path: as_string(
+            &manual
+                .parent()
+                .and_then(Path::parent)
+                .map(|root| root.join("accountant.db"))
+                .ok_or_else(|| "Δεν ήταν δυνατό να προσδιοριστεί η βάση δεδομένων.".to_string())?,
+        ),
         manual_dir: as_string(manual),
         auto_staging: as_string(&staging),
         auto_final: as_string(&final_path),
@@ -180,10 +189,17 @@ fn promote(staging: &Path, final_path: &Path) -> Result<(), String> {
 /// startup read of the schedule's state - and only the first of those is
 /// guaranteed to have somebody watching the screen.
 #[tauri::command]
-pub fn prepare_backup_area() -> Result<BackupArea, String> {
+pub fn prepare_backup_area(app: AppHandle) -> Result<BackupArea, String> {
     let result = backup_dir(MANUAL_DIR).and_then(|manual| {
         let auto = backup_dir(AUTO_DIR)?;
-        prepare(&manual, &auto)
+        let mut area = prepare(&manual, &auto)?;
+        let database = app
+            .path()
+            .app_data_dir()
+            .map_err(|err| format!("Δεν ήταν δυνατή η εύρεση του φακέλου δεδομένων: {err}"))?
+            .join("accountant.db");
+        area.database_path = as_string(&database);
+        Ok(area)
     });
     logger::record_failure(result, "Αποτυχία προετοιμασίας της περιοχής αντιγράφων")
 }

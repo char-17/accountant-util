@@ -24,13 +24,57 @@ const STATUS_QUERY = `
     c.profession_id AS professionId,
     p.name        AS professionName,
     t.name        AS taskName,
-    t.color       AS taskColor
+    t.color       AS taskColor,
+    a.periodicity AS periodicity
   FROM monthly_task_status m
   JOIN clients c    ON m.client_id = c.id
   JOIN task_types t ON m.task_type_id = t.id
+  JOIN client_task_assignments a
+    ON a.client_id = m.client_id AND a.task_type_id = m.task_type_id
   -- LEFT, not JOIN: most clients are unclassified to begin with, and an inner
   -- join would silently drop their rows out of the worklist and the totals.
   LEFT JOIN professions p ON c.profession_id = p.id
+`;
+
+/* The dashboard shows every active assignment for the selected month. A
+   missing monthly row is represented as a pending, empty row so a quarterly,
+   semiannual or yearly task remains visible between its due months. Reports
+   continue to use STATUS_QUERY and therefore keep their due-month semantics. */
+const WORKLIST_QUERY = `
+  SELECT
+    COALESCE(m.id, -a.id) AS id,
+    a.client_id      AS clientId,
+    a.task_type_id   AS taskTypeId,
+    $1               AS year,
+    $2               AS month,
+    COALESCE(m.status, 'pending') AS status,
+    m.completed_at   AS completedAt,
+    m.note,
+    m.amount,
+    (COALESCE(m.is_paid, 0) = 1) AS isPaid,
+    m.paid_at        AS paidAt,
+    (COALESCE(m.is_invoiced, 0) = 1) AS isInvoiced,
+    m.invoiced_at    AS invoicedAt,
+    m.created_at     AS createdAt,
+    m.updated_at     AS updatedAt,
+    c.name           AS clientName,
+    c.profession_id  AS professionId,
+    p.name           AS professionName,
+    t.name           AS taskName,
+    t.color          AS taskColor,
+    a.periodicity    AS periodicity
+  FROM client_task_assignments a
+  JOIN clients c    ON a.client_id = c.id
+  JOIN task_types t ON a.task_type_id = t.id AND t.is_active = 1
+  LEFT JOIN professions p ON c.profession_id = p.id
+  LEFT JOIN monthly_task_status m
+    ON m.client_id = a.client_id
+   AND m.task_type_id = a.task_type_id
+   AND m.year = $1
+   AND m.month = $2
+  WHERE a.is_active = 1
+    AND a.start_date <= $4
+    AND (a.end_date IS NULL OR a.end_date >= $3)
 `;
 
 export async function getMonthlyStatus(
@@ -38,9 +82,19 @@ export async function getMonthlyStatus(
   year: number,
   month: number
 ): Promise<MonthlyStatusWithDetails[]> {
+  const { firstDay, lastDay } = monthBounds(year, month);
   return db.select<MonthlyStatusWithDetails[]>(
-    `${STATUS_QUERY} WHERE m.year = $1 AND m.month = $2 ORDER BY c.name, t.name`,
-    [year, month]
+    `${WORKLIST_QUERY}
+     ORDER BY c.name,
+       CASE a.periodicity
+         WHEN 'monthly' THEN 1
+         WHEN 'quarterly' THEN 2
+         WHEN 'semiannual' THEN 3
+         WHEN 'yearly' THEN 4
+         ELSE 5
+       END,
+       t.name`,
+    [year, month, firstDay, lastDay]
   );
 }
 
@@ -58,7 +112,15 @@ export async function getStatusInRange(
   return db.select<MonthlyStatusWithDetails[]>(
     `${STATUS_QUERY}
      WHERE m.year = $1 AND m.month BETWEEN $2 AND $3
-     ORDER BY c.name, t.name, m.month`,
+     ORDER BY c.name,
+       CASE a.periodicity
+         WHEN 'monthly' THEN 1
+         WHEN 'quarterly' THEN 2
+         WHEN 'semiannual' THEN 3
+         WHEN 'yearly' THEN 4
+         ELSE 5
+       END,
+       t.name, m.month`,
     [year, fromMonth, toMonth]
   );
 }
@@ -70,7 +132,14 @@ export async function getMonthlyStatusForClient(
   month: number
 ): Promise<MonthlyStatusWithDetails[]> {
   return db.select<MonthlyStatusWithDetails[]>(
-    `${STATUS_QUERY} WHERE m.client_id = $1 AND m.year = $2 AND m.month = $3 ORDER BY t.name`,
+    `${STATUS_QUERY} WHERE m.client_id = $1 AND m.year = $2 AND m.month = $3
+     ORDER BY CASE a.periodicity
+       WHEN 'monthly' THEN 1
+       WHEN 'quarterly' THEN 2
+       WHEN 'semiannual' THEN 3
+       WHEN 'yearly' THEN 4
+       ELSE 5
+     END, t.name`,
     [clientId, year, month]
   );
 }
