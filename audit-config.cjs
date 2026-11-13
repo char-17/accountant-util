@@ -108,4 +108,27 @@ console.log(
     ? '\nApplication values agree everywhere they are written down.'
     : `\n${problems} drift problem(s). Three copies of one value is already one too many; a disagreement is the reason the audit exists.`
 );
+
+// ── 3. Release/update configuration ----------------------------------------
+
+console.log('\nRelease and updater configuration');
+const packageJson = JSON.parse(read('package.json'));
+const tauriConfig = JSON.parse(read('src-tauri/tauri.conf.json'));
+if (packageJson.version === tauriConfig.version) {
+  ok(`package and Tauri versions agree on "${tauriConfig.version}"`);
+} else {
+  drift('release version mismatch', `- package.json "${packageJson.version}", tauri.conf.json "${tauriConfig.version}"`);
+}
+if (tauriConfig.bundle?.createUpdaterArtifacts === true) {
+  ok('updater artifacts are enabled');
+} else {
+  drift('updater artifacts disabled', '- bundle.createUpdaterArtifacts must be true');
+}
+const endpoint = tauriConfig.plugins?.updater?.endpoints?.[0] || '';
+if (endpoint.endsWith('/latest.json')) {
+  ok('updater points at latest.json');
+} else {
+  drift('updater endpoint', `- expected a latest.json endpoint, got "${endpoint}"`);
+}
+
 process.exit(problems === 0 ? 0 : 1);

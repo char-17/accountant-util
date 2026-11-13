@@ -145,6 +145,8 @@ export function useAutoUpdate(deps?: {
   relaunch?: () => Promise<void>;
   /** Only for tests; the app writes through the Rust command. */
   log?: (level: LogLevel, message: string) => Promise<void>;
+  /** Creates a durable snapshot before the installer can replace the app. */
+  beforeInstall?: () => Promise<void>;
 }): AutoUpdate {
   const [phase, setPhase] = useState<UpdatePhase>("idle");
   const [update, setUpdate] = useState<UpdateHandle | null>(null);
@@ -269,6 +271,16 @@ export function useAutoUpdate(deps?: {
     setError(null);
     setDownloaded(0);
     setTotal(null);
+
+    try {
+      await (depsRef.current?.beforeInstall ?? (async () => {}))();
+    } catch (err) {
+      const message = toMessage(err);
+      setPhase("ready");
+      setError(`Το αντίγραφο ασφαλείας πριν την ενημέρωση απέτυχε: ${message}`);
+      void write("error", `Η ενημέρωση ακυρώθηκε επειδή απέτυχε το pre-update backup: ${message}`);
+      return { status: "failed", message };
+    }
 
     // The line has to land before the process can take the installer with it:
     // on Windows the exit happens inside downloadAndInstall, so anything after

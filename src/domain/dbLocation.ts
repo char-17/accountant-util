@@ -30,6 +30,11 @@ export interface MigrationResult {
   legacyLocation: string | null;
 }
 
+/** Runs the transactional schema migration before the frontend opens the DB. */
+export function migrateDatabase(): Promise<string | null> {
+  return invoke<string | null>("migrate_database");
+}
+
 const NOTHING_TO_MIGRATE: MigrationResult = {
   migrated: false,
   warning: null,

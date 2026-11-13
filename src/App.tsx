@@ -206,42 +206,6 @@ function App() {
 
   const exporter = useExportReport();
 
-  // Update checking. The startup pass is silent: it runs against the network,
-  // and a machine with no connection must not be told about it every morning.
-  // The check itself is a stable callback, which is what the effect depends on
-  // rather than the whole hook - the hook returns a fresh object each render,
-  // and depending on that would clear the timer on every one of them, so the
-  // check would never actually be scheduled.
-  const updater = useAutoUpdate();
-  const autoChecked = useRef(false);
-
-  useEffect(() => {
-    if (!db || autoChecked.current) return;
-    autoChecked.current = true;
-    const timer = window.setTimeout(() => {
-      void updater.check();
-    }, UPDATE_CHECK_DELAY_MS);
-    return () => window.clearTimeout(timer);
-  }, [db, updater.check]);
-
-  // A manual check always answers - up to date, an update, or why it failed -
-  // because the accountant clicked something and is waiting. The result comes
-  // back from check() rather than being read from the hook's state, which would
-  // still hold the previous value at this point.
-  const handleCheckUpdates = async () => {
-    const result = await updater.check({ manual: true });
-    if (result.status === "update" || result.status === "busy") return;
-    if (result.status === "error") {
-      toasts.error(`Αποτυχία ελέγχου ενημερώσεων: ${result.message}`);
-      return;
-    }
-    if (result.status === "unavailable") {
-      toasts.info("Ο έλεγχος ενημερώσεων δεν είναι διαθέσιμος σε αυτή την έκδοση.");
-      return;
-    }
-    toasts.success("Είστε ήδη στην πιο πρόσφατη έκδοση.");
-  };
-
   // Exports the rows the user is actually looking at, with the active filters
   // noted in the file so the numbers are traceable later.
   const handleExportCsv = async () => {
@@ -340,6 +304,35 @@ function App() {
   // effect does not restart on every render - a fresh arrow function here
   // would clear the timer each time and the schedule would never fire.
   useAutoBackup(db, backup.autoBackup, toasts.error);
+
+  // Update checking. The startup pass is silent, but every installation first
+  // creates a manual snapshot through the same tested backup path.
+  const updater = useAutoUpdate({
+    beforeInstall: async () => { await backup.backup(); },
+  });
+  const autoChecked = useRef(false);
+
+  useEffect(() => {
+    if (!db || autoChecked.current) return;
+    autoChecked.current = true;
+    const timer = window.setTimeout(() => { void updater.check(); }, UPDATE_CHECK_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [db, updater.check]);
+
+  // A manual check always answers - up to date, an update, or why it failed.
+  const handleCheckUpdates = async () => {
+    const result = await updater.check({ manual: true });
+    if (result.status === "update" || result.status === "busy") return;
+    if (result.status === "error") {
+      toasts.error(`Αποτυχία ελέγχου ενημερώσεων: ${result.message}`);
+      return;
+    }
+    if (result.status === "unavailable") {
+      toasts.info("Ο έλεγχος ενημερώσεων δεν είναι διαθέσιμος σε αυτή την έκδοση.");
+      return;
+    }
+    toasts.success("Είστε ήδη στην πιο πρόσφατη έκδοση.");
+  };
 
   const handleBackup = async () => {
     await toasts.run(

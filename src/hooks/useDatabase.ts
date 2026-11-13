@@ -1,221 +1,51 @@
 import { useState, useEffect } from "react";
 import Database from "@tauri-apps/plugin-sql";
-import { migrateLegacyDatabase, DB_FILE_NAME } from "../domain/dbLocation";
+import { migrateLegacyDatabase, migrateDatabase, DB_FILE_NAME } from "../domain/dbLocation";
 import { seedDefaultProfessions } from "../persistence/professionRepo";
 import { logEvent } from "../utils/logging";
 
-const MIGRATIONS = [
-  `CREATE TABLE IF NOT EXISTS clients (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    tax_id TEXT,
-    notes TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`,
-  `CREATE TABLE IF NOT EXISTS task_types (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    color TEXT NOT NULL DEFAULT '#8B9DAD',
-    is_active INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`,
-  `CREATE TABLE IF NOT EXISTS client_task_assignments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER NOT NULL,
-    task_type_id INTEGER NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1,
-    start_date TEXT NOT NULL,
-    end_date TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
-    FOREIGN KEY (task_type_id) REFERENCES task_types(id) ON DELETE CASCADE,
-    UNIQUE(client_id, task_type_id, is_active)
-  )`,
-  `CREATE TABLE IF NOT EXISTS monthly_task_status (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    client_id INTEGER NOT NULL,
-    task_type_id INTEGER NOT NULL,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL CHECK(month >= 1 AND month <= 12),
-    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'completed')),
-    completed_at TEXT,
-    note TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
-    FOREIGN KEY (task_type_id) REFERENCES task_types(id) ON DELETE CASCADE,
-    UNIQUE(client_id, task_type_id, year, month)
-  )`,
-
-  // --- Periodicity / deadlines -------------------------------------------
-  // Additive migrations. Each runs once; running it again is a no-op because
-  // the column already exists, so this is safe on every launch.
-  `ALTER TABLE client_task_assignments ADD COLUMN periodicity TEXT NOT NULL DEFAULT 'monthly'`,
-  `ALTER TABLE client_task_assignments ADD COLUMN due_day INTEGER NOT NULL DEFAULT 28`,
-  `ALTER TABLE client_task_assignments ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 5`,
-
-  // Effective reminder date per assignment+period. This used to be a table,
-  // task_reminders, that nothing ever wrote to: the reminder list is derived
-  // from the assignments and their periods each time it is shown, so a stored
-  // row would have had to be kept in step by hand and would have gone stale the
-  // moment an assignment changed. It carried no history anyone could read, so
-  // the table is dropped here rather than left behind as a permanent empty
-  // shape in every database and every backup.
-  `DROP TABLE IF EXISTS task_reminders`,
-
-  // --- Money: fee, collection and invoicing, per client+task+month --------
-  // Nullable amount: a month's row is seeded before anyone types anything, so a
-  // NOT NULL column would demand a value for work that has not been priced.
-  `ALTER TABLE monthly_task_status ADD COLUMN amount REAL`,
-  `ALTER TABLE monthly_task_status ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE monthly_task_status ADD COLUMN paid_at TEXT`,
-  `ALTER TABLE monthly_task_status ADD COLUMN is_invoiced INTEGER NOT NULL DEFAULT 0`,
-  `ALTER TABLE monthly_task_status ADD COLUMN invoiced_at TEXT`,
-
-  // --- Professions -----------------------------------------------------------
-  // A profession describes the line of work a client is in. It is a list in its
-  // own right, like task_types, so it can be spelled once and picked from
-  // anywhere. The colour is shown as a dot beside the name, the same way a task
-  // is, and it is what tells two similarly-named professions apart at a glance
-  // in the worklist.
-  `CREATE TABLE IF NOT EXISTS professions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    color TEXT NOT NULL DEFAULT '#8B9DAD',
-    is_active INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  )`,
-
-  // A database created before the colour column still has the table without it.
-  // CREATE TABLE IF NOT EXISTS would not touch it, so the column is added
-  // separately; the duplicate-column error is what applyMigrations tolerates for
-  // every other statement here. The default is the same dusty blue task_types
-  // starts on, so an existing profession is not suddenly colourless.
-  `ALTER TABLE professions ADD COLUMN color TEXT NOT NULL DEFAULT '#8B9DAD'`,
-
-  // Nullable: a client may not be classified yet, and the column has to be
-  // addable to a table that already holds rows. LEFT JOIN everywhere for the
-  // same reason - an inner join would drop every unclassified client out of the
-  // worklist and out of the month totals.
-  // No ON DELETE SET NULL: SQLite only honours it with foreign_keys pragma on,
-  // and the default here leaves a dangling id. The repository clears the
-  // references before deleting, which is honest about it happening.
-  `ALTER TABLE clients ADD COLUMN profession_id INTEGER REFERENCES professions(id)`,
-];
-
 /**
- * Columns removed from the clients table.
- *
- * The CREATE TABLE above only describes a database being built for the first
- * time; on an existing one it is a no-op, so these have to be dropped
- * explicitly or every launch would keep carrying three unused columns.
- *
- * The order matters: a column is only dropped once nothing selects it, so this
- * runs after the repository queries have been cut down.
+ * Opens the database only after the native backend has completed the schema
+ * migration. The backend owns the migration transaction and creates a
+ * pre-migration snapshot before changing anything.
  */
-const DROPPED_CLIENT_COLUMNS = ["email", "phone", "address"] as const;
-
-/** True when the clients table has the named column. */
-async function hasColumn(database: Database, column: string): Promise<boolean> {
-  const rows = await database.select<{ name: string }[]>(
-    "PRAGMA table_info(clients)"
-  );
-  return rows.some((r) => r.name === column);
-}
-
-/**
- * Drops the retired columns, one at a time and only where they exist.
- *
- * A missing column is not an error here: a database created after the change
- * never had them, and that is the common case, not a failure. A genuine
- * failure to drop is reported rather than swallowed - it is harmless (the
- * columns are simply unused) but the user should know the database still holds
- * whatever was in them.
- */
-async function dropRetiredClientColumns(
-  database: Database
-): Promise<string | null> {
-  const failed: string[] = [];
-  for (const column of DROPPED_CLIENT_COLUMNS) {
-    if (!(await hasColumn(database, column))) continue;
-    try {
-      await database.execute(`ALTER TABLE clients DROP COLUMN ${column}`);
-    } catch {
-      failed.push(column);
-    }
-  }
-  if (failed.length > 0) {
-    return `Δεν ήταν δυνατή η αφαίρεση των στηλών ${failed.join(", ")} από τους πελάτες. Δεν επηρεάζει τη χρήση της εφαρμογής.`;
-  }
-  return null;
-}
-
-/**
- * Applies migrations, tolerating "duplicate column"/"already exists" so an
- * existing database upgrades in place instead of erroring on every launch.
- */
-async function applyMigrations(database: Database): Promise<string | null> {
-  for (const migration of MIGRATIONS) {
-    try {
-      await database.execute(migration);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const alreadyApplied =
-        message.includes("duplicate column name") ||
-        message.includes("already exists");
-      if (!alreadyApplied) throw err;
-    }
-  }
-  // After the migrations, not as one: the seed writes into professions, so the
-  // table has to exist first. Never fails the launch - a database that will not
-  // take the default rows is still perfectly usable, just empty.
-  try {
-    await seedDefaultProfessions(database);
-  } catch {
-    // Deliberately swallowed; see above.
-  }
-  return dropRetiredClientColumns(database);
-}
-
 export function useDatabase() {
   const [db, setDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // A database found at the old location that could not be carried over would
-  // otherwise leave the user looking at a silently empty application.
   const [migrationWarning, setMigrationWarning] = useState<string | null>(null);
 
   useEffect(() => {
     async function init() {
       try {
-        const result = await migrateLegacyDatabase();
-        if (result.migrated) {
+        const legacy = await migrateLegacyDatabase();
+        if (legacy.migrated) {
           console.info("Η βάση δεδομένων μεταφέρθηκε από την παλιά θέση.");
         }
-        if (result.warning) {
-          setMigrationWarning(result.warning);
-          void logEvent("warn", `Προειδοποίηση μεταφοράς της βάσης δεδομένων: ${result.warning}`);
+        if (legacy.warning) {
+          setMigrationWarning(legacy.warning);
+          void logEvent(`warn`, `Προειδοποίηση μεταφοράς της βάσης δεδομένων: ${legacy.warning}`);
+        }
+
+        const warning = await migrateDatabase();
+        if (warning) {
+          setMigrationWarning(warning);
+          void logEvent(`warn`, `Προειδοποίηση migration της βάσης: ${warning}`);
         }
 
         const database = await Database.load(`sqlite:${DB_FILE_NAME}`);
-        const columnWarning = await applyMigrations(database);
-        if (columnWarning) {
-          setMigrationWarning(columnWarning);
-          void logEvent("warn", `Πρόσκαιμη προειδοποίηση εκμετάλλευσης της βάσης: ${columnWarning}`);
+        // Defaults are data, not schema. They run after the transactional
+        // migration has committed and never overwrite user customisations.
+        try {
+          await seedDefaultProfessions(database);
+        } catch {
+          // A database with no default professions remains usable.
         }
         setDb(database);
       } catch (err) {
-        // Show the underlying reason (e.g. checksum mismatch, missing permission)
-        // instead of a generic message that hides the cause.
         const reason = err instanceof Error ? err.message : String(err);
         console.error("Database init error:", reason);
-        void logEvent("error", `Η βάση δεδομένων δεν άνοιξε: ${reason}`);
+        void logEvent(`error`, `Η βάση δεδομένων δεν άνοιξε: ${reason}`);
         setError(reason);
       } finally {
         setLoading(false);

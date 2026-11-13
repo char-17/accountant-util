@@ -1,13 +1,12 @@
 import { useCallback, useState } from "react";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 import { toMessage } from "../utils/errors";
 import { logEvent } from "../utils/logging";
 import {
   defaultBackupName,
   describeCounts,
-  inspectBackup,
-  restoreFromBackup,
   sanitizeBackupName,
   vacuumIntoStatement,
   type TableCounts,
@@ -119,11 +118,7 @@ export function useBackup(db: Database | null, onRestored: () => void): UseBacku
 
     setBusy("restore");
     try {
-      const inspection = await inspectBackup(db, path);
-      if (!inspection.valid) {
-        throw new Error(inspection.reason ?? "Το αρχείο δεν είναι έγκυρη βάση δεδομένων.");
-      }
-      const counts = inspection.counts!;
+      const counts = await invoke<TableCounts>("inspect_backup_database", { sourcePath: path });
 
       // Replacing the data is irreversible, so ask before doing it.
       const approved = await confirm(
@@ -134,8 +129,12 @@ export function useBackup(db: Database | null, onRestored: () => void): UseBacku
       );
       if (!approved) return null;
 
-      await restoreFromBackup(db, path);
-      onRestored();
+      // The SQL plugin uses a connection pool. Closing it before the Rust
+      // command replaces the file avoids a connection-specific ATTACH and
+      // also lets the next launch run migrations against older backups.
+      await db.close();
+      await invoke("restore_database_file", { sourcePath: path });
+      window.location.reload();
       return counts;
     } catch (err) {
       await logEvent("error", `Η επαναφορά αντιγράφου δεν ολοκληρώθηκε: ${toMessage(err)}`);

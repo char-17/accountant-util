@@ -47,8 +47,11 @@ pub fn run() {
         // gives it no write access to this folder.
         .invoke_handler(tauri::generate_handler![
             migration::migrate_legacy_database,
+            migration::migrate_database,
             backup_fs::prepare_backup_area,
             backup_fs::promote_auto_backup,
+            backup_fs::inspect_backup_database,
+            backup_fs::restore_database_file,
             logger::log_event
         ])
         .run(tauri::generate_context!())

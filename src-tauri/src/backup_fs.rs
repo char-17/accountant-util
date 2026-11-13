@@ -26,6 +26,9 @@ use std::time::UNIX_EPOCH;
 
 use crate::logger;
 use crate::paths::install_dir;
+use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::Row;
+use tauri::{AppHandle, Manager, Runtime};
 
 /// The folder, inside the installation directory, that holds every backup.
 ///
@@ -195,6 +198,105 @@ pub fn promote_auto_backup() -> Result<(), String> {
     let result = backup_dir(AUTO_DIR)
         .and_then(|auto| promote(&auto.join(AUTO_STAGING), &auto.join(AUTO_FINAL)));
     logger::record_failure(result, "Αποτυχία αντικατάστασης του αυτόματου αντιγράφου")
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupCounts {
+    pub clients: i64,
+    pub professions: i64,
+    pub task_types: i64,
+    pub client_task_assignments: i64,
+    pub monthly_task_status: i64,
+}
+
+async fn count_backup_file(path: &Path) -> Result<BackupCounts, String> {
+    if !path.is_file() {
+        return Err(format!("Το αρχείο αντιγράφου δεν βρέθηκε: {}", as_string(path)));
+    }
+
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(path)
+        .read_only(true)
+        .create_if_missing(false);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .map_err(|err| format!("Δεν ήταν δυνατή η ανάγνωση του αντιγράφου: {err}"))?;
+
+    let required = ["clients", "task_types", "monthly_task_status"];
+    for table in required {
+        let exists = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .bind(table)
+        .fetch_one(&pool)
+        .await
+        .map_err(|err| format!("Δεν ήταν δυνατή η επαλήθευση του αντιγράφου: {err}"))?;
+        if exists == 0 {
+            pool.close().await;
+            return Err("Το αρχείο δεν περιέχει τους πίνακες της εφαρμογής.".to_string());
+        }
+    }
+
+    async fn count(pool: &sqlx::SqlitePool, table: &str) -> Result<i64, String> {
+        let query = format!("SELECT COUNT(*) AS count FROM {table}");
+        sqlx::query(&query)
+            .fetch_one(pool)
+            .await
+            .map(|row| row.get::<i64, _>("count"))
+            .map_err(|err| format!("Δεν ήταν δυνατή η μέτρηση του αντιγράφου: {err}"))
+    }
+
+    let professions = count(&pool, "professions").await.unwrap_or(0);
+    let result = BackupCounts {
+        clients: count(&pool, "clients").await?,
+        professions,
+        task_types: count(&pool, "task_types").await?,
+        client_task_assignments: count(&pool, "client_task_assignments").await?,
+        monthly_task_status: count(&pool, "monthly_task_status").await?,
+    };
+    pool.close().await;
+    Ok(result)
+}
+
+/// Inspects a backup on its own SQLite connection. The SQL plugin uses a pool,
+/// so ATTACH DATABASE cannot safely be followed by a query on another call.
+#[tauri::command]
+pub async fn inspect_backup_database(source_path: String) -> Result<BackupCounts, String> {
+    count_backup_file(Path::new(&source_path)).await
+}
+
+/// Replaces the live database file only after the frontend has closed the SQL
+/// pool. Removing WAL sidecars is essential: otherwise SQLite could replay old
+/// pages into the newly copied database on its next open.
+#[tauri::command]
+pub async fn restore_database_file<R: Runtime>(
+    app: AppHandle<R>,
+    source_path: String,
+) -> Result<BackupCounts, String> {
+    let source = PathBuf::from(&source_path);
+    let counts = count_backup_file(&source).await?;
+    let app_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|err| format!("Δεν ήταν δυνατός ο εντοπισμός της βάσης: {err}"))?;
+    fs::create_dir_all(&app_dir).map_err(|err| format!("Δεν ήταν δυνατή η δημιουργία του φακέλου βάσης: {err}"))?;
+    let live = app_dir.join("accountant.db");
+    if source == live {
+        return Err("Το αρχείο αντιγράφου είναι ήδη η ενεργή βάση δεδομένων.".to_string());
+    }
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", live.to_string_lossy(), suffix));
+        if sidecar.exists() {
+            fs::remove_file(&sidecar)
+                .map_err(|err| format!("Δεν ήταν δυνατή η αφαίρεση προσωρινού αρχείου βάσης: {err}"))?;
+        }
+    }
+    fs::copy(&source, &live)
+        .map_err(|err| format!("Δεν ήταν δυνατή η αντικατάσταση της βάσης: {err}"))?;
+    Ok(counts)
 }
 
 #[cfg(test)]

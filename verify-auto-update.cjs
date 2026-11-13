@@ -69,6 +69,7 @@ export function UpdateHarness(props: {
   updater?: UpdaterApi | null;
   relaunch?: () => Promise<void>;
   log?: (level: "info" | "warn" | "error", message: string) => Promise<void>;
+  beforeInstall?: () => Promise<void>;
   onInstalled?: () => void;
   onState?: (s: ReturnType<typeof useAutoUpdate>) => void;
 }) {
@@ -76,6 +77,7 @@ export function UpdateHarness(props: {
     updater: props.updater,
     relaunch: props.relaunch,
     log: props.log,
+    beforeInstall: props.beforeInstall,
   });
   props.onState?.(state);
   return (
@@ -324,13 +326,15 @@ console.log('\ninstall()');
 
 {
   let downloaded = false;
+  const order = [];
   let relaunched = false;
   let toldToRestart = false;
-  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const found = updateHandle({ downloadAndInstall: async () => { order.push('install'); downloaded = true; } });
   const { handle } = await drive(
     {
       updater: { check: async () => found },
       relaunch: async () => { relaunched = true; },
+      beforeInstall: async () => { order.push('backup'); },
       onInstalled: () => { toldToRestart = true; },
     },
     (s) => s.check()
@@ -338,12 +342,31 @@ console.log('\ninstall()');
   await approveInstall();
   await act(async () => { await Promise.resolve(); });
   check('the installer is handed the update', downloaded);
+  checkEq('the pre-update backup runs first', order.join(','), 'backup,install');
   check('relaunch is attempted after a successful install', relaunched);
   // A relaunch that returned means no restart happened, so the dialog has to
   // go: left up, it is stuck in "installing" with the button disabled and
   // Escape doing nothing.
   checkEq('the dialog is gone by then', container.querySelectorAll('.update-modal').length, 0);
   check('the accountant is told a restart is still owed', toldToRestart);
+  handle.cleanup();
+}
+
+{
+  // A failed safety snapshot must stop the update before any download starts.
+  let downloaded = false;
+  const found = updateHandle({ downloadAndInstall: async () => { downloaded = true; } });
+  const { handle } = await drive(
+    {
+      updater: { check: async () => found },
+      beforeInstall: async () => { throw new Error('backup disk full'); },
+    },
+    (s) => s.check()
+  );
+  await approveInstall();
+  await act(async () => { await Promise.resolve(); });
+  checkEq('failed pre-update backup prevents download', downloaded, false);
+  check('failed pre-update backup is shown', text().includes('backup disk full'));
   handle.cleanup();
 }
 
