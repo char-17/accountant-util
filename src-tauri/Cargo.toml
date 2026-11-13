@@ -1,6 +1,6 @@
 [package]
 name = "accountant-util"
-version = "0.1.4"
+version = "0.1.5"
 description = "Monthly accounting task tracker for Greek accountants"
 authors = ["Ariston"]
 edition = "2021"
