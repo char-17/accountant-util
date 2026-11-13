@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { toMessage } from "../utils/errors";
-import { logEvent } from "../utils/logging";
-import type { LogLevel } from "../utils/logging";
+import { logEvent, type LogLevel } from "../utils/logging";
 
 /** As the updater plugin delivers it. `contentLength` is null when the server
  *  did not send one, which is common - the progress bar then runs indeterminate
@@ -168,7 +167,7 @@ export function useAutoUpdate(deps?: {
     if (injected !== undefined) return injected;
     try {
       const mod = await import("@tauri-apps/plugin-updater");
-      return mod as unknown as UpdaterApi;
+      return mod;
     } catch {
       return null;
     }

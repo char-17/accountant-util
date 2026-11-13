@@ -28,6 +28,7 @@ import { CloseGuard } from "./components/CloseGuard";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useAutoUpdate } from "./hooks/useAutoUpdate";
 import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
+import { recordVersionLaunch } from "./appInfo";
 import { currentDeadline } from "./domain/recurrence";
 import { getReminderCandidates } from "./domain/notifications";
 import { HIGHLIGHT_PULSE_MS, UPDATE_CHECK_DELAY_MS } from "./domain/appConfig";
@@ -81,6 +82,7 @@ function App() {
     migrationWarning,
   } = useDatabase();
   const toasts = useToasts();
+  const [lastUpdateAt] = useState(() => recordVersionLaunch()?.updatedAt || null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<View>("dashboard");
@@ -286,17 +288,17 @@ function App() {
   };
 
   const handleRefresh = () => {
-    refreshClients();
-    refreshTasks();
-    refreshProfessions();
-    refreshStatus();
-    refreshAssignments();
-    refreshCompletedKeys();
-    reports.refresh();
+    void refreshClients();
+    void refreshTasks();
+    void refreshProfessions();
+    void refreshStatus();
+    void refreshAssignments();
+    void refreshCompletedKeys();
+    void reports.refresh();
   };
 
   // A restore replaces every table, so everything on screen has to reload.
-  const backup = useBackup(db, handleRefresh);
+  const backup = useBackup(db);
 
   // The daily backup at 3 PM, or on the next launch if that moment passed
   // while the program was closed. `toasts.error` is passed rather than a
@@ -310,18 +312,19 @@ function App() {
   const updater = useAutoUpdate({
     beforeInstall: async () => { await backup.backup(); },
   });
+  const checkForUpdates = updater.check;
   const autoChecked = useRef(false);
 
   useEffect(() => {
     if (!db || autoChecked.current) return;
     autoChecked.current = true;
-    const timer = window.setTimeout(() => { void updater.check(); }, UPDATE_CHECK_DELAY_MS);
+    const timer = window.setTimeout(() => { void checkForUpdates(); }, UPDATE_CHECK_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [db, updater.check]);
+  }, [db, checkForUpdates]);
 
   // A manual check always answers - up to date, an update, or why it failed.
   const handleCheckUpdates = async () => {
-    const result = await updater.check({ manual: true });
+    const result = await checkForUpdates({ manual: true });
     if (result.status === "update" || result.status === "busy") return;
     if (result.status === "error") {
       toasts.error(`Αποτυχία ελέγχου ενημερώσεων: ${result.message}`);
@@ -481,7 +484,7 @@ function App() {
     await toasts.run(
       async () => {
         await updateProfession(id, data);
-        refreshStatus();
+        void refreshStatus();
       },
       { success: "Το επάγγελμα ενημερώθηκε.", failure: "Αποτυχία ενημέρωσης επαγγέλματος" }
     );
@@ -494,8 +497,8 @@ function App() {
     await toasts.run(
       async () => {
         await deleteProfession(id);
-        refreshClients();
-        refreshStatus();
+        void refreshClients();
+        void refreshStatus();
       },
       { success: "Το επάγγελμα διαγράφηκε.", failure: "Αποτυχία διαγραφής επαγγέλματος" }
     );
@@ -589,6 +592,7 @@ function App() {
               busy={backup.busy}
               onCheckUpdates={handleCheckUpdates}
               checkingUpdates={updater.phase === "checking"}
+              lastUpdateAt={lastUpdateAt}
             />
 
             <div className="app-header-bar">
@@ -738,7 +742,6 @@ function App() {
             role="dialog"
             aria-modal="true"
             aria-label={`Καρτέλα πελάτη ${selectedClient.name}`}
-            onClick={(e) => e.stopPropagation()}
           >
             <ClientTab
               db={db}
@@ -765,7 +768,7 @@ function App() {
       <UpdateDialog
         update={updater}
         onInstalled={() =>
-          toasts.info("Η ενημέρωση εγκαταστάθηκε. Κάντε χειροκίνητη επανεκκίνηση του προγράμματος.")
+          toasts.info("Η ενημέρωση εγκαταστάθηκε. Η εφαρμογή θα ανοίξει ξανά αυτόματα· αν δεν ανοίξει, ξεκινήστε την ξανά.")
         }
       />
       <Toaster toasts={toasts.toasts} onDismiss={toasts.dismiss} />

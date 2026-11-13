@@ -1,6 +1,5 @@
 import { useRef, useState } from "react";
-import type { WorklistFilters } from "../domain/worklist";
-import { STATUS_FILTER_LABELS } from "../domain/worklist";
+import { STATUS_FILTER_LABELS, type WorklistFilters } from "../domain/worklist";
 import { greekIncludes } from "../utils/greek";
 
 interface WorklistFiltersBarProps {
@@ -167,7 +166,7 @@ export function ClientFilterSelect({
       {open && (
         <>
           {/* Clicking elsewhere closes the list, so it never stays floating. */}
-          <div className="filter-select-backdrop" onClick={() => setOpen(false)} />
+          <div className="filter-select-backdrop" role="presentation" onClick={() => setOpen(false)} />
           <ul className="filter-select-list" role="listbox" aria-label={listLabel}>
             <li>
               <button

@@ -1,4 +1,4 @@
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { Client } from "../domain/types";
 import { foldGreek } from "../utils/greek";
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { MonthlyStatusWithDetails } from "../domain/types";
 import * as statusRepo from "../persistence/statusRepo";
 
@@ -26,7 +26,7 @@ export function useMonthlyStatus(db: Database | null, year: number, month: numbe
   }, [db, year, month]);
 
   useEffect(() => {
-    loadStatus();
+    void loadStatus();
   }, [loadStatus]);
 
   const markCompleted = async (

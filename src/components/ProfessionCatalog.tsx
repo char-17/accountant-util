@@ -278,14 +278,13 @@ export function ProfessionCatalog({
       </div>
 
       {pendingDelete && (
-        <div className="modal-backdrop" onClick={() => !deleting && setPendingDelete(null)}>
+        <div className="modal-backdrop" role="presentation" onClick={(event) => event.target === event.currentTarget && !deleting && setPendingDelete(null)}>
           <div
             className="modal"
             ref={deleteDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Διαγραφή επαγγέλματος"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3>Διαγραφή επαγγέλματος</h3>
             <p>

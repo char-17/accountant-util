@@ -26,7 +26,7 @@ export function useDesktopNotifications(enabled: boolean) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const granted = await isPermissionGranted();
         if (!cancelled) setPermission(granted ? "granted" : "default");
@@ -43,7 +43,7 @@ export function useDesktopNotifications(enabled: boolean) {
   const askForPermission = useCallback(async () => {
     try {
       const result = await requestPermission();
-      setPermission(result as "granted" | "denied" | "default");
+      setPermission(result);
       return result === "granted";
     } catch {
       setPermission("denied");
@@ -56,7 +56,7 @@ export function useDesktopNotifications(enabled: boolean) {
    * @param describe Builds the message for one item.
    */
   const notify = useCallback(
-    async <T,>(items: T[], keyOf: (item: T) => string, describe: (item: T) => string) => {
+    <T,>(items: T[], keyOf: (item: T) => string, describe: (item: T) => string) => {
       if (!enabled || permission !== "granted" || items.length === 0) return;
 
       notified.current?.send(

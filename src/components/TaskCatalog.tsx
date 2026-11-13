@@ -72,7 +72,7 @@ export function TaskCatalog({ tasks, usage = {}, onCreate, onUpdate, onDelete }:
     }
   }
 
-  async function handleEdit(task: TaskType) {
+  function handleEdit(task: TaskType) {
     setEditingId(task.id);
     setFormData({ name: task.name, color: task.color, description: task.description || "" });
   }
@@ -206,14 +206,13 @@ export function TaskCatalog({ tasks, usage = {}, onCreate, onUpdate, onDelete }:
       </div>
 
       {pendingDelete && (
-        <div className="modal-backdrop" onClick={() => !deleting && setPendingDelete(null)}>
+        <div className="modal-backdrop" role="presentation" onClick={(event) => event.target === event.currentTarget && !deleting && setPendingDelete(null)}>
           <div
             className="modal"
             ref={deleteDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Διαγραφή εργασίας"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3>Διαγραφή εργασίας</h3>
             <p>

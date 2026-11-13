@@ -89,7 +89,7 @@ export function CloseGuard({
           // Imported lazily: outside a Tauri window there is nothing to get, and
           // a static import would make this module unimportable in the harness.
           const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          target = getCurrentWindow() as unknown as ClosableWindow;
+          target = getCurrentWindow();
         } catch {
           return;
         }
@@ -119,14 +119,13 @@ export function CloseGuard({
   if (!isAsking) return null;
 
   return (
-    <div className="modal-backdrop" onClick={() => setIsAsking(false)}>
+    <div className="modal-backdrop" role="presentation" onClick={(event) => event.target === event.currentTarget && setIsAsking(false)}>
       <div
         className="modal"
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        onClick={(e) => e.stopPropagation()}
       >
         <h3>{title}</h3>
         <p>{message}</p>

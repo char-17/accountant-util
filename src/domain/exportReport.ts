@@ -114,7 +114,7 @@ export function buildCsvReport({ year, month, statuses, summary, filterDescripti
   }
 
   // Trailing newline so the last line is a complete row for other readers.
-  return lines.join("\r\n") + "\r\n";
+  return `${lines.join("\r\n")  }\r\n`;
 }
 
 /** Filename such as "report-2026-10-07.csv", safe on Windows. */

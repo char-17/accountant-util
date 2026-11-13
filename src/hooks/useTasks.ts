@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { TaskType } from "../domain/types";
 import * as taskRepo from "../persistence/taskRepo";
 import type { TaskUsage } from "../persistence/taskRepo";
@@ -27,7 +27,7 @@ export function useTasks(db: Database | null) {
   }, [db]);
 
   useEffect(() => {
-    loadTasks();
+    void loadTasks();
   }, [loadTasks]);
 
   const createTask = async (data: Pick<TaskType, "name" | "color" | "description">) => {

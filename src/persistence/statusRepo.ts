@@ -1,4 +1,4 @@
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { MonthlyStatusWithDetails, MonthlySummary } from "../domain/types";
 import { summarize } from "../domain/worklist";
 

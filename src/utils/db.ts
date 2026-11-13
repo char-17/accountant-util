@@ -21,6 +21,6 @@ export function normalizeTasks<T>(rows: T[]): T[] {
     if (row === null || typeof row !== "object" || !("isActive" in row)) {
       return row;
     }
-    return { ...row, isActive: toBool(row.isActive) } as T;
+    return { ...row, isActive: toBool(row.isActive) };
   });
 }

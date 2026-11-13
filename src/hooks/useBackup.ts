@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
 import { toMessage } from "../utils/errors";
 import { logEvent } from "../utils/logging";
@@ -48,7 +48,7 @@ const NO_DATABASE = "Η βάση δεδομένων δεν είναι ακόμη
  * window no read or remove permission, and the installation folder could not
  * be named in a capability before it existed.
  */
-export function useBackup(db: Database | null, onRestored: () => void): UseBackupResult {
+export function useBackup(db: Database | null): UseBackupResult {
   const [busy, setBusy] = useState<"backup" | "restore" | null>(null);
 
   const backup = useCallback(async (): Promise<string> => {
@@ -142,7 +142,7 @@ export function useBackup(db: Database | null, onRestored: () => void): UseBacku
     } finally {
       setBusy(null);
     }
-  }, [db, onRestored]);
+  }, [db]);
 
   return { busy, backup, autoBackup, restore };
 }

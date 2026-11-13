@@ -151,7 +151,7 @@ function buildDeadline(
   reminderDays: number,
   today: Date
 ): Deadline {
-  const dueDate = startOfDay(new Date(dueOn + "T00:00:00"));
+  const dueDate = startOfDay(new Date(`${dueOn  }T00:00:00`));
   const remindDate = addDays(dueDate, -reminderDays);
   const daysUntilDue = Math.round((dueDate.getTime() - today.getTime()) / 86400000);
   return {

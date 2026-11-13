@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
 import * as assignmentRepo from "../persistence/assignmentRepo";
 
@@ -18,7 +18,7 @@ export function useAssignments(db: Database | null) {
   }, [db]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   return { assignments, loading, refresh: load };

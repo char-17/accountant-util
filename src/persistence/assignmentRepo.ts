@@ -1,4 +1,4 @@
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { ClientTaskAssignment, TaskType, Periodicity } from "../domain/types";
 import { DUE_DAY_MIN, DUE_DAY_MAX, REMINDER_DAYS_MIN, REMINDER_DAYS_MAX } from "../domain/appConfig";
 import { normalizeTasks } from "../utils/db";

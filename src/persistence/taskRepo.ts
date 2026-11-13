@@ -1,4 +1,4 @@
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { TaskType } from "../domain/types";
 import { normalizeTasks } from "../utils/db";
 import { foldGreek } from "../utils/greek";

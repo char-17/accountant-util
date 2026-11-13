@@ -143,7 +143,7 @@ export function defaultBackupName(date = new Date()): string {
  */
 export function vacuumIntoStatement(path: string): string {
   const safe = sanitizeBackupName(path);
-  return "VACUUM INTO '" + safe.replace(/'/g, "''") + "'";
+  return `VACUUM INTO '${  safe.replace(/'/g, "''")  }'`;
 }
 
 /** Confirms the chosen file really is an Accountant Util database. */

@@ -51,7 +51,7 @@ export function useDatabase() {
         setLoading(false);
       }
     }
-    init();
+    void init();
   }, []);
 
   return { db, loading, error, migrationWarning };

@@ -1,138 +1,146 @@
 # Accountant Util
 
-Εφαρμογή επιφάνειας για τη μηνιαία παρακολούθηση εργασιών λογιστή. Desktop,
-τοπικά δεδομένα, χωρίς διαδίκτυο.
+Desktop εφαρμογή για λογιστικό γραφείο, σχεδιασμένη για Windows. Τα δεδομένα αποθηκεύονται τοπικά σε SQLite και η εφαρμογή λειτουργεί χωρίς σύνδεση στο διαδίκτυο, εκτός από τον προαιρετικό έλεγχο ενημερώσεων.
 
-Το σχήμα της βάσης και τι αποθηκεύεται σε κάθε πίνακα: **[DATABASE.md](DATABASE.md)**.
+## Κύριες δυνατότητες
 
-## Τι κάνει
+- Διαχείριση πελατών και ΑΦΜ.
+- Κατάλογος εργασιών με περιγραφή, χρώμα και ενεργή/ανενεργή κατάσταση.
+- Κατάλογος επαγγελμάτων και σύνδεσή τους με πελάτες.
+- Αναθέσεις εργασιών ανά πελάτη.
+- Περιοδικότητα εργασιών: μηνιαία, τριμηνιαία και ετήσια.
+- Ημερομηνίες λήξης και ειδοποιήσεις πριν από τη λήξη.
+- Μηνιαία λίστα εργασιών με φίλτρα πελάτη, εργασίας και κατάστασης.
+- Παρακολούθηση ολοκλήρωσης, ποσού, είσπραξης και τιμολόγησης.
+- Αναφορές ανά πελάτη και περίοδο.
+- Εξαγωγή CSV και εκτύπωση/PDF.
+- Χειροκίνητα και αυτόματα αντίγραφα ασφαλείας.
+- Επαναφορά δεδομένων από αντίγραφο με επιβεβαίωση.
+- Έλεγχος και εγκατάσταση signed ενημερώσεων μέσα από την εφαρμογή.
 
-- **Dashboard μήνα**: λίστα πελατών αριστερά, ειδοποιήσεις / σύνοψη / λίστα εργασιών δεξιά.
-- **Εργασίες μήνα**: tick για ολοκλήρωση, με επιβεβαίωση και προς τις δύο κατευθύνσεις.
-- **Φίλτρα**: ανά πελάτη / εργασία / κατάσταση. Επιλογή πελάτη στη λίστα περιορίζει
-  τη λίστα εργασιών.
-- **Κατάλογος εργασιών**: όνομα, περιγραφή, ενεργή/ανενεργή, χρώμα από ήπια παλέτα.
-- **Περιοδικότητα**: μηνιαία / τριμηνιαία / ετήσια, με ημέρα λήξης και ημέρες ειδοποίησης.
-- **Εξαγωγή**: CSV μέσω διαλόγου αποθήκευσης, εκτύπωση / PDF.
-- **Backup & Restore**: ασφαλές αντίγραφο μέσω `VACUUM INTO`, επαναφορά με επιβεβαίωση.
-- **Εισαγωγή Excel** με προεπισκόπηση πριν την εγγραφή.
+## Τεχνολογίες
 
-## Προαπαιτήσεις
+- Tauri v2 και Rust για το desktop shell.
+- React και TypeScript για το περιβάλλον χρήστη.
+- SQLite μέσω `@tauri-apps/plugin-sql`.
+- Vite για development και production frontend build.
+- GitHub Actions για signed Windows releases.
 
-| Εργαλείο | Έκδοση |
-|---|---|
-| Node.js | 22+ |
-| Rust | 1.99+ (`rustup`) |
-| Visual Studio Build Tools | με το workload «Desktop development with C++» (για το Rust backend σε Windows) |
+## Απαιτήσεις ανάπτυξης
 
-## Εκτέλεση
+- Windows 10/11.
+- Node.js 22 ή νεότερο.
+- Rust μέσω `rustup` και Cargo.
+- Visual Studio Build Tools με το workload **Desktop development with C++**.
+
+## Εγκατάσταση και εκτέλεση
+
+Από τη ρίζα του project:
 
 ```powershell
-# Το Path πρέπει να περιλαμβάνει Node και cargo, αν δεν είναι ήδη.
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
-            [System.Environment]::GetEnvironmentVariable("Path","User")
-
-Set-Location "C:\Users\Ariston\OpenCodeProjects\Accountant Util"
-
 npm install
-npm run tauri dev        # development
-npm run tauri build      # release + MSI + NSIS
+npm run tauri dev
 ```
 
-Μετά το build:
-
-```
-src-tauri\target\release\bundle\msi\Accountant Util_0.1.0_x64_en-US.msi
-src-tauri\target\release\bundle\nsis\Accountant Util_0.1.0_x64-setup.exe
-```
-
-## Έλεγχος ποιότητας
+Για production frontend build:
 
 ```powershell
-npm run verify     # types, lint, όλα τα audits και τα tests
-npm run typecheck
-npm run audit      # όρια modules, προσβασιμότητα, συμβάσεις
+npm run build
 ```
 
-`npm run verify` τρέχει 28 ελέγχους: `tsc`, ESLint, 4 audits και 22 scripts
-συμπεριφοράς.
+Για installer Windows:
 
-### Τι ελέγχουν τα tests
-
-| Script | Καλύπτει |
-|---|---|
-| `verify-recurrence.mjs` | Περιοδικότητα, λήξεις, clamping μηνών |
-| `verify-seed.cjs` | Seed ανά μήνα, σεβασμός περιοδικότητας, idempotency |
-| `verify-seed-period.cjs` | Δεν γεμίζει μήνες πριν την έναρξη ανάθεσης (regression) |
-| `verify-profession-seed.cjs` | Προεπιλεγμένα επαγγέλματα, μετρήσεις χρήσης |
-| `verify-greek-search.cjs` | Αναζήτηση ελληνικών: κεφαλαία, τόνοι, τελικό ς |
-| `verify-name-uniqueness.cjs` | Μοναδικότητα ονόματος με fold — πελάτες, εργασίες, επαγγέλματα |
-| `verify-duplicates.cjs` | Διπλά ids/labels/keys σε ολόκληρη την οθόνη |
-| `verify-worklist-filters.cjs` | Φίλτρα πελάτη/εργασίας/κατάστασης, σύνοψη |
-| `verify-export-report.cjs` | CSV escaping, Excel formula injection, δομή αναφοράς |
-| `verify-backup-restore.cjs` | `VACUUM INTO`, αποκατάσταση, ακεραιότητα WAL |
-| `verify-ui-render.cjs` | Πραγματικό markup των components |
-| `verify-ui-interaction.cjs` | Κλικ/πληκτρολόγηση σε jsdom: modal επιβεβαίωσης, φίλτρα, φόρμες |
-| `verify-periodicity.cjs` | Migrations, defaults, validation |
-| `verify-fix.cjs` | camelCase mapping, booleans |
-| `verify-startdate-fix.cjs` | Regression του bug έναρξης ανάθεσης |
-| `verify-client-crud.cjs` | CRUD πελατών + cascade |
-| `verify-mutations.cjs` | Κάθε write path |
-| `verify-e2e-assignment.cjs` | Ανάθεση → εμφανίζεται στη λίστα μήνα |
-| `verify-confirm-toggle.cjs` | Επιβεβαίωση πριν/μετά την αλλαγή |
-| `verify-money.cjs` | Ποσά, στρογγυλοποίηση σε λεπτά |
-| `verify-report.cjs` | Αναφορά ανά πελάτη και περίοδο |
-| `verify-payment.cjs` | Είσπραξη, τιμολόγηση, κατάσταση πληρωμής |
-| `audit-refresh.cjs` | Κάλυψη refreshers μετά κάθε μεταβολή |
-| `audit-contrast.cjs` | Κουμπιά με background αλλά χωρίς `color` |
-| `audit-style.cjs` | Όρια modules, προσβασιμότητα, συμβάσεις, dead code |
-| `audit-tauri-acl.cjs` | Κλήσεις Tauri του frontend απέναντι στις άδειες |
-
-## Δομή
-
-```
-src/
-├── domain/       # καθαρός λογικός: types, validation, recurrence, worklist,
-│                 # exportReport. Καμία εξάρτηση από UI ή βάση.
-├── persistence/  # SQLite repositories (το μόνο layer που γράφει SQL)
-├── hooks/        # state + διαχείριση βάσης, ένα ανά module
-├── components/   # React UI. Μέσω hooks, όχι απευθείως repositories.
-└── utils/
-src-tauri/
-├── src/lib.rs        # builder + plugins
-├── src/migration.rs  # μεταφορά βάσης μετά τη μετονομασία
-└── capabilities/     # δικαιώματα plugin (principle of least privilege)
+```powershell
+npm run tauri build
 ```
 
-## Αποθήκευση δεδομένων
+Το signed installer δημιουργείται συνήθως στο:
 
-Θέση: `%APPDATA%\com.ariston.accountant-util\accountant.db`
+```text
+src-tauri/target/release/bundle/nsis/
+```
 
-Η βάση τρέχει σε **WAL mode**. Αυτό έχει δύο πρακτικές συνέπειες:
+## Έλεγχοι ποιότητας
 
-1. **Ποτέ μην αντιγράφετε το αρχείο `.db` με το χέρι** ενώ τρέχει η εφαρμογή —
-   τα δεδομένα μοιράζονται σε `accountant.db`, `-wal` και `-shm`. Χρησιμοποιήστε το
-   **Δημιουργία αντιγράφου ασφαλείας** μέσα από την εφαρμογή, που κάνει `VACUUM INTO` και
-   παράγει ένα αυτοτελές αρχείο. Το κάνει και μόνο του κάθε μέρα στις 3 το
-   μεσημέρι, και αν η εφαρμογή είναι κλειστή τότε, στην επόμενη εκκίνηση.
-2. Κατά τη μετάβαση μεταφέρεται και το `-wal`, αλλιώς χάνονται οι πιο πρόσφατες
-   αλλαγές.
+Η πλήρης σουίτα ελέγχων εκτελείται με:
 
-Σχήμα: `clients`, `task_types`, `client_task_assignments`, `monthly_task_status`,
-`professions` — κανονικοποιημένες σχέσεις με FK και `UNIQUE` περιορισμούς.
+```powershell
+npm run verify
+```
 
-## Κανόνας για νέες αναθέσεις
+Περιλαμβάνει typecheck, lint, architecture audits, Rust tests και 34 regression/UI/database checks.
 
-Μια ανάθεση ισχύει για τους μήνες που **επικαλύπτονται** με το διάστημά της: ξεκινά
-πριν ή κατά την τελευταία μέρα του μήνα και, αν λήγει, μετά την πρώτη. Έτσι μια
-ανάθεση που δημιουργήθηκε στις 6 Οκτωβρίου εμφανίζεται για τον Οκτώβριο αλλά όχι
-για τον Σεπτέμβριο, και η ολοκλήρωση ενός μήνα δεν αγγίζει τους υπόλοιπους.
+Για το περιβάλλον CI, όπου δεν υπάρχει η τοπική βάση δεδομένων:
 
-## Σημειώσεις
+```powershell
+npm run verify:ci
+```
 
-- Οι ειδοποιήσεις Windows λειτουργούν όσο τρέχει η εφαρμογή. Για ειδοποιήσεις με
-  κλειστή εφαρμογή χρειάζεται Windows Task Scheduler.
-- Η ενημέρωση γίνεται μέσω GitHub Releases: έλεγχος 30 δευτερόλεπτα μετά την
-  εκκίνηση, και χειροκίνητα από το μενού «Αρχείο». Η κυκλοφορία πρέπει να είναι
-  δημόσια και υπογεγραμμένη με το κλειδί που είναι ενσωματωμένο στο build·
-  αλλιώς ο updater αρνείται να εγκαταστήσει.
+Για τον έλεγχο του style/architecture audit:
+
+```powershell
+npm run audit
+```
+
+Τα scripts είναι οργανωμένα ως εξής:
+
+```text
+scripts/
+├── run-verify.cjs        # Κεντρικός runner όλων των ελέγχων
+├── audit/                # Architecture, style και Tauri permission audits
+├── verify/               # Regression, UI και database tests
+└── maintenance/          # Demo database και one-off maintenance scripts
+```
+
+## Δεδομένα και αντίγραφα ασφαλείας
+
+Η κύρια βάση είναι το `accountant.db` και αποθηκεύεται στον φάκελο δεδομένων της εφαρμογής:
+
+```text
+%APPDATA%\com.ariston.accountant-util\accountant.db
+```
+
+Η εφαρμογή χρησιμοποιεί SQLite WAL mode. Για ασφαλές αντίγραφο χρησιμοποιεί `VACUUM INTO`, ώστε το snapshot να είναι συνεπές και ανεξάρτητο από τα αρχεία `-wal` και `-shm`.
+
+Υπάρχουν δύο τύποι αντιγράφων:
+
+- χειροκίνητα αντίγραφα από το μενού «Αρχείο»,
+- αυτόματο καθημερινό αντίγραφο στις 15:00 ή στην επόμενη εκκίνηση αν η εφαρμογή ήταν κλειστή.
+
+Πριν από κάθε ενημέρωση δημιουργείται αντίγραφο ασφαλείας. Η επαναφορά ελέγχει πρώτα το αντίγραφο, ζητά επιβεβαίωση και αντικαθιστά τη βάση μόνο μετά την έγκριση.
+
+Περισσότερες λεπτομέρειες για το schema υπάρχουν στο [DATABASE.md](DATABASE.md).
+
+## Ενημερώσεις εφαρμογής
+
+Οι ενημερώσεις δημοσιεύονται μέσω GitHub Releases και ελέγχονται:
+
+- αυτόματα μετά την εκκίνηση της εφαρμογής,
+- χειροκίνητα από το μενού «Αρχείο».
+
+Η εγκατάσταση χρησιμοποιεί signed updater artifacts. Το release πρέπει να είναι δημοσιευμένο και να περιέχει installer, `.sig` και `latest.json`. Πριν ξεκινήσει η εγκατάσταση, η εφαρμογή δημιουργεί backup της βάσης.
+
+Η ροή release βρίσκεται στο:
+
+```text
+.github/workflows/release.yml
+```
+
+Για νέο release ενημερώνονται η έκδοση στο `package.json` και στο `src-tauri/tauri.conf.json`, δημιουργείται tag μορφής `vX.Y.Z` και το workflow δημιουργεί τον installer και τα updater artifacts.
+
+## Δομή project
+
+```text
+src/                  React UI, hooks, domain logic και persistence layer
+src-tauri/             Rust backend, migrations, backup commands και Tauri config
+scripts/audit/         Static architecture/style/permission audits
+scripts/verify/        Automated regression και UI tests
+scripts/maintenance/   Demo database και one-off maintenance scripts
+lib/                   Node helper για τη διαδρομή της local database στα tests
+docs/                  Τεχνική τεκμηρίωση και αρχιτεκτονικές αποφάσεις
+test-data/             Τοπικά δεδομένα δοκιμών, εκτός Git
+```
+
+## Git και αρχεία ανάπτυξης
+
+Το `.gitignore` εξαιρεί generated αρχεία, `node_modules`, βάσεις δεδομένων, backups, προσωρινά test files και τοπικές session notes. Το `.gitattributes` ρυθμίζει line endings και binary αρχεία ώστε το repository να παραμένει συνεπές σε διαφορετικούς υπολογιστές.

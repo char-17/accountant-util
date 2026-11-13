@@ -46,6 +46,9 @@ dist-ssr
 !/src/
 !/src-tauri/
 
+# Local session notes stay on the developer machine, not in the repository.
+/docs/SESSION_NOTE.md
+
 # Δεύτερη, ανεξάρτητη κάλυψη: τα Excel παραμένουν εκτός όπου κι αν βρεθούν.
 **/*.xlsx
 **/*.xls

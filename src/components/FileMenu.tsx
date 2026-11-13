@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { MonthlySummary } from "../domain/types";
-import { STATUS_FILTER_LABELS } from "../domain/worklist";
-import type { WorklistFilters } from "../domain/worklist";
+import { STATUS_FILTER_LABELS, type WorklistFilters } from "../domain/worklist";
+import { AboutDialog } from "./AboutDialog";
 
 interface FileMenuProps {
   summary: MonthlySummary;
@@ -16,6 +16,7 @@ interface FileMenuProps {
   busy: "backup" | "restore" | null;
   onCheckUpdates: () => Promise<void>;
   checkingUpdates: boolean;
+  lastUpdateAt: string | null;
 }
 
 function describeScope(
@@ -57,8 +58,10 @@ export function FileMenu({
   busy,
   onCheckUpdates,
   checkingUpdates,
+  lastUpdateAt,
 }: FileMenuProps) {
   const [open, setOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   // A menu that stays open behind a dialog, or after the user clicks away, is
@@ -162,7 +165,7 @@ export function FileMenu({
             title="Αντικαθιστά τα τωρινά δεδομένα με αυτά του αντιγράφου"
             onClick={() => run(onRestore)}
           >
-            {busy === "restore" ? "Επαναφορά..." : "Επαναφορή από αντιγράφου"}
+            {busy === "restore" ? "Επαναφορά..." : "Επαναφορά από αντίγραφο"}
           </button>
 
           {/* Independent of the backup/restore pair: checking for an update
@@ -178,8 +181,21 @@ export function FileMenu({
           >
             {checkingUpdates ? "Έλεγχος..." : "Έλεγχος ενημερώσεων"}
           </button>
+
+          <div className="file-menu-separator" role="separator" />
+
+          <button
+            className="file-menu-item"
+            role="menuitem"
+            title="Πληροφορίες έκδοσης, ενημερώσεων, βάσης και αντιγράφων ασφαλείας"
+            onClick={() => run(() => setAboutOpen(true))}
+          >
+            Πληροφορίες εφαρμογής
+          </button>
         </div>
       )}
+
+      {aboutOpen && <AboutDialog lastUpdateAt={lastUpdateAt} onClose={() => setAboutOpen(false)} />}
     </div>
   );
 }

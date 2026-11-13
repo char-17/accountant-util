@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { Client } from "../domain/types";
 import * as clientRepo from "../persistence/clientRepo";
 import { greekIncludes } from "../utils/greek";
@@ -28,7 +28,7 @@ export function useClients(db: Database | null) {
   }, [db]);
 
   useEffect(() => {
-    loadClients();
+    void loadClients();
   }, [loadClients]);
 
   // The name is the only thing matched on. It used to also match the email and

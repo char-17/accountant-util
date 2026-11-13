@@ -1,0 +1,138 @@
+// Runs every check in one command: types, lint, architecture audit, and the
+// behavioural tests. Prints a summary and exits non-zero if anything failed.
+//
+// `--ci` drops the tests that read the live development database, which no
+// runner has. See LIVE_DB below for why, and which ones they are.
+const { spawnSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
+
+const root = path.resolve(__dirname, '..');
+const verifyDir = path.join(root, 'scripts', 'verify');
+const auditDir = path.join(root, 'scripts', 'audit');
+
+// Verify scripts, in the order they build on each other.
+const VERIFY = [
+  'verify-notifications.mjs',
+  'verify-recurrence.mjs',
+  'verify-seed.cjs',
+  'verify-seed-period.cjs',
+  'verify-profession-seed.cjs',
+  'verify-greek-search.cjs',
+  'verify-name-uniqueness.cjs',
+  'verify-duplicates.cjs',
+  'verify-worklist-filters.cjs',
+  'verify-export-report.cjs',
+  'verify-backup-restore.cjs',
+  'verify-auto-backup.cjs',
+  'verify-ui-render.cjs',
+  'verify-ui-interaction.cjs',
+  'verify-auto-update.cjs',
+  'verify-periodicity.cjs',
+  'verify-fix.cjs',
+  'verify-startdate-fix.cjs',
+  'verify-client-crud.cjs',
+  'verify-mutations.cjs',
+  'verify-e2e-assignment.cjs',
+  'verify-confirm-toggle.cjs',
+  'verify-money.cjs',
+  'verify-report.cjs',
+  'verify-payment.cjs',
+];
+
+// Scripts that read the live development database through lib/dbPath.cjs.
+// There is no such database on a CI runner and no application to create one,
+// so `npm run verify -- --ci` skips them rather than failing on an absent
+// file. They are the ones that catch a regression against real client data,
+// so the local run - which is where they are meant to be used - runs
+// everything.
+const LIVE_DB = new Set([
+  'verify-client-crud.cjs',
+  'verify-fix.cjs',
+  'verify-greek-search.cjs',
+  'verify-mutations.cjs',
+  'verify-name-uniqueness.cjs',
+  'verify-periodicity.cjs',
+  'verify-profession-seed.cjs',
+]);
+
+const ciOnly = process.argv.includes('--ci');
+
+// Scripts that inspect the code instead of running it; they are audits, and one
+// of them deliberately reproduces a bug, so its "failure" is the expected pass.
+const AUDIT = ['audit-refresh.cjs', 'audit-contrast.cjs', 'audit-style.cjs', 'audit-tauri-acl.cjs', 'audit-tauri-commands.cjs', 'audit-config.cjs'];
+
+
+
+const results = [];
+
+function run(label, command, args) {
+  const started = Date.now();
+  const proc = spawnSync(command, args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  });
+  const ms = Date.now() - started;
+  const ok = proc.status === 0;
+  results.push({ label, ok, ms, out: `${proc.stdout || ''}${proc.stderr || ''}` });
+  return ok;
+}
+
+// TypeScript and ESLint are checked first: a type error makes every behavioural
+// test meaningless, and it is cheaper to find it here.
+run('typecheck', 'npx', ['tsc', '--noEmit']);
+run('lint', 'npx', ['eslint', 'src']);
+
+for (const script of AUDIT) {
+  if (fs.existsSync(path.join(auditDir, script))) run(script, 'node', [path.join(auditDir, script)]);
+}
+
+// The file handling behind the backups lives in Rust, where no frontend test
+// can reach it: the ACL gives the window `fs:allow-write-text-file` and
+// nothing else, so whether a snapshot replaced yesterday's or destroyed it is
+// simply not observable from JavaScript. Those are the assertions worth the
+// cost - `promote` refusing to run with nothing staged is the difference
+// between a subsystem that fails and one that deletes.
+//
+// Cargo is required to build this project at all, and the release workflow
+// installs the toolchain before this runs, so an absent cargo is not a case
+// worth handling. The first run compiles the test profile; after that it is a
+// few seconds, and `cargo test` shares nothing with the release profile the
+// build uses, so neither invalidates the other.
+run('cargo test', 'cargo', ['test', '--lib', '--manifest-path', 'src-tauri/Cargo.toml']);
+
+const skipped = [];
+for (const script of VERIFY) {
+  if (!fs.existsSync(path.join(verifyDir, script))) continue;
+  if (ciOnly && LIVE_DB.has(script)) {
+    skipped.push(script);
+    continue;
+  }
+  run(script, 'node', [path.join(verifyDir, script)]);
+}
+
+const failed = results.filter((r) => !r.ok);
+
+console.log('\n' + '='.repeat(64));
+for (const r of results) {
+  const mark = r.ok ? 'PASS' : 'FAIL';
+  const time = r.ms >= 1000 ? `${(r.ms / 1000).toFixed(1)}s` : `${r.ms}ms`;
+  console.log(`  ${mark}  ${r.label.padEnd(28)} ${time.padStart(7)}`);
+}
+if (skipped.length > 0) {
+  console.log(`  --  ${'skipped, needs live db'.padEnd(28)} ${String(skipped.length).padStart(7)}`);
+}
+console.log('='.repeat(64));
+
+if (failed.length > 0) {
+  console.log(`\n${failed.length} check(s) failed. Output:\n`);
+  for (const f of failed) {
+    console.log(`--- ${f.label} ---`);
+    console.log(f.out.split('\n').slice(-25).join('\n'));
+    console.log('');
+  }
+  process.exit(1);
+}
+
+console.log(`\nAll ${results.length} checks passed.`);

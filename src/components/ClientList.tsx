@@ -70,7 +70,6 @@ export function ClientList({
             role="dialog"
             aria-modal="true"
             aria-label="Νέος πελάτης"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3>Νέος πελάτης</h3>
             <ClientForm
@@ -98,7 +97,8 @@ export function ClientList({
         ) : (
           clients.map((client) => (
             // Double click opens the full tab; single click just previews.
-            <div
+            <button
+              type="button"
               key={client.id}
               className={`client-item ${selectedClientId === client.id ? "selected" : ""}`}
               onClick={() => onSelectClient(client.id)}
@@ -106,7 +106,7 @@ export function ClientList({
               title="Άνοιγμα καρτέλας με διπλό κλικ"
             >
               <span className="client-name">{client.name}</span>
-            </div>
+            </button>
           ))
         )}
       </div>

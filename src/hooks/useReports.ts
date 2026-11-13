@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { ReportClientGroup, ReportPeriod } from "../domain/types";
 import { buildReport, monthsInRange, rangeForPeriod } from "../domain/report";
 import * as statusRepo from "../persistence/statusRepo";

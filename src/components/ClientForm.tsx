@@ -274,7 +274,7 @@ export function ClientForm({
             {professions.length === 0 && (
               <span className="form-hint">
                 Δεν έχουν καταχωρηθεί επαγγέλματα. Προσθέστε τα από την καρτέλα
-                «Επαγγέλμα».
+                «Επαγγέλματα».
               </span>
             )}
           </div>

@@ -79,13 +79,12 @@ export function UpdateDialog({ update, onInstalled }: UpdateDialogProps) {
   return (
     <div
       className="modal-backdrop"
-      onClick={
-        installing
-          ? undefined
-          : asking
-            ? decline
-            : dismiss
-      }
+      role="presentation"
+      onClick={(event) => {
+        if (event.target !== event.currentTarget || installing) return;
+        if (asking) decline();
+        else dismiss();
+      }}
     >
       <div
         className="modal update-modal"
@@ -93,7 +92,6 @@ export function UpdateDialog({ update, onInstalled }: UpdateDialogProps) {
         role="dialog"
         aria-modal="true"
         aria-label="Διαθέσιμη ενημέρωση"
-        onClick={(e) => e.stopPropagation()}
       >
         {asking ? (
           <>
@@ -133,8 +131,8 @@ export function UpdateDialog({ update, onInstalled }: UpdateDialogProps) {
                 itself once the download finishes. Saying so beforehand is the
                 difference between an expected restart and a crash. */}
             <div className="modal-warning">
-              Η ενημέρωση θα κλείσει το πρόγραμμα και θα το εγκαταστήσει. Ανοίξτε το
-              ξανά όταν τελειώσει.
+              Η ενημέρωση θα κλείσει προσωρινά το πρόγραμμα και θα το ανοίξει ξανά
+              αυτόματα όταν ολοκληρωθεί.
             </div>
 
             {installing && (

@@ -247,7 +247,8 @@ export function MonthlyWorklist({
       {pending && (
         <div
           className="modal-backdrop"
-          onClick={() => !saving && setPending(null)}
+          role="presentation"
+          onClick={(event) => event.target === event.currentTarget && !saving && setPending(null)}
         >
           <div
             className="modal"
@@ -255,7 +256,6 @@ export function MonthlyWorklist({
             role="dialog"
             aria-modal="true"
             aria-labelledby="worklist-confirm-title"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3 id="worklist-confirm-title">
               {pending.completed ? "Επιβεβαίωση ολοκλήρωσης" : "Επιβεβαίωση αλλαγής"}

@@ -8,7 +8,7 @@ export function describeDeadlineWithDistance(deadline: Deadline, today: Date): s
   if (deadline.daysUntilDue < 0) return describeDeadline(deadline);
 
   const from = startOfDay(today);
-  const to = startOfDay(new Date(deadline.dueOn + "T00:00:00"));
+  const to = startOfDay(new Date(`${deadline.dueOn  }T00:00:00`));
   let months = (to.getFullYear() - from.getFullYear()) * 12 + to.getMonth() - from.getMonth();
   let anchor = addCalendarMonths(from, months);
   if (anchor > to) {

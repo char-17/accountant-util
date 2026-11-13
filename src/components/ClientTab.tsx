@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import Database from "@tauri-apps/plugin-sql";
-import type { Client, TaskType, Profession } from "../domain/types";
+import type Database from "@tauri-apps/plugin-sql";
+import type { Client, TaskType, Profession, Periodicity } from "../domain/types";
 import * as assignmentRepo from "../persistence/assignmentRepo";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
 import type { ClientInput } from "../hooks/useClients";
-import type { Periodicity } from "../domain/types";
 import { DUE_DAY_MIN, DUE_DAY_MAX, REMINDER_DAYS_MIN, REMINDER_DAYS_MAX } from "../domain/appConfig";
 import {
   PERIODICITY_LABELS,
@@ -386,14 +385,13 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
           so the dialog spells out that the history stays and only the
           recurring job and its reminders go. */}
       {assignmentPendingDelete && (
-        <div className="modal-backdrop" onClick={() => !deletingAssignment && setAssignmentPendingDelete(null)}>
+        <div className="modal-backdrop" role="presentation" onClick={(event) => event.target === event.currentTarget && !deletingAssignment && setAssignmentPendingDelete(null)}>
           <div
             className="modal"
             ref={assignmentDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Αφαίρεση εργασίας"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3>Αφαίρεση εργασίας</h3>
             <p>
@@ -442,14 +440,13 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
       )}
 
       {confirmClose && (
-        <div className="modal-backdrop" onClick={() => setConfirmClose(false)}>
+        <div className="modal-backdrop" role="presentation" onClick={(event) => event.target === event.currentTarget && setConfirmClose(false)}>
           <div
             className="modal"
             ref={closeDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Μη αποθηκευμένες αλλαγές"
-            onClick={(e) => e.stopPropagation()}
           >
             <h3>Μη αποθηκευμένες αλλαγές</h3>
             <p>Έχετε αλλαγές που δεν έχουν αποθηκευτεί. Θέλετε να φύγετε χωρίς αποθήκευση;</p>

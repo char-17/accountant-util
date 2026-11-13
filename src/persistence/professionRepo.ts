@@ -1,4 +1,4 @@
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { Profession } from "../domain/types";
 import { getAvailableColor } from "../utils/colors";
 import { foldGreek } from "../utils/greek";

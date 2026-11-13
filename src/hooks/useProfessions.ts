@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import Database from "@tauri-apps/plugin-sql";
+import type Database from "@tauri-apps/plugin-sql";
 import type { Profession } from "../domain/types";
 import * as professionRepo from "../persistence/professionRepo";
 import { getAvailableColor } from "../utils/colors";

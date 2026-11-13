@@ -9,9 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "verify": "node run-verify.cjs",
-    "verify:ci": "node run-verify.cjs --ci",
-    "audit": "node audit-style.cjs"
+    "verify": "node scripts/run-verify.cjs",
+    "verify:ci": "node scripts/run-verify.cjs --ci",
+    "audit": "node scripts/audit/audit-style.cjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
@@ -33,6 +33,8 @@
     "better-sqlite3": "^13.0.3",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.13.0",
     "jsdom": "^30.1.2",

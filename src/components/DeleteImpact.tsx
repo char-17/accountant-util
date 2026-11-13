@@ -52,7 +52,7 @@ export function DeleteImpact({ clients: clientCount, history }: DeleteImpactProp
           )}
           {historyCount > 0 && (
             <span>
-              Θα χαθούν <strong>{months(historyCount)}</strong> που το κατατάθηκαν σε
+              Θα χαθούν <strong>{months(historyCount)}</strong> που καταγράφηκαν σε
               αυτό, μαζί με το ιστορικό τους.
             </span>
           )}
