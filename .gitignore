@@ -57,6 +57,9 @@ dist-ssr
 # Βάση δεδομένων. Η πραγματική βάση της εφαρμογής είναι στο %APPDATA%, αλλά
 # ένα αντίγραφο μένει στο src-tauri κατά τα dev runs. Βλ. lib/dbPath.cjs.
 *.db
+
+# Local Tauri updater signing material; never commit private keys.
+.tauri/
 *.db-wal
 *.db-shm
 *.sqlite
