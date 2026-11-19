@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { MonthlySummary } from "../domain/types";
 import { STATUS_FILTER_LABELS, type WorklistFilters } from "../domain/worklist";
+import { HeaderMenu } from "./HeaderMenu";
 import { AboutDialog } from "./AboutDialog";
 import type { BackupArea } from "../persistence/backupArea";
 
@@ -63,57 +64,15 @@ export function FileMenu({
   lastUpdateAt,
   backupArea,
 }: FileMenuProps) {
-  const [open, setOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // A menu that stays open behind a dialog, or after the user clicks away, is
-  // worse than no menu. Click-outside and Escape both close it, and Escape
-  // returns focus to the trigger so the keyboard does not lose its place.
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      rootRef.current?.querySelector("button")?.focus();
-    };
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   const scope = describeScope(filters, clientOptions, taskOptions);
   const nothingToExport = summary.totalTasks === 0;
   const disabled = busy !== null;
 
-  const run = (fn: () => void) => {
-    setOpen(false);
-    fn();
-  };
-
   return (
-    <div className="file-menu" ref={rootRef}>
-      <button
-        className={`file-menu-trigger ${open ? "active" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="true"
-        aria-controls="file-menu-list"
-      >
-        Αρχείο
-        <span className="file-menu-caret" aria-hidden="true">
-          ▾
-        </span>
-      </button>
-
-      {open && (
-        <div className="file-menu-list" id="file-menu-list" role="menu">
+    <>
+      <HeaderMenu label="Αρχείο" id="file-menu-list">{(run) => (
+        <>
           {/* The count and the active filters used to head this menu. Removed:
               the worklist already states both above it - "4 από 12 εργασίες" on
               the filter row, and the pickers that produced the number - so
@@ -195,8 +154,8 @@ export function FileMenu({
           >
             Πληροφορίες εφαρμογής
           </button>
-        </div>
-      )}
+        </>
+      )}</HeaderMenu>
 
       {aboutOpen && (
         <AboutDialog
@@ -205,6 +164,6 @@ export function FileMenu({
           onClose={() => setAboutOpen(false)}
         />
       )}
-    </div>
+    </>
   );
 }

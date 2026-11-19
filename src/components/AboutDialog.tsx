@@ -50,7 +50,7 @@ export function AboutDialog({ lastUpdateAt, backupArea, onClose }: AboutDialogPr
           <div className="about-detail-row">
             <dt>Έλεγχος ενημερώσεων</dt>
             <dd>
-              Ο έλεγχος εκτελείται αυτόματα κατά την εκκίνηση και μπορεί να εκτελεστεί
+                Ο έλεγχος εκτελείται κατά την εκκίνηση, κάθε λεπτό όσο η εφαρμογή είναι ανοιχτή και
               χειροκίνητα από το Αρχείο → Έλεγχος ενημερώσεων.
             </dd>
           </div>

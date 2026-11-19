@@ -13,6 +13,7 @@ export type UpdateProgressEvent =
 /** The slice of an `Update` handle this hook uses. Structural, so a test can
  *  pass a plain object instead of a real plugin instance. */
 export interface UpdateHandle {
+  close?: () => Promise<void>;
   version: string;
   date?: Date | string | null;
   body?: string | null;
@@ -65,6 +66,7 @@ export type InstallResult =
  * is here so nothing has to be guessed from state that is a render behind.
  */
 export type CheckResult =
+  | { status: "dismissed" }
   | { status: "update"; update: UpdateHandle }
   | { status: "up_to_date" }
   /** The plugin is not present - a dev server, or the jsdom tests. */
@@ -158,6 +160,8 @@ export function useAutoUpdate(deps?: {
   // both report, and the second would replace a handle the user already said
   // yes to with a fresh one that has not been downloaded.
   const inFlight = useRef(false);
+  const offered = useRef<UpdateHandle | null>(null);
+  const dismissedVersion = useRef<string | null>(null);
   const depsRef = useRef(deps);
   depsRef.current = deps;
 
@@ -186,13 +190,16 @@ export function useAutoUpdate(deps?: {
   const check = useCallback(
     async (options?: { manual?: boolean }): Promise<CheckResult> => {
       const manual = options?.manual ?? false;
+      if (offered.current) return { status: "update", update: offered.current };
       if (inFlight.current) return { status: "busy" };
+      inFlight.current = true;
 
       setPhase("checking");
       setError(null);
 
       const updater = await resolveUpdater();
       if (!updater) {
+        inFlight.current = false;
         // No plugin: not a failure the user caused, so only the click that
         // asked for it gets an answer.
         setPhase("idle");
@@ -201,10 +208,15 @@ export function useAutoUpdate(deps?: {
       }
       setAvailable(true);
 
-      inFlight.current = true;
       try {
-        const found = await updater.check();
+        const found = await updater.check({ timeout: 15000 });
         if (found) {
+          if (!manual && dismissedVersion.current === found.version) {
+            await found.close?.();
+            setPhase("idle");
+            return { status: "dismissed" };
+          }
+          offered.current = found;
           setUpdate(found);
           setPhase("ready");
           void write("info", `Βρέθηκε διαθέσιμη ενημέρωση: ${found.version}`);
@@ -226,6 +238,12 @@ export function useAutoUpdate(deps?: {
   );
 
   const dismiss = useCallback(() => {
+    const current = offered.current;
+    if (current) {
+      dismissedVersion.current = current.version;
+      offered.current = null;
+      void current.close?.().catch(() => {});
+    }
     setUpdate(null);
     setError(null);
     setPhase("idle");

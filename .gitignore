@@ -38,6 +38,7 @@ dist-ssr
 # επέκταση μόνο γνωρίζει τα είδη που θυμόμαστε.
 /*/
 !/.github/
+/.github/release/target/
 !/.opencode/
 !/.vscode/
 !/docs/

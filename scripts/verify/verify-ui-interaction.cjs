@@ -45,6 +45,7 @@ fs.writeFileSync(
 export { WorklistFiltersBar } from "./src/components/WorklistFiltersBar";
 export { MonthlyWorklist } from "./src/components/MonthlyWorklist";
 export { FileMenu } from "./src/components/FileMenu";
+export { SettingsMenu } from "./src/components/SettingsMenu";
 export { TaskCatalog } from "./src/components/TaskCatalog";
 export { ClientList } from "./src/components/ClientList";
 export { ClientForm } from "./src/components/ClientForm";
@@ -54,6 +55,7 @@ export { ReportsView } from "./src/components/ReportsView";
 export { CloseGuard } from "./src/components/CloseGuard";
 export { ClientTab } from "./src/components/ClientTab";
 export { MonthlySummary } from "./src/components/MonthlySummary";
+export { Reminders } from "./src/components/Reminders";
 export { DEFAULT_FILTERS, applyFilters } from "./src/domain/worklist";
 `,
   'utf8'
@@ -143,6 +145,32 @@ const statuses = [
 const noop = () => Promise.resolve();
 
 async function main() {
+
+console.log('Windows notification settings');
+{
+  const choices = [];
+  function SettingsHarness() {
+    const [enabled, setEnabled] = React.useState(false);
+    return React.createElement(ui.SettingsMenu, {
+      enabled, onChange: async (value) => { choices.push(value); setEnabled(value); },
+    });
+  }
+  const view = mount(React.createElement(SettingsHarness));
+  const openSettings = () => click(byText('Ρυθμίσεις'));
+  const item = () => view.el.querySelector('[role="menuitemcheckbox"]');
+  openSettings();
+  check('menu shows notifications are off', item()?.getAttribute('aria-checked') === 'false');
+  click(item());
+  check('settings explains when Windows shows reminders', text().includes('Όσο η εφαρμογή είναι ανοιχτή'));
+  await act(async () => { byText('Ναι').click(); });
+  openSettings();
+  check('Yes enables notifications', choices[0] === true && item()?.getAttribute('aria-checked') === 'true');
+  click(item());
+  await act(async () => { byText('Όχι').click(); });
+  openSettings();
+  check('No disables notifications', choices[1] === false && item()?.getAttribute('aria-checked') === 'false');
+  view.cleanup();
+}
 
 console.log('1) the status filter toggles exactly one option at a time');
 {
@@ -707,6 +735,68 @@ console.log('\n12f) the month summary reads as two rows of two, in order');
     /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/.test(m?.[1] || ''),
     `- got: ${(m?.[1] || '').trim().replace(/\s+/g, ' ')}`);
 
+  view.cleanup();
+}
+
+console.log('\n12f.1) reference panels start folded below the worklist heading');
+{
+  const selected = [];
+  const overview = React.createElement('div', { className: 'worklist-overview' },
+    React.createElement(ui.MonthlySummary, {
+      summary: {
+        year: 2026, month: 10, totalClients: 1, totalTasks: 3, completedTasks: 1, pendingTasks: 2,
+        clientProgress: [{ clientId: 10, clientName: 'ΠΕΛΑΤΗΣ', totalTasks: 3, completedTasks: 1 }],
+      },
+      year: 2026, month: 10, collapsible: true, collapsibleProgress: true,
+      onSelectClient: id => selected.push(id),
+    }),
+    React.createElement(ui.Reminders, {
+      assignments: [], completedKeys: new Set(), collapsible: true, onFocusClient: noop,
+    })
+  );
+  const props = {
+    statuses, totalCount: 3, filters: ui.DEFAULT_FILTERS, isFiltered: false,
+    onFilterStatusChange: noop, onFilterReset: noop,
+    onFilterClientSelect: noop, onFilterTaskSelect: noop,
+    clientOptions: [], taskOptions: [], year: 2026, month: 10,
+    onToggle: noop, onSelectClient: noop, onOpenClient: noop,
+    onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop, overview,
+  };
+  const view = mount(React.createElement(ui.MonthlyWorklist, props));
+  const header = view.el.querySelector('.worklist-sticky-header');
+  check('panels immediately follow the worklist title',
+    header.querySelector(':scope > .section-heading').nextElementSibling.classList.contains('worklist-overview'));
+  check('panels precede filters and tasks',
+    header.querySelector('.worklist-overview').nextElementSibling.classList.contains('worklist-filters'));
+  const summary = view.el.querySelector('.monthly-summary-toggle');
+  const progress = view.el.querySelector('.responsive-client-progress .client-progress-toggle');
+  const reminders = view.el.querySelector('.reminders-toggle');
+  const summaryBody = document.getElementById(summary.getAttribute('aria-controls'));
+  const progressBody = document.getElementById(progress.getAttribute('aria-controls'));
+  const remindersBody = document.getElementById(reminders.getAttribute('aria-controls'));
+  check('both panels start collapsed, with their entire bodies hidden',
+    summary.getAttribute('aria-expanded') === 'false' && summaryBody.hidden &&
+    progress.getAttribute('aria-expanded') === 'false' && progressBody.hidden &&
+    reminders.getAttribute('aria-expanded') === 'false' && remindersBody.hidden);
+  check('totals belong to their own collapsible body', Boolean(summaryBody.querySelector('.summary-stats')));
+  click(summary);
+  check('opening monthly summary leaves client progress folded',
+    !summaryBody.hidden && progressBody.hidden && remindersBody.hidden);
+  click(progress);
+  check('opening progress reveals totals and client rows',
+    !progressBody.hidden && Boolean(progressBody.querySelector('.client-progress-client-button')));
+  click(view.el.querySelector('.client-progress-client-button'));
+  checkEq('client selection still works', selected[0], 10);
+  check('opening progress leaves notifications closed', remindersBody.hidden);
+  click(reminders);
+  check('notifications reveal settings and the empty state',
+    !remindersBody.hidden && remindersBody.textContent.includes('Δεν υπάρχουν εκκρεμείς ειδοποιήσεις'));
+  click(progress);
+  click(reminders);
+  check('closing both panels hides their entire content again', progressBody.hidden && remindersBody.hidden);
+  view.rerender(React.createElement(ui.MonthlyWorklist, { ...props, statuses: [], totalCount: 0 }));
+  check('the empty month still shows all three separate panels below its title',
+    view.el.querySelectorAll('.worklist-overview .overview-panel-toggle').length === 3);
   view.cleanup();
 }
 

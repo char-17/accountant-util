@@ -19,6 +19,7 @@ import {
  */
 export function useDesktopNotifications(enabled: boolean) {
   const [permission, setPermission] = useState<"granted" | "denied" | "default">("default");
+  const permissionRequested = useRef(false);
   const notified = useRef<NotificationDeduper | null>(null);
   if (notified.current === null) {
     notified.current = new NotificationDeduper(getNotificationStorage());
@@ -29,10 +30,10 @@ export function useDesktopNotifications(enabled: boolean) {
     void (async () => {
       try {
         const granted = await isPermissionGranted();
-        if (!cancelled) setPermission(granted ? "granted" : "default");
+        if (!cancelled && !permissionRequested.current) setPermission(granted ? "granted" : "default");
       } catch {
         // Plugin unavailable (e.g. unsupported platform) - stay silent.
-        if (!cancelled) setPermission("denied");
+        if (!cancelled && !permissionRequested.current) setPermission("denied");
       }
     })();
     return () => {
@@ -41,6 +42,7 @@ export function useDesktopNotifications(enabled: boolean) {
   }, []);
 
   const askForPermission = useCallback(async () => {
+    permissionRequested.current = true;
     try {
       const result = await requestPermission();
       setPermission(result);

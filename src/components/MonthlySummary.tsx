@@ -1,25 +1,30 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { MonthlySummary as MonthlySummaryType } from "../domain/types";
 
 interface MonthlySummaryProps {
+  /** Makes the monthly totals collapsible on narrow layouts. */
+  collapsible?: boolean;
+  /** Separates progress into its own collapsible panel. */
+  collapsibleProgress?: boolean;
   summary: MonthlySummaryType | null;
   year: number;
   month: number;
-  /** True when the summary covers a filtered subset, so the numbers are labelled. */
   isFiltered?: boolean;
-  /** Unfiltered totals, kept for the "x hidden" note. */
   totalTasks?: number;
-  /** Selects the same client as clicking the name in the central worklist. */
   onSelectClient?: (clientId: number) => void;
-  /**
-   * Whether the per-client progress list is open. Starts closed: with 44 clients
-   * the list is long enough to push the worklist out of view, and the totals
-   * above it already answer "how is the month going".
-   */
   defaultExpanded?: boolean;
 }
 
+interface ClientProgressProps {
+  summary: MonthlySummaryType;
+  collapsible: boolean;
+  defaultExpanded?: boolean;
+  onSelectClient?: (clientId: number) => void;
+}
+
 export function MonthlySummary({
+  collapsible = false,
+  collapsibleProgress = false,
   summary,
   isFiltered,
   totalTasks,
@@ -27,99 +32,172 @@ export function MonthlySummary({
   defaultExpanded = false,
 }: MonthlySummaryProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const contentId = useId();
 
   if (!summary) {
     return <div className="summary-empty">Επιλέξτε μήνα για σύνοψη</div>;
   }
 
+  if (!collapsible && summary.clientProgress.length > 0) {
+    return (
+      <>
+        <MonthlyTotals
+          summary={summary}
+          isFiltered={isFiltered}
+          totalTasks={totalTasks}
+        />
+        <ClientProgress
+          summary={summary}
+          collapsible={collapsibleProgress}
+          defaultExpanded={defaultExpanded}
+          onSelectClient={onSelectClient}
+        />
+      </>
+    );
+  }
+
   const completionRate = summary.totalTasks > 0
     ? Math.round((summary.completedTasks / summary.totalTasks) * 100)
     : 0;
-
   const hidden = isFiltered ? (totalTasks ?? summary.totalTasks) - summary.totalTasks : 0;
 
-  return (
-    <>
-      <div className="monthly-summary">
-      {/* Two rows of two: the row reads across as a pair, so the top row is
-          the two counts that answer "how big is this month and how much is
-          left" (clients, pending) and the bottom row is the arithmetic behind
-          them (tasks, completed). In one row of four the numbers were too
-          narrow for "Εργασίες (φίλτρο)" and too close together to compare. */}
+  const totals = (
+    <div className="monthly-summary">
       <div className="summary-stats">
-        <div className="stat">
-          <span className="stat-value">{summary.totalClients}</span>
-          <span className="stat-label">Πελάτες</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value pending">{summary.pendingTasks}</span>
-          <span className="stat-label">Εκκρεμείς</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value">{summary.totalTasks}</span>
-          <span className="stat-label">{isFiltered ? "Εργασίες (φίλτρο)" : "Εργασίες"}</span>
-        </div>
-        <div className="stat">
-          <span className="stat-value completed">{summary.completedTasks}</span>
-          <span className="stat-label">Ολοκληρωμένες</span>
-        </div>
+        <div className="stat"><span className="stat-value">{summary.totalClients}</span><span className="stat-label">Πελάτες</span></div>
+        <div className="stat"><span className="stat-value pending">{summary.pendingTasks}</span><span className="stat-label">Εκκρεμείς</span></div>
+        <div className="stat"><span className="stat-value">{summary.totalTasks}</span><span className="stat-label">{isFiltered ? "Εργασίες (φίλτρο)" : "Εργασίες"}</span></div>
+        <div className="stat"><span className="stat-value completed">{summary.completedTasks}</span><span className="stat-label">Ολοκληρωμένες</span></div>
       </div>
-
       <div className="progress-bar">
         <div className="progress-fill" style={{ width: `${completionRate}%` }} />
         <span className="progress-text">{completionRate}%</span>
       </div>
+      {hidden > 0 && <p className="summary-filtered-note">{hidden} εργασίες αποκρύπτονται από τα φίλτρα.</p>}
+    </div>
+  );
 
-      {hidden > 0 && (
-        <p className="summary-filtered-note">
-          {hidden} εργασίες αποκρύπτονται από τα φίλτρα.
-        </p>
-      )}
+  if (collapsible) {
+    return (
+      <>
+        <section className="monthly-summary-panel">
+          <h3 className="overview-panel-heading">
+            <button
+              type="button"
+              className="overview-panel-toggle monthly-summary-toggle"
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+              aria-controls={contentId}
+            >
+              <span className="section-heading">Σύνοψη μήνα</span>
+              <span aria-hidden="true" className="report-caret">{expanded ? "▾" : "▸"}</span>
+            </button>
+          </h3>
+          <div id={contentId} hidden={!expanded}>{totals}</div>
+        </section>
+        <ClientProgress
+          summary={summary}
+          collapsible={collapsibleProgress}
+          defaultExpanded={defaultExpanded}
+          onSelectClient={onSelectClient}
+        />
+      </>
+    );
+  }
+
+  return totals;
+}
+
+function MonthlyTotals({
+  summary,
+  isFiltered,
+  totalTasks,
+}: Pick<MonthlySummaryProps, "summary" | "isFiltered" | "totalTasks">) {
+  if (!summary) return null;
+  const completionRate = summary.totalTasks > 0
+    ? Math.round((summary.completedTasks / summary.totalTasks) * 100)
+    : 0;
+  const hidden = isFiltered ? (totalTasks ?? summary.totalTasks) - summary.totalTasks : 0;
+
+  return (
+    <div className="monthly-summary">
+      <div className="summary-stats">
+        <div className="stat"><span className="stat-value">{summary.totalClients}</span><span className="stat-label">Πελάτες</span></div>
+        <div className="stat"><span className="stat-value pending">{summary.pendingTasks}</span><span className="stat-label">Εκκρεμείς</span></div>
+        <div className="stat"><span className="stat-value">{summary.totalTasks}</span><span className="stat-label">{isFiltered ? "Εργασίες (φίλτρο)" : "Εργασίες"}</span></div>
+        <div className="stat"><span className="stat-value completed">{summary.completedTasks}</span><span className="stat-label">Ολοκληρωμένες</span></div>
       </div>
+      <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${completionRate}%` }} />
+        <span className="progress-text">{completionRate}%</span>
+      </div>
+      {hidden > 0 && <p className="summary-filtered-note">{hidden} εργασίες αποκρύπτονται από τα φίλτρα.</p>}
+    </div>
+  );
+}
 
-      {summary.clientProgress.length > 0 && (
-        <div className="client-progress-panel">
-          <div className="client-progress-list">
+function ClientProgress({ summary, collapsible, defaultExpanded, onSelectClient }: ClientProgressProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const contentId = useId();
+  const items = (
+    <div className="client-progress-items">
+      {summary.clientProgress.map((client) => (
+        <div key={client.clientId} className="client-progress-item">
           <button
-            className="client-progress-toggle"
-            onClick={() => setExpanded((v) => !v)}
+            type="button"
+            className="client-name client-progress-client-button"
+            onClick={() => onSelectClient?.(client.clientId)}
+          >
+            {client.clientName}
+          </button>
+          <div className="mini-progress">
+            <div
+              className="mini-progress-fill"
+              style={{ width: `${client.totalTasks > 0 ? client.completedTasks / client.totalTasks * 100 : 0}%` }}
+            />
+          </div>
+          <span className="progress-label">{client.completedTasks}/{client.totalTasks}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (collapsible) {
+    return (
+      <section className="client-progress-panel responsive-client-progress">
+        <h3 className="overview-panel-heading">
+          <button
+            type="button"
+            className="overview-panel-toggle client-progress-toggle"
+            onClick={() => setExpanded((value) => !value)}
             aria-expanded={expanded}
+            aria-controls={contentId}
           >
             <span className="section-heading">Πρόοδος ανά πελάτη</span>
-            <span aria-hidden="true" className="report-caret">
-              {expanded ? "▾" : "▸"}
-            </span>
+            <span aria-hidden="true" className="report-caret">{expanded ? "▾" : "▸"}</span>
           </button>
-
-          {expanded && (
-            <div className="client-progress-items">
-              {summary.clientProgress.map((cp) => (
-                <div key={cp.clientId} className="client-progress-item">
-                  <button
-                    type="button"
-                    className="client-name client-progress-client-button"
-                    onClick={() => onSelectClient?.(cp.clientId)}
-                  >
-                    {cp.clientName}
-                  </button>
-                  <div className="mini-progress">
-                    <div
-                      className="mini-progress-fill"
-                      style={{
-                        width: `${cp.totalTasks > 0 ? (cp.completedTasks / cp.totalTasks) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="progress-label">
-                    {cp.completedTasks}/{cp.totalTasks}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          </div>
+        </h3>
+        <div id={contentId} hidden={!expanded}>
+          <div className="client-progress-list">{expanded ? items : null}</div>
         </div>
-      )}
-    </>
+      </section>
+    );
+  }
+
+  return (
+    <div className="client-progress-panel">
+      <div className="client-progress-list">
+        <button
+          className="client-progress-toggle"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          aria-controls={contentId}
+        >
+          <span className="section-heading">Πρόοδος ανά πελάτη</span>
+          <span aria-hidden="true" className="report-caret">{expanded ? "▾" : "▸"}</span>
+        </button>
+        <div id={contentId} hidden={!expanded}>{expanded ? items : null}</div>
+      </div>
+    </div>
   );
 }

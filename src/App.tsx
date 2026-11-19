@@ -15,6 +15,7 @@ import { ClientTab } from "./components/ClientTab";
 import { TaskCatalog } from "./components/TaskCatalog";
 import { ProfessionCatalog } from "./components/ProfessionCatalog";
 import { FileMenu } from "./components/FileMenu";
+import { SettingsMenu } from "./components/SettingsMenu";
 import { Reminders } from "./components/Reminders";
 import { MonthlyWorklist } from "./components/MonthlyWorklist";
 import { ReportsView } from "./components/ReportsView";
@@ -31,12 +32,14 @@ import { useDesktopNotifications } from "./hooks/useDesktopNotifications";
 import { recordVersionLaunch } from "./appInfo";
 import { currentDeadline } from "./domain/recurrence";
 import { getReminderCandidates } from "./domain/notifications";
-import { HIGHLIGHT_PULSE_MS, UPDATE_CHECK_DELAY_MS } from "./domain/appConfig";
+import { HIGHLIGHT_PULSE_MS, UPDATE_CHECK_DELAY_MS, UPDATE_POLL_INTERVAL_MS } from "./domain/appConfig";
 import "./App.css";
 
 type View = "dashboard" | "tasks" | "professions" | "reports";
 
 type NavIconName = "home" | "tasks" | "professions" | "reports";
+
+const COMPACT_SIDEBAR_QUERY = "(max-width: 1100px)";
 
 function NavIcon({ name }: { name: NavIconName }) {
   return (
@@ -74,6 +77,8 @@ function NavIcon({ name }: { name: NavIconName }) {
   );
 }
 
+const DESKTOP_NOTIFICATIONS_PREFERENCE = "accountant-util.desktop-notifications-enabled";
+
 function App() {
   const {
     db,
@@ -86,7 +91,46 @@ function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [activeView, setActiveView] = useState<View>("dashboard");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [compactLayout, setCompactLayout] = useState(
+    () => window.matchMedia("(max-width: 1250px)").matches
+  );
+  const [compactSidebarLayout, setCompactSidebarLayout] = useState(
+    () => window.matchMedia(COMPACT_SIDEBAR_QUERY).matches
+  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem("accountant-sidebar-collapsed") === "true"
+  );
+  const [compactSidebarOverride, setCompactSidebarOverride] = useState<boolean | null>(null);
+
+  const effectiveSidebarCollapsed = compactSidebarLayout
+    ? compactSidebarOverride ?? true
+    : sidebarCollapsed;
+
+  useEffect(() => {
+    const compactViewport = window.matchMedia(COMPACT_SIDEBAR_QUERY);
+    const syncLayout = () => {
+      setCompactSidebarLayout(compactViewport.matches);
+      setCompactSidebarOverride(null);
+    };
+    const overviewViewport = window.matchMedia("(max-width: 1250px)");
+    const syncOverviewLayout = () => setCompactLayout(overviewViewport.matches);
+    syncLayout();
+    syncOverviewLayout();
+    compactViewport.addEventListener("change", syncLayout);
+    overviewViewport.addEventListener("change", syncOverviewLayout);
+    return () => {
+      compactViewport.removeEventListener("change", syncLayout);
+      overviewViewport.removeEventListener("change", syncOverviewLayout);
+    };
+  }, []);
+
+  const handleSidebarCollapsedChange = (collapsed: boolean) => {
+    if (compactSidebarLayout) {
+      setCompactSidebarOverride(collapsed);
+      return;
+    }
+    setSidebarCollapsed(collapsed);
+  };
   const [showClientTab, setShowClientTab] = useState(false);
   // The client roster is collapsed by default: the accountant's actual work is
   // the month's worklist in the centre, and with 44 clients the roster is long
@@ -203,8 +247,21 @@ function App() {
 
   const reports = useReports(db, year, month);
 
-  const [desktopNotifications, setDesktopNotifications] = useState(true);
+  const [desktopNotifications, setDesktopNotifications] = useState(
+    () => window.localStorage.getItem(DESKTOP_NOTIFICATIONS_PREFERENCE) !== "false"
+  );
   const desktop = useDesktopNotifications(desktopNotifications);
+
+  async function changeDesktopNotifications(enable: boolean) {
+    const granted = enable && await desktop.askForPermission();
+    setDesktopNotifications(granted);
+    window.localStorage.setItem(DESKTOP_NOTIFICATIONS_PREFERENCE, String(granted));
+    if (enable && !granted) {
+      toasts.error("Δεν δόθηκε άδεια για ειδοποιήσεις. Ελέγξτε τις ρυθμίσεις ειδοποιήσεων των Windows.");
+    } else {
+      toasts.success(granted ? "Οι ειδοποιήσεις Windows ενεργοποιήθηκαν." : "Οι ειδοποιήσεις Windows απενεργοποιήθηκαν.");
+    }
+  }
 
   const exporter = useExportReport();
 
@@ -313,13 +370,17 @@ function App() {
     beforeInstall: async () => { await backup.backup(); },
   });
   const checkForUpdates = updater.check;
-  const autoChecked = useRef(false);
-
   useEffect(() => {
-    if (!db || autoChecked.current) return;
-    autoChecked.current = true;
-    const timer = window.setTimeout(() => { void checkForUpdates(); }, UPDATE_CHECK_DELAY_MS);
-    return () => window.clearTimeout(timer);
+    if (!db) return;
+    const check = () => { void checkForUpdates(); };
+    const startup = window.setTimeout(check, UPDATE_CHECK_DELAY_MS);
+    const interval = window.setInterval(check, UPDATE_POLL_INTERVAL_MS);
+    window.addEventListener("online", check);
+    return () => {
+      window.clearTimeout(startup);
+      window.clearInterval(interval);
+      window.removeEventListener("online", check);
+    };
   }, [db, checkForUpdates]);
 
   // A manual check always answers - up to date, an update, or why it failed.
@@ -504,6 +565,27 @@ function App() {
     );
   };
 
+  const summaryPanel = (
+    <MonthlySummary
+      summary={filters.summary}
+      year={year}
+      month={month}
+      isFiltered={filters.isFiltered}
+      totalTasks={filters.totalCount}
+      onSelectClient={handleSelectClient}
+      collapsible={compactLayout}
+      collapsibleProgress={compactLayout}
+    />
+  );
+  const remindersPanel = (
+    <Reminders
+      assignments={assignments}
+      completedKeys={completedKeys}
+      onFocusClient={focusClientInWorklist}
+      collapsible={compactLayout}
+    />
+  );
+
   if (dbLoading) {
     return <div className="app-loading">Φόρτωση βάσης δεδομένων...</div>;
   }
@@ -524,7 +606,7 @@ function App() {
         </div>
       )}
 
-      <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <div className={`app-shell ${effectiveSidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <aside className="app-sidebar">
           <div className="sidebar-brand" aria-label="Accountant Util">
             <div className="brand-main">
@@ -534,34 +616,42 @@ function App() {
           </div>
 
           <div className="sidebar-section-label">Workspace</div>
-          <nav className="app-nav" aria-label="Κύριες λειτουργίες">
+          <nav id="workspace-navigation" className="app-nav" aria-label="Κύριες λειτουργίες">
             <button
               className={activeView === "dashboard" ? "active" : ""}
               onClick={() => setActiveView("dashboard")}
+              title="Κεντρική"
+              aria-label="Κεντρική"
             >
               <NavIcon name="home" />
-              Κεντρική
+              <span className="nav-label">Κεντρική</span>
             </button>
             <button
               className={activeView === "tasks" ? "active" : ""}
               onClick={() => setActiveView("tasks")}
+              title="Εργασίες"
+              aria-label="Εργασίες"
             >
               <NavIcon name="tasks" />
-              Εργασίες
+              <span className="nav-label">Εργασίες</span>
             </button>
             <button
               className={activeView === "professions" ? "active" : ""}
               onClick={() => setActiveView("professions")}
+              title="Επαγγέλματα"
+              aria-label="Επαγγέλματα"
             >
               <NavIcon name="professions" />
-              Επαγγέλματα
+              <span className="nav-label">Επαγγέλματα</span>
             </button>
             <button
               className={activeView === "reports" ? "active" : ""}
               onClick={() => setActiveView("reports")}
+              title="Αναφορές"
+              aria-label="Αναφορές"
             >
               <NavIcon name="reports" />
-              Αναφορές
+              <span className="nav-label">Αναφορές</span>
             </button>
           </nav>
 
@@ -569,32 +659,39 @@ function App() {
           <button
             type="button"
             className="sidebar-toggle sidebar-bottom-toggle"
-            onClick={() => setSidebarCollapsed((value) => !value)}
-            aria-expanded={!sidebarCollapsed}
-            aria-label={sidebarCollapsed ? "Άνοιγμα πλευρικού μενού" : "Σύμπτυξη πλευρικού μενού"}
-            title={sidebarCollapsed ? "Άνοιγμα μενού" : "Σύμπτυξη μενού"}
+            onClick={() => handleSidebarCollapsedChange(!effectiveSidebarCollapsed)}
+            aria-expanded={!effectiveSidebarCollapsed}
+            aria-controls="workspace-navigation"
+            aria-label={effectiveSidebarCollapsed ? "Άνοιγμα πλευρικού μενού" : "Σύμπτυξη πλευρικού μενού"}
+            title={effectiveSidebarCollapsed ? "Άνοιγμα μενού" : "Σύμπτυξη μενού"}
           >
-            <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
+            <span aria-hidden="true">{effectiveSidebarCollapsed ? "›" : "‹"}</span>
           </button>
         </aside>
 
         <div className="app-frame">
           <header className="app-header">
-            <FileMenu
-              summary={filters.summary}
-              filters={filters.filters}
-              clientOptions={clientOptions}
-              taskOptions={taskOptions}
-              onExportCsv={handleExportCsv}
-              exporting={exporter.exporting}
-              onBackup={handleBackup}
-              onRestore={handleRestore}
-              busy={backup.busy}
-              onCheckUpdates={handleCheckUpdates}
-              checkingUpdates={updater.phase === "checking"}
-              lastUpdateAt={lastUpdateAt}
-              backupArea={backup.area}
-            />
+            <div className="header-menus">
+              <FileMenu
+                summary={filters.summary}
+                filters={filters.filters}
+                clientOptions={clientOptions}
+                taskOptions={taskOptions}
+                onExportCsv={handleExportCsv}
+                exporting={exporter.exporting}
+                onBackup={handleBackup}
+                onRestore={handleRestore}
+                busy={backup.busy}
+                onCheckUpdates={handleCheckUpdates}
+                checkingUpdates={updater.phase === "checking"}
+                lastUpdateAt={lastUpdateAt}
+                backupArea={backup.area}
+              />
+              <SettingsMenu
+                enabled={desktopNotifications && desktop.permission === "granted"}
+                onChange={changeDesktopNotifications}
+              />
+            </div>
 
             <div className="app-header-bar">
               <div className="month-nav-group">
@@ -639,9 +736,8 @@ function App() {
                 )}
               </div>
 
-              {/* The month's worklist is the page the accountant works on,
-                  so it takes the centre and the widest share of the grid;
-                  export and backup sit with it because they act on this month. */}
+              {/* Compact windows put folded reference panels below the worklist
+                  title; wider windows keep the existing reference column. */}
               <div className="dashboard-center">
                 <MonthlyWorklist
                   statuses={filters.filtered}
@@ -666,31 +762,20 @@ function App() {
                   onSetAmount={handleSetAmount}
                   onSetPaid={handleSetPaid}
                   onSetInvoiced={handleSetInvoiced}
+                  overview={compactLayout ? (
+                    <div className="worklist-overview">
+                      {summaryPanel}
+                      {remindersPanel}
+                    </div>
+                  ) : undefined}
                 />
               </div>
-
-              {/* Reminders and the month's summary are reference panels, not
-                  the work itself, so they sit in the far-right column, out of
-                  the way of the worklist. */}
-              <div className="dashboard-aside">
-                <Reminders
-                  assignments={assignments}
-                  desktopEnabled={desktopNotifications}
-                  onDesktopEnabledChange={setDesktopNotifications}
-                  desktopPermission={desktop.permission}
-                  onRequestDesktopPermission={desktop.askForPermission}
-                  completedKeys={completedKeys}
-                  onFocusClient={focusClientInWorklist}
-                />
-                <MonthlySummary
-                  summary={filters.summary}
-                  year={year}
-                  month={month}
-                  isFiltered={filters.isFiltered}
-                  totalTasks={filters.totalCount}
-                  onSelectClient={handleSelectClient}
-                />
-              </div>
+              {!compactLayout && (
+                <div className="dashboard-aside">
+                  {remindersPanel}
+                  {summaryPanel}
+                </div>
+              )}
             </div>
           </div>
         )}

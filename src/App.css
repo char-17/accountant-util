@@ -3008,7 +3008,6 @@ input[type="search"]::-webkit-search-results-decoration {
 .reminders {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   min-width: 0;
 }
 
@@ -3054,45 +3053,6 @@ input[type="search"]::-webkit-search-results-decoration {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-}
-
-/* Recessed like the roster's search field: this is a settings strip, not
-   content, so it sits below the surface rather than as a second white card on
-   the band. */
-.reminder-desktop-controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 8px 12px;
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
-.reminder-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.reminder-toggle input {
-  cursor: pointer;
-}
-
-/* The checkbox does get a UA ring, but an explicit one is what the rest of the
-   app uses, and the strip is small enough that the ring is easy to lose. */
-.reminder-toggle input:focus-visible {
-  outline: 2px solid var(--accent-600);
-  outline-offset: 2px;
-}
-
-.reminder-permission-note {
-  font-size: 0.78rem;
-  color: var(--warning-text-strong);
 }
 
 /* The li is structural: it carries the separator and nothing paints on it, so
@@ -3933,11 +3893,11 @@ input[type="search"]::-webkit-search-results-decoration {
 @media (max-width: 1250px) {
   .dashboard-content {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-    gap: 14px;
+    gap: 0;
   }
 
   .dashboard-content:has(.dashboard-left.collapsed) {
-    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
   .dashboard-aside {
@@ -3951,6 +3911,11 @@ input[type="search"]::-webkit-search-results-decoration {
   .dashboard-content {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
+  }
+
+  .dashboard-content:has(.dashboard-left.collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
   }
 
   .dashboard-left,
@@ -4269,6 +4234,14 @@ body,
   min-height: 100%;
 }
 
+@media (max-width: 320px) {
+  html,
+  body,
+  #root {
+    min-width: 0;
+  }
+}
+
 body {
   background: var(--canvas);
 }
@@ -4524,11 +4497,17 @@ textarea {
   backdrop-filter: none;
 }
 
-.app-header > .file-menu {
+.header-menus {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-menus > .file-menu {
   flex: 0 0 auto;
 }
 
-.app-header > .file-menu .file-menu-trigger {
+.header-menus > .file-menu .file-menu-trigger {
   min-height: 34px;
   border-color: transparent;
   border-radius: 6px;
@@ -4536,8 +4515,8 @@ textarea {
   color: var(--text-soft);
 }
 
-.app-header > .file-menu .file-menu-trigger:hover,
-.app-header > .file-menu .file-menu-trigger.active {
+.header-menus > .file-menu .file-menu-trigger:hover,
+.header-menus > .file-menu .file-menu-trigger.active {
   border-color: #d9d2ff;
   background: #f4f1ff;
   color: var(--accent-700);
@@ -4879,7 +4858,8 @@ textarea {
 .dashboard-left.collapsed .panel-collapse-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-size: 0.64rem;
+  font-size: 1rem;
+  color: var(--text-strong);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -5064,11 +5044,11 @@ textarea {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface-subtle);
+  background: #dddddd;
 }
 
 .worklist-client.alt {
-  background: var(--surface-subtle);
+  background: #e9e6ff;
 }
 
 .worklist-client.highlight {
@@ -5213,7 +5193,7 @@ textarea {
 
 .monthly-summary,
 .reminders {
-  padding: 17px;
+  padding: 5px;
 }
 
 /* The dashboard columns are layout wrappers. The visible cards belong to the
@@ -5476,26 +5456,6 @@ textarea {
 }
 
 .reminder-when.overdue { color: var(--danger-text); }
-
-.reminder-desktop-controls {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 13px;
-  padding-top: 11px;
-  border-top: 1px solid var(--border);
-}
-
-.reminder-toggle {
-  color: var(--text-muted);
-  font-size: 0.65rem;
-}
-
-.reminder-permission-note {
-  color: var(--warning-strong);
-  font-size: 0.62rem;
-}
 
 .summary-empty,
 .empty-message {
@@ -6309,45 +6269,6 @@ textarea {
 }
 
 @media (max-width: 820px) {
-  .app-shell {
-    grid-template-columns: 76px minmax(0, 1fr);
-  }
-
-  .app-sidebar {
-    padding: 22px 10px 14px;
-  }
-
-  .sidebar-brand {
-    justify-content: center;
-    padding: 0 0 30px;
-  }
-
-  .brand-name,
-  .sidebar-section-label,
-  .system-status-card,
-  .sidebar-profile div,
-  .profile-more {
-    display: none;
-  }
-
-  .sidebar-profile {
-    justify-content: center;
-    padding: 13px 0 0;
-  }
-
-  .app-nav button {
-    justify-content: center;
-    padding: 0;
-  }
-
-  .app-nav button.active {
-    box-shadow: inset 0 -3px 0 #8e80f4;
-  }
-
-  .nav-icon {
-    width: auto;
-  }
-
   .app-header {
     padding: 15px 20px;
   }
@@ -6362,57 +6283,6 @@ textarea {
 }
 
 @media (max-width: 680px) {
-  .app-shell {
-    display: block;
-  }
-
-  .app-sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
-    min-height: 66px;
-    flex-direction: row;
-    align-items: center;
-    gap: 14px;
-    padding: 10px 14px;
-  }
-
-  .sidebar-brand {
-    padding: 0;
-  }
-
-  .sidebar-brand .brand-name {
-    display: inline;
-  }
-
-  .app-sidebar .app-nav {
-    flex: 1;
-    flex-direction: row;
-    justify-content: flex-end;
-    gap: 3px;
-  }
-
-  .app-nav button {
-    width: auto;
-    min-height: 38px;
-    padding: 0 9px;
-  }
-
-  .app-nav button .nav-icon {
-    display: none;
-  }
-
-  .app-nav button.active {
-    box-shadow: inset 0 -3px 0 #8e80f4;
-  }
-
-  .sidebar-spacer,
-  .system-status-card,
-  .sidebar-profile,
-  .sidebar-section-label {
-    display: none;
-  }
-
   .app-header {
     position: static;
     align-items: flex-start;
@@ -6712,6 +6582,7 @@ textarea {
 }
 
 .sidebar-collapsed .brand-name,
+.sidebar-collapsed .nav-label,
 .sidebar-collapsed .sidebar-section-label,
 .sidebar-collapsed .sidebar-profile div,
 .sidebar-collapsed .profile-more {
@@ -6758,28 +6629,6 @@ textarea {
 .sidebar-collapsed .sidebar-bottom-toggle {
   width: 34px;
   margin: 0 auto;
-}
-
-@media (max-width: 820px) {
-  .app-shell.sidebar-collapsed {
-    grid-template-columns: 64px minmax(0, 1fr);
-  }
-}
-
-@media (max-width: 680px) {
-  .app-shell.sidebar-collapsed {
-    display: block;
-  }
-
-  .sidebar-collapsed .sidebar-brand {
-    flex-direction: row;
-    gap: 0;
-    padding: 0;
-  }
-
-  .sidebar-collapsed .sidebar-toggle {
-    margin-left: auto;
-  }
 }
 
 /* --------------------------------------------------------------------------
@@ -6939,11 +6788,6 @@ textarea {
   gap: 14px;
 }
 
-.reminders,
-.monthly-summary {
-  padding: 18px;
-}
-
 .reminder-link {
   padding: 10px;
 }
@@ -7092,7 +6936,6 @@ textarea {
 .client-progress-panel,
 .worklist {
   margin-top: 0;
-  padding: 5px;
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   background: var(--surface);
@@ -7377,7 +7220,7 @@ textarea {
 
 /* Header command-bar refinements. The controls stay the same; only their
    hit areas and interaction states become easier to use. */
-.app-header > .file-menu .file-menu-trigger {
+.header-menus > .file-menu .file-menu-trigger {
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
@@ -7391,15 +7234,15 @@ textarea {
   color: var(--sidebar-muted);
 }
 
-.app-header > .file-menu .file-menu-trigger:hover,
-.app-header > .file-menu .file-menu-trigger.active,
-.app-header > .file-menu .file-menu-trigger:focus-visible {
+.header-menus > .file-menu .file-menu-trigger:hover,
+.header-menus > .file-menu .file-menu-trigger.active,
+.header-menus > .file-menu .file-menu-trigger:focus-visible {
   border-color: var(--accent-200);
   background: var(--accent-50);
   color: var(--accent-700);
 }
 
-.app-header > .file-menu .file-menu-trigger:focus-visible,
+.header-menus > .file-menu .file-menu-trigger:focus-visible,
 .app-header .month-nav:focus-visible,
 .app-header .month-display:focus-visible,
 .app-header .month-current:focus-visible {
@@ -7407,7 +7250,7 @@ textarea {
   outline-offset: 1px;
 }
 
-.app-header > .file-menu .file-menu-caret {
+.header-menus > .file-menu .file-menu-caret {
   display: grid;
   place-items: center;
   width: 18px;
@@ -7467,17 +7310,6 @@ textarea {
 
 .month-arrow-icon-right {
   transform: scaleX(-1);
-}
-
-.app-header > .file-menu .file-menu-trigger {
-  transition: none;
-}
-
-.app-header > .file-menu .file-menu-trigger:hover {
-  border-color: transparent;
-  background: transparent;
-  color: var(--sidebar-muted);
-  box-shadow: none;
 }
 
 /* Keep the worklist context available while its client rows are being
@@ -7579,13 +7411,8 @@ textarea {
 }
 
 @media (max-width: 680px) {
-  .app-header > .file-menu,
-  .app-header > .file-menu .file-menu-trigger {
-    width: 100%;
-  }
-
-  .app-header > .file-menu .file-menu-trigger {
-    justify-content: space-between;
+  .header-menus {
+    max-width: 100%;
   }
 
   .app-header-bar {
@@ -7680,7 +7507,7 @@ textarea {
 @media (max-width: 1250px) {
   .dashboard-content {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-    gap: 14px;
+    gap: 0;
   }
 
   .dashboard-aside {
@@ -7726,6 +7553,10 @@ textarea {
 
   .dashboard-content {
     gap: 10px;
+  }
+
+  .dashboard-content:has(.dashboard-left.collapsed) {
+    gap: 0;
   }
 
   .dashboard-left,
@@ -8249,10 +8080,262 @@ textarea {
   }
 }
 
-/* The worklist heading and filters belong to the page flow. They must not
-   move independently while the task rows are scrolled. */
-.worklist-sticky-header {
-  position: static;
-  top: auto;
-  z-index: auto;
+@media screen {
+  .dashboard-center > .worklist {
+    max-height: calc(100dvh - var(--header-h) - 1rem);
+    box-sizing: border-box;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scroll-padding-top: min(var(--worklist-heading-height, 0px), 50dvh);
+  }
+
+  .worklist-sticky-header {
+    position: sticky;
+    /* Tall, expanded reference panels can scroll past, leaving room for tasks. */
+    top: min(0px, calc(50dvh - var(--worklist-heading-height, 0px)));
+  }
+}
+
+@media print {
+  .worklist-sticky-header {
+    position: static;
+  }
+}
+
+/* Compact windows put reference panels below the worklist heading. */
+@media (max-width: 1100px) {
+  .dashboard-content {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+.worklist-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.worklist-overview > .client-progress-panel,
+.worklist-overview > .reminders {
+  order: 0;
+  width: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.worklist-overview .overview-panel-heading {
+  margin: 0;
+  padding: 0;
+}
+
+.worklist-overview .overview-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--accent-50);
+  color: var(--text-strong);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.worklist-overview .overview-panel-toggle:hover {
+  background: var(--accent-100);
+}
+
+.worklist-overview .overview-panel-toggle:focus-visible {
+  outline: 2px solid var(--accent-600);
+  outline-offset: 2px;
+}
+
+.worklist-overview .overview-panel-toggle .section-heading {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.worklist-overview .report-caret {
+  flex: 0 0 28px;
+  color: var(--accent-700);
+  text-align: center;
+}
+
+.worklist-overview .overview-panel-heading + div:not([hidden]) {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.worklist-overview .monthly-summary {
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.worklist-overview > .reminders {
+  padding: 5px;
+}
+
+.worklist-overview .reminders::before {
+  display: none;
+}
+
+/* The client's name heads a group of services. Keep financial figures and
+   controls in the interface typeface so the numbers still align across rows. */
+.dashboard {
+  --client-typeface: Georgia, "Times New Roman", serif;
+  --detail-size: 0.8125rem;
+}
+
+.dashboard .worklist-client-name {
+  font-family: var(--client-typeface);
+  font-size: 1.1875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.dashboard .worklist-count {
+  flex: none;
+  font-family: "Segoe UI", sans-serif;
+  font-size: var(--detail-size);
+}
+
+.dashboard .worklist-task-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dashboard .worklist-item.done .worklist-task-name,
+.dashboard .task-payment-label,
+.dashboard .reminder-task,
+.dashboard .reminder-period,
+.dashboard .worklist-completed-at,
+.dashboard .filter-select-head input::placeholder,
+.dashboard .status-filter-option:not(.active) {
+  color: var(--text-soft);
+}
+
+.dashboard .task-payment-label,
+.dashboard .task-payment-check-label,
+.dashboard .worklist-periodicity,
+.dashboard .worklist-completed-at,
+.dashboard .stat-label,
+.dashboard .progress-label,
+.dashboard .status-filter-option,
+.dashboard .filter-select-head input,
+.dashboard .reminder-task,
+.dashboard .reminder-period,
+.dashboard .reminder-when {
+  font-size: var(--detail-size);
+  line-height: 1.4;
+}
+
+.dashboard .task-payment-amount,
+.dashboard .task-payment-date {
+  font-size: 0.875rem;
+}
+
+.dashboard .task-payment-date {
+  width: min(100%, 8.5rem);
+}
+
+.dashboard .filter-select-head {
+  container-type: inline-size;
+  flex-wrap: wrap;
+}
+
+@container (max-width: 21rem) {
+  .dashboard .filter-select-head input {
+    flex: 1 1 0;
+  }
+
+  .dashboard .filter-select-toggle {
+    flex: 0 0 100%;
+    justify-content: space-between;
+    max-width: 100%;
+    min-height: 34px;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .dashboard .filter-select-current {
+    padding-block: 4px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.dashboard .reminder-client,
+.dashboard .client-item .client-name,
+.dashboard .client-progress-item .client-name {
+  font-family: var(--client-typeface);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.dashboard .reminder-client,
+.dashboard .reminder-task,
+.dashboard .reminder-period,
+.dashboard .reminder-when,
+.dashboard .client-item .client-name,
+.dashboard .client-progress-item .client-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dashboard .reminder-link {
+  grid-template-columns: 9px minmax(0, 1fr);
+  row-gap: 4px;
+}
+
+.dashboard .reminder-meta {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  max-width: none;
+  text-align: left;
+}
+
+.dashboard .reminder-count.overdue {
+  color: var(--danger-text);
+  background: var(--danger-soft);
+}
+
+.dashboard .progress-bar {
+  margin-inline-end: 3rem;
+  overflow: visible;
+}
+
+.dashboard .progress-text {
+  left: 100%;
+  margin-left: 0.5rem;
+  transform: translateY(-50%);
+  font-size: var(--detail-size);
+}
+
+@media (max-width: 820px) {
+  .dashboard-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

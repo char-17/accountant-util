@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import type { MonthlyStatusWithDetails } from "../domain/types";
 import { PERIODICITY_LABELS } from "../domain/recurrence";
 import type { WorklistFilters } from "../domain/worklist";
@@ -7,6 +8,8 @@ import { TaskPaymentRow } from "./TaskPaymentRow";
 import { useDialogA11y } from "../hooks/useDialogA11y";
 
 interface MonthlyWorklistProps {
+  /** Collapsible reference panels below the heading and above the filters. */
+  overview?: ReactNode;
   /** Already filtered; the component does not re-apply the filters. */
   statuses: MonthlyStatusWithDetails[];
   /** Unfiltered count, so the empty state can tell "nothing due" from "nothing matched". */
@@ -57,12 +60,22 @@ interface PendingChange {  clientId: number;
   wasCompleted: boolean;
 }
 
+function measureHeading(header: HTMLDivElement | null) {
+  if (!header || typeof ResizeObserver === "undefined") return;
+  const observer = new ResizeObserver(() => {
+    header.parentElement?.style.setProperty("--worklist-heading-height", `${header.offsetHeight}px`);
+  });
+  observer.observe(header);
+  return () => observer.disconnect();
+}
+
 /**
  * Lists every task due this month with a checkbox, so the accountant can
  * actually complete work. Toggling asks for confirmation first, in both
  * directions, because it changes the monthly counters.
  */
 export function MonthlyWorklist({
+  overview,
   statuses,
   totalCount,
   filters,
@@ -138,10 +151,11 @@ export function MonthlyWorklist({
     // everything", which is a different situation for the user.
     return (
       <div className="worklist">
-        <div className="worklist-sticky-header">
+        <div className="worklist-sticky-header" ref={measureHeading}>
           <h3 className="section-heading">
             Εργασίες <span className="worklist-period">{month}/{year}</span>
           </h3>
+          {overview}
           {isFiltered && filterBar}
         </div>
         {isFiltered ? (
@@ -174,11 +188,11 @@ export function MonthlyWorklist({
 
   return (
     <div className="worklist">
-      <div className="worklist-sticky-header">
+      <div className="worklist-sticky-header" ref={measureHeading}>
         <h3 className="section-heading">
           Εργασίες <span className="worklist-period">{month}/{year}</span>
         </h3>
-
+        {overview}
         {filterBar}
       </div>
 

@@ -225,10 +225,26 @@ const summary = render(React.createElement(ui.MonthlySummary, {
 checkEq('completion rate is 1 of 3 = 33%', text(summary).includes('33%'), true);
 check('labels are in Greek', summary.includes('Ολοκληρωμένες') && summary.includes('Εκκρεμείς'));
 check('no filter note when unfiltered', !summary.includes('αποκρύπτονται'));
+const progressPanel = render(React.createElement(ui.MonthlySummary, {
+  summary: {
+    year: 2026, month: 10, totalClients: 2, totalTasks: 3,
+    completedTasks: 1, pendingTasks: 2,
+    clientProgress: [
+      { clientId: 1, clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', totalTasks: 2, completedTasks: 1, pendingTasks: 1, isComplete: false },
+      { clientId: 2, clientName: 'BEBJA BLERIM', totalTasks: 1, completedTasks: 0, pendingTasks: 1, isComplete: false },
+    ],
+  },
+  year: 2026, month: 10,
+}));
+check('the monthly summary and client progress have separate panels',
+  summary.includes('summary-stats') &&
+  summary.indexOf('Σύνοψη μήνα') < summary.indexOf('Πρόοδος ανά πελάτη') &&
+  progressPanel.includes('Πρόοδος ανά πελάτη'));
 // The per-client list starts closed, so the names are behind the toggle.
-check('per-client progress starts closed', !summary.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
-check('the toggle names the section', summary.includes('Πρόοδος ανά πελάτη'));
-check('the toggle exposes its state', summary.includes('aria-expanded="false"'));
+check('per-client progress starts closed', progressPanel.includes('aria-expanded="false"') &&
+  !progressPanel.includes('client-progress-items'));
+check('the toggle names the section', progressPanel.includes('Πρόοδος ανά πελάτη'));
+check('the toggle exposes its state', progressPanel.includes('aria-expanded="false"'));
 
 const summaryFiltered = render(React.createElement(ui.MonthlySummary, {
   summary: {

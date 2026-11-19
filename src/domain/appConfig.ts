@@ -48,6 +48,7 @@ export const HIGHLIGHT_PULSE_MS = 2600;
  * anyone having to ask for it.
  */
 export const UPDATE_CHECK_DELAY_MS = 30000;
+export const UPDATE_POLL_INTERVAL_MS = 60_000;
 
 /**
  * Hour of the day the automatic backup runs, in local time.

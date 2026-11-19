@@ -1,14 +1,12 @@
-import { useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
 import { PERIODICITY_LABELS } from "../domain/recurrence";
 import { getReminderCandidates, type ReminderCandidate } from "../domain/notifications";
 
 interface RemindersProps {
+  /** Fold the entire panel in the compact worklist layout. */
+  collapsible?: boolean;
   assignments: ClientTaskWithTask[];
-  desktopEnabled: boolean;
-  onDesktopEnabledChange: (enabled: boolean) => void;
-  desktopPermission: "granted" | "denied" | "default";
-  onRequestDesktopPermission: () => void;
   /**
    * Status rows of the months a reminder can point at. A task the accountant has
    * already completed drops out of the list, because a reminder for finished work
@@ -34,14 +32,13 @@ interface ReminderItem {
  * Sorted by urgency so the most pressing item is first.
  */
 export function Reminders({
+  collapsible = false,
   assignments,
-  desktopEnabled,
-  onDesktopEnabledChange,
-  desktopPermission,
-  onRequestDesktopPermission,
   completedKeys,
   onFocusClient,
 }: RemindersProps) {
+  const [expanded, setExpanded] = useState(false);
+  const contentId = useId();
   const now = useMemo(() => new Date(), []);
 
   const items = useMemo<ReminderItem[]>(() => {
@@ -60,52 +57,39 @@ export function Reminders({
 
   const overdueCount = items.filter((i) => i.state === "overdue").length;
 
-  const desktopControls = (
-    <div className="reminder-desktop-controls">
-      <label className="reminder-toggle">
-        <input
-          type="checkbox"
-          checked={desktopEnabled}
-          onChange={(e) => onDesktopEnabledChange(e.target.checked)}
-        />
-        <span>Ειδοποιήσεις Windows</span>
-      </label>
-      {desktopPermission === "default" && (
-        <button className="btn-small" onClick={onRequestDesktopPermission}>
-          Επίτρεψη ειδοποιήσεις
-        </button>
-      )}
-      {desktopPermission === "denied" && (
-        <span className="reminder-permission-note">
-          Οι ειδοποιήσεις Windows είναι απενεργοποιημένες στις ρυθμίσεις του συστήματος.
+  const heading = (
+    <>
+      <span className={collapsible ? "section-heading" : undefined}>Ειδοποιήσεις</span>
+      {overdueCount > 0 && (
+        <span className="reminder-count overdue" aria-label={`${overdueCount} ληγμένες`}>
+          {overdueCount}
         </span>
       )}
-    </div>
+    </>
   );
 
-  if (items.length === 0) {
-    return (
-      <div className="reminders">
-        <h3>Ειδοποιήσεις</h3>
-        <p className="empty-message">Δεν υπάρχουν εκκρεμείς ειδοποιήσεις</p>
-        {desktopControls}
-      </div>
-    );
-  }
-
   return (
-    <div className="reminders">
-      <h3>
-        Ειδοποιήσεις
-        {overdueCount > 0 && (
-          <span className="reminder-count overdue" aria-label={`${overdueCount} ληγμένες`}>
-            {overdueCount}
-          </span>
-        )}
+    <section className="reminders">
+      <h3 className={collapsible ? "overview-panel-heading" : undefined}>
+        {collapsible ? (
+          <button
+            type="button"
+            className="overview-panel-toggle reminders-toggle"
+            onClick={() => setExpanded((value) => !value)}
+            aria-expanded={expanded}
+            aria-controls={contentId}
+          >
+            {heading}
+            <span aria-hidden="true" className="report-caret">{expanded ? "▾" : "▸"}</span>
+          </button>
+        ) : heading}
       </h3>
-      {desktopControls}
-      <ul className="reminder-list">
-        {items.map((item) => (
+      <div id={contentId} hidden={collapsible && !expanded}>
+        {items.length === 0 ? (
+          <p className="empty-message">Δεν υπάρχουν εκκρεμείς ειδοποιήσεις</p>
+        ) : (
+          <ul className="reminder-list">
+          {items.map((item) => (
           // A button rather than a div: the reminder is clickable, so it has to
           // be reachable by keyboard and announced as activatable.
           <li key={item.assignment.id} className={`reminder-item ${item.state}`}>
@@ -131,8 +115,10 @@ export function Reminders({
               </div>
             </button>
           </li>
-        ))}
-      </ul>
-    </div>
+          ))}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

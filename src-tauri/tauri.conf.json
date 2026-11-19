@@ -48,7 +48,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwMUQ0OEIxOUQxNzI3NEEKUldSS0p4ZWRzVWdkVU9ScWNiQ3lmWTZXOTk1c3AzYW15bWlrY3JzdXJGV1huRmNrWGRBWWdQTlYK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwMUQ0OEIxOUQxNzI3NEEKUldSS0p4ZWRzVWdkVU9ScWNiQ3lmWTZXOTk1c3AzYW15bWlrY3JzdXJGV1huRmNrWGRBWWRQTlYK",
       "endpoints": [
         "https://github.com/char-17/accountant-util/releases/latest/download/latest.json"
       ],
