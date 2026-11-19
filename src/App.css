@@ -5843,7 +5843,7 @@ textarea {
 }
 
 .report-service-name {
-  padding-left: 56px !important;
+  padding-left: 32px !important;
 }
 
 /* Final report layout pass: headers and their values share the same visual
@@ -8212,6 +8212,20 @@ textarea {
   flex: none;
   font-family: "Segoe UI", sans-serif;
   font-size: var(--detail-size);
+}
+
+.worklist-task-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+}
+
+.worklist-task-deadline {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
 }
 
 .dashboard .worklist-task-name {

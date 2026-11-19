@@ -242,7 +242,16 @@ export function MonthlyWorklist({
                           style={{ backgroundColor: item.taskColor }}
                           aria-hidden="true"
                         />
-                        <span className="worklist-task-name">{item.taskName}</span>
+                        <span className="worklist-task-heading">
+                          <span className="worklist-task-name">{item.taskName}</span>
+                          {item.dueOn ? (
+                            <span className="worklist-task-deadline">
+                              Προθεσμία <time dateTime={item.dueOn}>{item.dueOn.split("-").reverse().join("/")}</time>
+                            </span>
+                          ) : (
+                            <span className="worklist-task-deadline">Χωρίς προσεχή προθεσμία</span>
+                          )}
+                        </span>
                       </label>
 
                       <div className="worklist-item-meta">

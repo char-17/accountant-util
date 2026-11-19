@@ -69,7 +69,7 @@ const status = (over) => ({
   taskName: 'ΦΠΑ', taskColor: '#7B8D6E', ...over,
 });
 const statuses = [
-  status({ id: 1, status: 'completed', completedAt: '2026-10-07T08:30:00' }),
+  status({ id: 1, status: 'completed', completedAt: '2026-10-07T08:30:00', dueOn: '2026-10-28' }),
   status({ id: 2, taskTypeId: 2, taskName: 'ΕΝΦΚΑ', status: 'pending', taskColor: '#8B9DAD' }),
   status({ id: 3, clientId: 11, clientName: 'BEBJA BLERIM', taskName: 'ΦΠΑ', taskColor: '#7B8D6E' }),
 ];
@@ -176,6 +176,7 @@ const listHtml = render(React.createElement(ui.MonthlyWorklist, {
   onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
 }));
 check('period is displayed', listHtml.includes('10/2026'));
+check('the task heading shows its scheduled date even after completion', /worklist-task-name">ΦΠΑ<\/span>\s*<span class="worklist-task-deadline">Προθεσμία <time dateTime="2026-10-28">28\/10\/2026<\/time>/i.test(listHtml));
 check('first client name shown', listHtml.includes('ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ'));
 check('second client name shown', listHtml.includes('BEBJA BLERIM'));
 check('progress shown for the first client', /1\/2/.test(text(listHtml)), `- got: ${text(listHtml)}`);

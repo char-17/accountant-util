@@ -1,6 +1,7 @@
 import type Database from "@tauri-apps/plugin-sql";
-import type { MonthlyStatusWithDetails, MonthlySummary } from "../domain/types";
+import type { ClientTaskAssignment, MonthlyStatusWithDetails, MonthlySummary } from "../domain/types";
 import { summarize } from "../domain/worklist";
+import { nextDeadline } from "../domain/recurrence";
 
 // See taskRepo.ts: SQLite columns are snake_case, domain types are camelCase.
 const STATUS_QUERY = `
@@ -62,7 +63,11 @@ const WORKLIST_QUERY = `
     p.name           AS professionName,
     t.name           AS taskName,
     t.color          AS taskColor,
-    a.periodicity    AS periodicity
+    a.periodicity    AS periodicity,
+    a.start_date     AS startDate,
+    a.end_date       AS endDate,
+    a.due_day        AS dueDay,
+    a.reminder_days  AS reminderDays
   FROM client_task_assignments a
   JOIN clients c    ON a.client_id = c.id
   JOIN task_types t ON a.task_type_id = t.id AND t.is_active = 1
@@ -83,7 +88,8 @@ export async function getMonthlyStatus(
   month: number
 ): Promise<MonthlyStatusWithDetails[]> {
   const { firstDay, lastDay } = monthBounds(year, month);
-  return db.select<MonthlyStatusWithDetails[]>(
+  type Row = MonthlyStatusWithDetails & Pick<ClientTaskAssignment, "startDate" | "endDate" | "dueDay" | "reminderDays">;
+  const rows = await db.select<Row[]>(
     `${WORKLIST_QUERY}
      ORDER BY c.name,
        CASE a.periodicity
@@ -96,6 +102,11 @@ export async function getMonthlyStatus(
        t.name`,
     [year, month, firstDay, lastDay]
   );
+  const beforeMonth = new Date(year, month - 1, 0);
+  return rows.map(row => {
+    const dueOn = nextDeadline(row, beforeMonth)?.dueOn;
+    return { ...row, dueOn: dueOn && (!row.endDate || dueOn <= row.endDate) ? dueOn : null };
+  });
 }
 
 /**

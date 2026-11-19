@@ -94,6 +94,8 @@ export interface ClientTaskAssignmentWithTask extends ClientTaskAssignment {
 }
 
 export interface MonthlyStatusWithDetails extends MonthlyTaskStatus {
+  /** First scheduled deadline on or after the start of the dashboard month. */
+  dueOn?: string | null;
   clientName: string;
   taskName: string;
   taskColor: string;
