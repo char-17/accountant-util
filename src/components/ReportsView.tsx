@@ -248,6 +248,7 @@ export function ReportsView({
                 <tr>
                   <th scope="col">ΠΕΛΑΤΗΣ / ΥΠΗΡΕΣΙΑ</th>
                   <th scope="col">
+                    <span className="report-amount-print-label">ΠΟΣΟ</span>
                     <button
                       type="button"
                       className="report-sort-button"
@@ -265,16 +266,14 @@ export function ReportsView({
                   <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΚΔΟΣΗΣ ΤΙΜΟΛΟΓΙΟΥ</th>
                 </tr>
               </thead>
-              <tbody>
-                {orderedGroups.map((group) => (
-                  <ReportGroupRow
-                    key={group.clientId}
-                    group={group}
-                    expanded={isExpanded(group.clientId)}
-                    onToggle={() => toggleClient(group.clientId)}
-                  />
-                ))}
-              </tbody>
+              {orderedGroups.map((group) => (
+                <ReportGroupRow
+                  key={group.clientId}
+                  group={group}
+                  expanded={isExpanded(group.clientId)}
+                  onToggle={() => toggleClient(group.clientId)}
+                />
+              ))}
             </table>
           </div>
         </>
@@ -291,7 +290,7 @@ interface ReportGroupRowProps {
 
 function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
   return (
-    <>
+    <tbody>
       <tr className="report-client-row">
         <th scope="rowgroup">
           <button className="report-client-toggle" onClick={onToggle} aria-expanded={expanded}>
@@ -321,6 +320,6 @@ function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
             <td className="report-date">{formatDate(row.invoicedAt)}</td>
           </tr>
         ))}
-    </>
+    </tbody>
   );
 }
