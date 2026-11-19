@@ -1051,7 +1051,7 @@ input[type="search"]::-webkit-search-results-decoration {
 /* The per-client list is collapsible and starts closed: with 44 clients it is
    long enough to push the worklist off screen, and the totals above it already
    answer "how is the month going". */
-.client-progress-toggle {
+.summary-panel-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1065,15 +1065,15 @@ input[type="search"]::-webkit-search-results-decoration {
   text-align: left;
 }
 
-.client-progress-toggle .section-heading {
+.summary-panel-toggle .section-heading {
   margin-bottom: 0;
 }
 
-.client-progress-toggle:hover .section-heading {
+.summary-panel-toggle:hover .section-heading {
   background: var(--accent-50);
 }
 
-.client-progress-toggle:focus-visible {
+.summary-panel-toggle:focus-visible {
   outline: 2px solid var(--accent-600);
   outline-offset: 2px;
   border-radius: var(--r-md);
@@ -5251,7 +5251,7 @@ textarea {
   border-top: 1px solid var(--border);
 }
 
-.client-progress-toggle {
+.summary-panel-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5261,7 +5261,7 @@ textarea {
   cursor: pointer;
 }
 
-.client-progress-toggle .section-heading {
+.summary-panel-toggle .section-heading {
   color: var(--text-soft);
   font-size: 0.72rem;
 }
@@ -6979,8 +6979,16 @@ textarea {
   order: 2;
 }
 
-.dashboard-aside > .monthly-summary {
+.dashboard-aside > .monthly-summary-panel {
   order: 3;
+}
+
+.monthly-summary-panel > .overview-panel-heading {
+  margin: 0;
+}
+
+.monthly-summary-panel .monthly-summary::before {
+  content: none;
 }
 
 @media (max-width: 680px) {
@@ -6993,7 +7001,7 @@ textarea {
   }
 }
 
-.client-progress-toggle {
+.summary-panel-toggle {
   min-height: 42px;
   padding: 7px 9px;
   border-left: 3px solid var(--accent-500);
@@ -7001,11 +7009,11 @@ textarea {
   background: var(--accent-50);
 }
 
-.client-progress-toggle:hover {
+.summary-panel-toggle:hover {
   background: var(--accent-100);
 }
 
-.client-progress-toggle .section-heading {
+.summary-panel-toggle .section-heading {
   width: auto;
   margin: 0;
   padding: 0;
@@ -7017,7 +7025,7 @@ textarea {
   font-weight: 750;
 }
 
-.client-progress-toggle .report-caret {
+.summary-panel-toggle .report-caret {
   display: grid;
   place-items: center;
   width: 28px;
@@ -8279,7 +8287,6 @@ textarea {
 .dashboard .worklist-periodicity,
 .dashboard .worklist-completed-at,
 .dashboard .stat-label,
-.dashboard .progress-label,
 .dashboard .status-filter-option,
 :is(.dashboard, .reports-filter-row) .filter-select-head input,
 .dashboard .reminder-task,
@@ -8325,8 +8332,7 @@ textarea {
 }
 
 .dashboard .reminder-client,
-.dashboard .client-item .client-name,
-.dashboard .client-progress-item .client-name {
+.dashboard .client-item .client-name {
   font-family: var(--client-typeface);
   font-size: 1rem;
   font-weight: 700;

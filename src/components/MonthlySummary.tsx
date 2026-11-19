@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import type { MonthlySummary as MonthlySummaryType } from "../domain/types";
 
 interface MonthlySummaryProps {
-  /** Makes the monthly totals collapsible on narrow layouts. */
+  /** Shows a toggle for the monthly totals. */
   collapsible?: boolean;
   /** Separates progress into its own collapsible panel. */
   collapsibleProgress?: boolean;
@@ -84,7 +84,7 @@ export function MonthlySummary({
           <h3 className="overview-panel-heading">
             <button
               type="button"
-              className="overview-panel-toggle monthly-summary-toggle"
+              className="overview-panel-toggle summary-panel-toggle monthly-summary-toggle"
               onClick={() => setExpanded((value) => !value)}
               aria-expanded={expanded}
               aria-controls={contentId}
@@ -168,7 +168,7 @@ function ClientProgress({ summary, collapsible, defaultExpanded, onSelectClient 
         <h3 className="overview-panel-heading">
           <button
             type="button"
-            className="overview-panel-toggle client-progress-toggle"
+            className="overview-panel-toggle summary-panel-toggle client-progress-toggle"
             onClick={() => setExpanded((value) => !value)}
             aria-expanded={expanded}
             aria-controls={contentId}
@@ -188,7 +188,7 @@ function ClientProgress({ summary, collapsible, defaultExpanded, onSelectClient 
     <div className="client-progress-panel">
       <div className="client-progress-list">
         <button
-          className="client-progress-toggle"
+          className="summary-panel-toggle client-progress-toggle"
           onClick={() => setExpanded((value) => !value)}
           aria-expanded={expanded}
           aria-controls={contentId}

@@ -573,7 +573,7 @@ function App() {
       isFiltered={filters.isFiltered}
       totalTasks={filters.totalCount}
       onSelectClient={handleSelectClient}
-      collapsible={compactLayout}
+      collapsible
       collapsibleProgress={compactLayout}
     />
   );
