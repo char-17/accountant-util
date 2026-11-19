@@ -315,12 +315,6 @@ function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
                 aria-hidden="true"
               />
               <span className="report-service-label">{row.taskName}</span>
-              <span className="report-service-month">
-                {new Date(row.year, row.month - 1, 1).toLocaleDateString("el-GR", {
-                  month: "short",
-                  year: "numeric",
-                })}
-              </span>
             </td>
             <td className="report-amount">{formatAmount(row.amount)} €</td>
             <td className="report-date">{formatDate(row.paidAt)}</td>

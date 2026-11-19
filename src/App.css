@@ -1796,6 +1796,7 @@ input[type="search"]::-webkit-search-results-decoration {
      the buttons and the print action go - the range label stays, because it is
      the one thing on that row that is worth reading on paper. */
   .reports-period,
+  .reports-custom-group,
   .reports-print,
   .month-nav-group,
   .modal-backdrop {
@@ -2576,11 +2577,6 @@ input[type="search"]::-webkit-search-results-decoration {
 .report-service-label {
   font-weight: 600;
   color: var(--text);
-}
-
-.report-service-month {
-  font-size: 0.76rem;
-  color: var(--text-faint);
 }
 
 .report-amount {

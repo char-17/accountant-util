@@ -122,8 +122,7 @@ async function run(page) {
         if (tr.matches('.report-client-row')) {
           groups.push({ name: tr.cells[0].innerText.replace(/[▾▸]/g, '').trim(), total: tr.cells[1].innerText, rows: [] });
         } else {
-          groups.at(-1).rows.push([tr.querySelector('.report-service-label').innerText, tr.querySelector('.report-service-month').innerText,
-            ...Array.from(tr.cells).slice(1).map(td => td.innerText)]);
+          groups.at(-1).rows.push(Array.from(tr.cells, td => td.innerText.trim()));
         }
       }
       return groups;
@@ -138,7 +137,7 @@ async function run(page) {
       if (sort) chosen.sort((a, b) => sort * (a.cents - b.cents));
       const sum = chosen.reduce((acc, r) => acc + (r.cents ?? 0), 0);
       groups.push({ name, sum, total: euros(sum), rows: chosen.map(r => [
-        tasks[r.task - 1], new Date(year, r.month - 1, 1).toLocaleDateString('el-GR', {month: 'short', year: 'numeric'}),
+        tasks[r.task - 1],
         euros(r.cents ?? 0), date(r.paidAt), date(r.invoicedAt),
       ])});
     }
@@ -212,10 +211,18 @@ async function run(page) {
       }));
     }
     await page.setViewportSize({width:1440,height:900});
+    await period('Προσαρμοσμένη περίοδος');
+    await from.selectOption('2');
+    await to.selectOption('3');
+    await verifyRange(2,3);
     await page.emulateMedia({media:'print'});
+    assert.equal(await page.locator('.reports-custom-group').isVisible(), false);
+    assert.ok(await page.locator('.reports-range-label').isVisible());
     assert.ok(await page.locator('.report-table').isVisible());
     await verifyPrintColumns();
     await page.emulateMedia({media:'screen'});
+    assert.ok(await from.isVisible() && await to.isVisible());
+    await period('Ετήσια');
   });
   async function verifyPrintColumns() {
     for (const cell of await page.locator('.report-service-row').first().locator('td').all()) assert.ok(await cell.isVisible());
@@ -225,7 +232,7 @@ async function run(page) {
   await scenario('previous year by service month, and entirely empty next year', async () => {
     await chooseMonth(1);
     await button('Προηγούμενος μήνας').click();
-    assert.deepEqual((await table()).map(g => [g.total, g.rows[0].slice(2)]), [['888,88 €',['888,88 €','4/1/2024','—']]]);
+    assert.deepEqual((await table()).map(g => [g.total, g.rows[0].slice(1)]), [['888,88 €',['888,88 €','4/1/2024','—']]]);
     await button('Επόμενος μήνας').click();
     await chooseMonth(12);
     await button('Επόμενος μήνας').click();
