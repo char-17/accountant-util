@@ -5751,6 +5751,7 @@ textarea {
   width: 100%;
   max-width: none;
   margin: 0;
+  padding: 10px;
   border-right: 0;
   border-left: 0;
   border-radius: 0;
