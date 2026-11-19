@@ -6034,7 +6034,8 @@ textarea {
     color: #333548;
   }
 
-  .report-table tbody,
+  /* Keep short client lists together. Longer lists can span pages. */
+  .report-table tbody:not(:has(tr:nth-child(8))),
   .report-table tr {
     break-inside: avoid;
   }
