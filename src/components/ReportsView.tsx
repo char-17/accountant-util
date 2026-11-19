@@ -1,14 +1,25 @@
-import { useRef, useState } from "react";
-import type { ReportClientGroup, ReportPeriod, ReportRange } from "../domain/types";
+import { displayDate } from "../domain/dates";
+import { Fragment, useRef, useState } from "react";
+import type { ReportBasis, ReportClientGroup, ReportPeriod, ReportServiceRow } from "../domain/types";
 import {
+  reportTotals,
   REPORT_PERIOD_LABELS,
-  monthsInRange,
+  normalizeCustomRange,
+  rangeForPeriod,
+  REPORT_BASIS_LABELS,
   reportRangeLabel,
 } from "../domain/report";
 import { ClientFilterSelect } from "./WorklistFiltersBar";
 import { formatAmount } from "../domain/money";
 
 interface ReportsViewProps {
+  basis: ReportBasis;
+  onBasisChange: (basis: ReportBasis) => void;
+  invoicedUnpaid: boolean;
+  onInvoicedUnpaidChange: (value: boolean) => void;
+  clients: { id: number; name: string }[];
+  error?: string;
+  onRetry?: () => void;
   groups: ReportClientGroup[];
   loading: boolean;
   year: number;
@@ -38,20 +49,15 @@ const MONTH_OPTIONS = [
   { value: 12, label: "Δεκέμβριος" },
 ];
 
-function formatDate(value?: string): string {
-  if (!value) return "—";
-  const iso = value.slice(0, 10);
-  const d = new Date(`${iso}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("el-GR");
-}
 
 /**
  * The report: clients, each with their services indented underneath, and the
  * amount and dates for each service.
  */
 export function ReportsView({
-  groups,
+  error,
+  onRetry,
+  groups, clients, basis, onBasisChange, invoicedUnpaid, onInvoicedUnpaidChange,
   loading,
   year,
   month,
@@ -77,7 +83,7 @@ export function ReportsView({
   // A new report starts fully open again. Adjusted during render rather than in
   // an effect: an effect would run after paint, so the previous period's
   // collapsed rows would flash on screen for a frame before being reset.
-  const reportBasis = `${year}-${month}-${period}-${customFrom}-${customTo}`;
+  const reportBasis = `${basis}-${invoicedUnpaid}-${year}-${month}-${period}-${customFrom}-${customTo}`;
   const lastBasis = useRef(reportBasis);
   if (lastBasis.current !== reportBasis) {
     lastBasis.current = reportBasis;
@@ -98,25 +104,24 @@ export function ReportsView({
       return next;
     });
 
-  const range: ReportRange =
-    period === "custom"
-      ? { year, fromMonth: Math.min(customFrom, customTo), toMonth: Math.max(customFrom, customTo) }
-      : period === "year"
-        ? { year, fromMonth: 1, toMonth: 12 }
-        : period === "quarter"
-          ? (() => {
-              const first = Math.floor((month - 1) / 3) * 3 + 1;
-              return { year, fromMonth: first, toMonth: first + 2 };
-            })()
-          : { year, fromMonth: month, toMonth: month };
-
-  const monthCount = monthsInRange(range).length;
+  const range = period === "custom"
+    ? normalizeCustomRange(year, customFrom, customTo) : rangeForPeriod(period, year, month);
+  const work = basis === "work";
+  const multipleMonths = range.fromMonth !== range.toMonth;
   const visibleGroups = selectedClientId === null
     ? groups
     : groups.filter((group) => group.clientId === selectedClientId);
-  if (!loading && selectedClientId !== null && visibleGroups.length === 0) {
-    setSelectedClientId(null);
-  }
+  const totals = reportTotals(visibleGroups);
+  const summaries: Record<ReportBasis, [string, number][]> = {
+    work: [
+      ["Αμοιβές", totals.amount],
+      ["Εισπραχθέντα", totals.paid],
+      ["Τιμολογημένα", totals.invoiced],
+      ["Σύνολο προς είσπραξη", totals.unpaid],
+    ],
+    payments: [["Σύνολο εισπράξεων περιόδου", totals.paid]],
+    invoices: [["Σύνολο τιμολογημένων περιόδου", totals.invoiced]],
+  };
   const hasVisibleRows = visibleGroups.length > 0;
   const orderedGroups = amountSort === null
     ? visibleGroups
@@ -124,13 +129,7 @@ export function ReportsView({
         .sort((a, b) => {
           const difference = a.totalAmount - b.totalAmount;
           return amountSort === "asc" ? difference : -difference;
-        })
-        .map((group) => ({
-          ...group,
-          rows: [...group.rows].sort((a, b) =>
-            amountSort === "asc" ? a.amount - b.amount : b.amount - a.amount
-          ),
-        }));
+        });
 
   const cycleAmountSort = () => {
     setAmountSort((current) =>
@@ -145,6 +144,12 @@ export function ReportsView({
 
   return (
     <div className="reports-view">
+      <div className="report-basis-options" role="group" aria-label="Είδος αναφοράς">
+        {(Object.keys(REPORT_BASIS_LABELS) as ReportBasis[]).map(key => (
+          <button key={key} type="button" className={basis === key ? "status-filter-option active" : "status-filter-option"}
+            aria-pressed={basis === key} onClick={() => onBasisChange(key)}>{REPORT_BASIS_LABELS[key]}</button>
+        ))}
+      </div>
       <div className="reports-controls">
         <div className="reports-period" role="group" aria-label="Περίοδος αναφοράς">
           {(Object.keys(REPORT_PERIOD_LABELS) as ReportPeriod[])
@@ -210,7 +215,6 @@ export function ReportsView({
             down and back. Centred in the space that leaves. */}
         <p className="reports-range-label">
           {reportRangeLabel(range)}
-          {monthCount > 1 && <span> · {monthCount} μήνες</span>}
         </p>
 
         <button className="btn-secondary reports-print" onClick={handlePrint}>
@@ -218,77 +222,110 @@ export function ReportsView({
         </button>
       </div>
 
-      {!loading && groups.length > 0 && (
-        <div className="reports-filter-row">
-          <ClientFilterSelect
-            value={selectedClientId}
-            options={groups.map(group => ({ id: group.clientId, name: group.clientName }))}
-            onChange={setSelectedClientId}
-            allLabel="Όλοι οι πελάτες"
-            searchLabel="Αναζήτηση πελάτη..."
-            listLabel="Φίλτρο αναφορών ανά πελάτη"
-            className="filter-client"
-          />
-        </div>
-      )}
+      <div className="reports-filter-row">
+        <ClientFilterSelect
+          value={selectedClientId}
+          options={clients}
+          onChange={setSelectedClientId}
+          allLabel="Όλοι οι πελάτες"
+          searchLabel="Αναζήτηση πελάτη..."
+          listLabel="Φίλτρο αναφορών ανά πελάτη"
+          className="filter-client"
+        />
+        {work && <label className="report-outstanding-filter">
+          <input type="checkbox" checked={invoicedUnpaid} onChange={e => onInvoicedUnpaidChange(e.target.checked)} />
+          Τιμολογημένα προς είσπραξη
+        </label>}
+      </div>
 
+      <p className="report-print-context">{REPORT_BASIS_LABELS[basis]} · {clients.find(client => client.id === selectedClientId)?.name ?? "Όλοι οι πελάτες"}
+        {work && invoicedUnpaid && " · Τιμολογημένα προς είσπραξη"}</p>
+      {!loading && !error && (
+        <dl className="reports-totals" aria-label="Οικονομικά σύνολα">
+          {summaries[basis].map(([label, value]) => (
+            <div key={label} className="report-total">
+              <dt className="report-total-label">{label}</dt>
+              <dd className="report-total-value">{formatAmount(value)} €</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {loading ? (
         <p className="empty-message">Φόρτωση...</p>
+      ) : error ? (
+        <p role="alert">{error} <button onClick={onRetry}>Επανάληψη</button></p>
       ) : isEmpty || !hasVisibleRows ? (
         <p className="empty-message">
-          {selectedClientId === null
-            ? `Δεν υπάρχουν εργασίες για την περίοδο ${reportRangeLabel(range)}.`
-            : "Ο επιλεγμένος πελάτης δεν έχει εργασίες για την επιλεγμένη περίοδο."}
+          {selectedClientId !== null ? "Καμία κίνηση για τον επιλεγμένο πελάτη στην περίοδο."
+            : work && !invoicedUnpaid ? `Δεν υπάρχουν εργασίες για την περίοδο ${reportRangeLabel(range)}.`
+            : "Δεν υπάρχουν καταχωρίσεις για την επιλεγμένη περίοδο και τα φίλτρα."}
         </p>
       ) : (
-        <>
-          <div className="report-table-wrap">
-            <table className="report-table">
-              <thead>
-                <tr>
-                  <th scope="col">ΠΕΛΑΤΗΣ / ΥΠΗΡΕΣΙΑ</th>
-                  <th scope="col">
-                    <span className="report-amount-print-label">ΠΟΣΟ</span>
-                    <button
-                      type="button"
-                      className="report-sort-button"
-                      onClick={cycleAmountSort}
-                      aria-label={`Ταξινόμηση ποσού ${amountSort === "asc" ? "φθίνουσα" : "αύξουσα"}`}
-                      title="Ταξινόμηση με βάση το ποσό"
-                    >
-                      <span>ΠΟΣΟ</span>
-                      <span className="report-sort-arrows" aria-hidden="true">
-                        {amountSort === "asc" ? "↑" : amountSort === "desc" ? "↓" : "↕"}
-                      </span>
-                    </button>
-                  </th>
-                  <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΙΣΠΡΑΞΗΣ</th>
-                  <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΚΔΟΣΗΣ ΤΙΜΟΛΟΓΙΟΥ</th>
-                </tr>
-              </thead>
-              {orderedGroups.map((group) => (
-                <ReportGroupRow
-                  key={group.clientId}
-                  group={group}
-                  expanded={isExpanded(group.clientId)}
-                  onToggle={() => toggleClient(group.clientId)}
-                />
-              ))}
-            </table>
-          </div>
-        </>
+        <div className="report-table-wrap">
+          <table className="report-table" data-basis={basis}>
+            <thead>
+              <tr>
+                <th scope="col">ΠΕΛΑΤΗΣ / ΥΠΗΡΕΣΙΑ</th>
+                <th scope="col">
+                  <span className="report-amount-print-label">ΠΟΣΟ</span>
+                  <button
+                    type="button"
+                    className="report-sort-button"
+                    onClick={cycleAmountSort}
+                    aria-label={`Ταξινόμηση ποσού ${amountSort === "asc" ? "φθίνουσα" : "αύξουσα"}`}
+                    title="Ταξινόμηση με βάση το ποσό"
+                  >
+                    <span>ΠΟΣΟ</span>
+                    <span className="report-sort-arrows" aria-hidden="true">
+                      {amountSort === "asc" ? "↑" : amountSort === "desc" ? "↓" : "↕"}
+                    </span>
+                  </button>
+                </th>
+                {work && <th scope="col">ΠΡΟΣ ΕΙΣΠΡΑΞΗ</th>}
+                {basis !== "invoices" && <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΙΣΠΡΑΞΗΣ</th>}
+                {basis !== "payments" && <th scope="col">ΗΜΕΡΟΜΗΝΙΑ ΕΚΔΟΣΗΣ ΤΙΜΟΛΟΓΙΟΥ</th>}
+              </tr>
+            </thead>
+            {orderedGroups.map((group) => (
+              <ReportGroupRow
+                key={group.clientId}
+                group={group} basis={basis} multipleMonths={multipleMonths} amountSort={amountSort}
+                expanded={isExpanded(group.clientId)}
+                onToggle={() => toggleClient(group.clientId)}
+              />
+            ))}
+          </table>
+        </div>
       )}
     </div>
   );
 }
 
 interface ReportGroupRowProps {
+  basis: ReportBasis;
+  multipleMonths: boolean;
+  amountSort: "asc" | "desc" | null;
   group: ReportClientGroup;
   expanded: boolean;
   onToggle: () => void;
 }
 
-function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
+function monthOfRow(row: ReportServiceRow, basis: ReportBasis) {
+  if (basis === "work") return row.month;
+  return Number((basis === "payments" ? row.paidAt : row.invoicedAt)?.slice(5, 7));
+}
+
+function ReportGroupRow({ group, basis, multipleMonths, amountSort, expanded, onToggle }: ReportGroupRowProps) {
+  const work = basis === "work";
+  const rows = [...group.rows].sort((a, b) => {
+    const months = monthOfRow(a, basis) - monthOfRow(b, basis);
+    if (months) return months;
+    if (amountSort) return ((a.amount ?? 0) - (b.amount ?? 0)) * (amountSort === "asc" ? 1 : -1);
+    if (work) return 0;
+    const first = basis === "payments" ? a.paidAt : a.invoicedAt;
+    const second = basis === "payments" ? b.paidAt : b.invoicedAt;
+    return (first ?? "").localeCompare(second ?? "");
+  });
   return (
     <tbody>
       <tr className="report-client-row">
@@ -301,24 +338,31 @@ function ReportGroupRow({ group, expanded, onToggle }: ReportGroupRowProps) {
           </button>
         </th>
         <td className="report-amount">{formatAmount(group.totalAmount)} €</td>
-        <td colSpan={2} />
+        {work && <td className="report-amount report-outstanding">{formatAmount(reportTotals([group]).unpaid)} €</td>}
+        <td colSpan={work ? 2 : 1} />
       </tr>
 
       {expanded &&
-        group.rows.map((row) => (
-          <tr key={row.key} className="report-service-row">
-            <td className="report-service-name">
-              <span
-                className="task-color-dot"
-                style={{ backgroundColor: row.taskColor }}
-                aria-hidden="true"
-              />
-              <span className="report-service-label">{row.taskName}</span>
-            </td>
-            <td className="report-amount">{formatAmount(row.amount)} €</td>
-            <td className="report-date">{formatDate(row.paidAt)}</td>
-            <td className="report-date">{formatDate(row.invoicedAt)}</td>
-          </tr>
+        rows.map((row, index) => (
+          <Fragment key={row.key}>
+            {multipleMonths && (index === 0 || monthOfRow(row, basis) !== monthOfRow(rows[index - 1], basis)) &&
+              <tr className="report-month-row"><th colSpan={work ? 5 : 3}>{MONTH_OPTIONS[monthOfRow(row, basis) - 1]?.label}</th></tr>}
+            <tr className="report-service-row">
+              <td className="report-service-name">
+                <span
+                  className="task-color-dot"
+                  style={{ backgroundColor: row.taskColor }}
+                  aria-hidden="true"
+                />
+                <span className="report-service-label">{row.taskName}</span>
+              </td>
+              <td className="report-amount">{row.amount == null ? "Χωρίς ποσό" : formatAmount(row.amount) + " €"}</td>
+              {work && <td className="report-amount report-outstanding">{!row.isPaid && row.amount == null
+                ? "—" : formatAmount(row.isPaid ? 0 : row.amount ?? 0) + " €"}</td>}
+              {basis !== "invoices" && <td className="report-date">{displayDate(row.paidAt, row.isPaid ? "Εισπράχθηκε · λείπει ημερομηνία" : "—")}</td>}
+              {basis !== "payments" && <td className="report-date">{displayDate(row.invoicedAt, row.isInvoiced ? "Τιμολογήθηκε · λείπει ημερομηνία" : "—")}</td>}
+            </tr>
+          </Fragment>
         ))}
     </tbody>
   );

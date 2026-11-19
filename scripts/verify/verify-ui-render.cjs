@@ -173,7 +173,7 @@ const listHtml = render(React.createElement(ui.MonthlyWorklist, {
   onFilterClientSelect: noop, onFilterTaskSelect: noop,
   clientOptions, taskOptions,
   year: 2026, month: 10, onToggle: noop, onSelectClient: noop, onOpenClient: noop,
-  onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+  onSaveFinance: noop,
 }));
 check('period is displayed', listHtml.includes('10/2026'));
 check('the task heading shows its scheduled date even after completion', /worklist-task-name">ΦΠΑ<\/span>\s*<span class="worklist-task-deadline">Προθεσμία <time dateTime="2026-10-28">28\/10\/2026<\/time>/i.test(listHtml));
@@ -184,7 +184,7 @@ check('the checkbox reflects the completed row', (listHtml.match(/checked=""/g) 
 check('completed work shows its date', listHtml.includes('completed-at') || /\d+\/\d+\/\d{4}/.test(listHtml));
 check('filter bar is included above the list', listHtml.includes('Αναζήτηση πελάτη'));
 check('each client sits in its own card', (listHtml.match(/worklist-client[ "]/g) || []).length === 2);
-check('the fee and collection fields are offered', listHtml.includes('Εισπραξη') && listHtml.includes('Ποσό'));
+check('the fee and collection fields are offered', listHtml.includes('Είσπραξη') && listHtml.includes('Ποσό'));
 
 console.log('\n4) the worklist distinguishes "empty month" from "nothing matched"');
 const emptyMonth = render(React.createElement(ui.MonthlyWorklist, {
@@ -193,7 +193,7 @@ const emptyMonth = render(React.createElement(ui.MonthlyWorklist, {
   onFilterClientSelect: noop, onFilterTaskSelect: noop,
   clientOptions, taskOptions,
   year: 2026, month: 10, onToggle: noop, onSelectClient: noop, onOpenClient: noop,
-  onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+  onSaveFinance: noop,
 }));
 check('empty month explains what to do', emptyMonth.includes('Δεν υπάρχουν εργασίες'));
 check('empty month offers no filter reset', !emptyMonth.includes('Καθαρισμός'));
@@ -205,7 +205,7 @@ const nothingMatched = render(React.createElement(ui.MonthlyWorklist, {
   onFilterClientSelect: noop, onFilterTaskSelect: noop,
   clientOptions, taskOptions,
   year: 2026, month: 10, onToggle: noop, onSelectClient: noop, onOpenClient: noop,
-  onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+  onSaveFinance: noop,
 }));
 check('empty result says the filters excluded everything', nothingMatched.includes('δεν ταιριάζει με τα φίλτρα'));
 check('and offers a way out', nothingMatched.includes('Καθαρισμός φίλτρων'));

@@ -1,14 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type Database from "@tauri-apps/plugin-sql";
 import type { MonthlyStatusWithDetails } from "../domain/types";
+import type { SaveFinance } from "../domain/taskFinance";
 import * as statusRepo from "../persistence/statusRepo";
 
 export function useMonthlyStatus(db: Database | null, year: number, month: number) {
   const [statuses, setStatuses] = useState<MonthlyStatusWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const request = useRef(0);
   const loadStatus = useCallback(async () => {
     if (!db) return;
+    const sequence = ++request.current;
     setLoading(true);
     try {
       // The month's task rows are derived from the active client→task
@@ -19,13 +22,16 @@ export function useMonthlyStatus(db: Database | null, year: number, month: numbe
 
       // Counts are derived from these rows in useWorklistFilters, so they stay
       // consistent with whatever the filters show.
-      setStatuses(await statusRepo.getMonthlyStatus(db, year, month));
+      const result = await statusRepo.getMonthlyStatus(db, year, month);
+      if (sequence === request.current) setStatuses(result);
     } finally {
-      setLoading(false);
+      if (sequence === request.current) setLoading(false);
     }
   }, [db, year, month]);
 
+  const currentLoad = useRef(loadStatus);
   useEffect(() => {
+    currentLoad.current = loadStatus;
     void loadStatus();
   }, [loadStatus]);
 
@@ -36,44 +42,18 @@ export function useMonthlyStatus(db: Database | null, year: number, month: numbe
   ) => {
     if (!db) return;
     await statusRepo.setTaskCompleted(db, clientId, taskTypeId, year, month, note);
-    await loadStatus();
+    await currentLoad.current();
   };
 
   const markPending = async (clientId: number, taskTypeId: number) => {
     if (!db) return;
     await statusRepo.setTaskPending(db, clientId, taskTypeId, year, month);
-    await loadStatus();
+    await currentLoad.current();
   };
 
-  // Money writes go through the same reload as the status itself: the amount,
-  // the collection and the invoice all live on the same monthly row, so leaving
-  // them stale would show a wrong figure in the summary and the report at once.
-  const setAmount = async (clientId: number, taskTypeId: number, amount: number | null) => {
-    if (!db) return;
-    await statusRepo.setAmount(db, clientId, taskTypeId, year, month, amount);
-    await loadStatus();
-  };
-
-  const setPaid = async (
-    clientId: number,
-    taskTypeId: number,
-    isPaid: boolean,
-    paidAt: string | null
-  ) => {
-    if (!db) return;
-    await statusRepo.setPaid(db, clientId, taskTypeId, year, month, isPaid, paidAt);
-    await loadStatus();
-  };
-
-  const setInvoiced = async (
-    clientId: number,
-    taskTypeId: number,
-    isInvoiced: boolean,
-    invoicedAt: string | null
-  ) => {
-    if (!db) return;
-    await statusRepo.setInvoiced(db, clientId, taskTypeId, year, month, isInvoiced, invoicedAt);
-    await loadStatus();
+  const saveFinance: SaveFinance = async (item, change) => {
+    if (!db) throw Error("Η βάση δεν είναι διαθέσιμη.");
+    await statusRepo.saveTaskFinance(db, item, change);
   };
 
   return {
@@ -81,9 +61,7 @@ export function useMonthlyStatus(db: Database | null, year: number, month: numbe
     loading,
     markCompleted,
     markPending,
-    setAmount,
-    setPaid,
-    setInvoiced,
-    refresh: loadStatus,
+    saveFinance,
+    refresh: useCallback(() => currentLoad.current(), []),
   };
 }

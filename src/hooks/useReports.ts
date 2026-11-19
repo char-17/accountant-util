@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type Database from "@tauri-apps/plugin-sql";
-import type { ReportClientGroup, ReportPeriod } from "../domain/types";
-import { buildReport, monthsInRange, rangeForPeriod } from "../domain/report";
+import type { ReportBasis, ReportClientGroup, ReportPeriod } from "../domain/types";
+import { buildReport, normalizeCustomRange, monthsInRange, rangeForPeriod } from "../domain/report";
 import * as statusRepo from "../persistence/statusRepo";
 
 interface UseReportsResult {
+  basis: ReportBasis;
+  setBasis: (basis: ReportBasis) => void;
+  invoicedUnpaid: boolean;
+  setInvoicedUnpaid: (value: boolean) => void;
   groups: ReportClientGroup[];
   loading: boolean;
+  error: string;
   period: ReportPeriod;
   setPeriod: (period: ReportPeriod) => void;
   customFrom: number;
@@ -22,37 +27,41 @@ interface UseReportsResult {
  * The month range is resolved in the domain layer and only the resulting months
  * are queried, so a yearly report is one query and not twelve.
  */
-export function useReports(db: Database | null, year: number, month: number): UseReportsResult {
+export function useReports(db: Database | null, year: number, month: number, active: boolean): UseReportsResult {
+  const [basis, setBasis] = useState<ReportBasis>("work");
+  const [invoicedUnpaid, setInvoicedUnpaid] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>("month");
   const [customFrom, setCustomFrom] = useState(month);
   const [customTo, setCustomTo] = useState(month);
   const [rows, setRows] = useState<Awaited<ReturnType<typeof statusRepo.getStatusInRange>>>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   // Bumped by refresh() so a reload can be triggered without changing the period.
   const [nonce, setNonce] = useState(0);
 
   const range = useMemo(() => {
     if (period === "custom") {
-      const lo = Math.min(Math.max(customFrom, 1), 12);
-      const hi = Math.min(Math.max(customTo, 1), 12);
-      return { year, fromMonth: Math.min(lo, hi), toMonth: Math.max(lo, hi) };
+      return normalizeCustomRange(year, customFrom, customTo);
     }
     return rangeForPeriod(period, year, month);
   }, [period, year, month, customFrom, customTo]);
 
-  const load = useCallback(async () => {
-    if (!db) return;
-    setLoading(true);
-    try {
-      setRows(await statusRepo.getStatusInRange(db, range.year, range.fromMonth, range.toMonth));
-    } finally {
-      setLoading(false);
-    }
-  }, [db, range.year, range.fromMonth, range.toMonth]);
-
   useEffect(() => {
-    void load();
-  }, [load, nonce]);
+    if (!db || !active) return;
+    let current = true;
+    setLoading(true);
+    setError("");
+    void statusRepo.getStatusInRange(db, range.year, range.fromMonth, range.toMonth, basis, invoicedUnpaid)
+      .then(result => { if (current) setRows(result); })
+      .catch(() => {
+        if (current) {
+          setRows([]);
+          setError("Δεν φορτώθηκε η αναφορά. Δοκιμάστε ξανά.");
+        }
+      })
+      .finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [db, active, range.year, range.fromMonth, range.toMonth, basis, invoicedUnpaid, nonce]);
 
   const setCustomRange = useCallback((from: number, to: number) => {
     setCustomFrom(from);
@@ -64,8 +73,10 @@ export function useReports(db: Database | null, year: number, month: number): Us
   const groups = useMemo(() => buildReport(rows), [rows]);
 
   return {
+    basis, setBasis, invoicedUnpaid, setInvoicedUnpaid,
     groups,
     loading,
+    error,
     period,
     setPeriod,
     customFrom,

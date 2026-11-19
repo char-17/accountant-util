@@ -202,6 +202,7 @@ async function main() {
 
   console.log('\n4) the report table');
   const report = await render('reports', React.createElement(ui.ReportsView, {
+    clients: [], basis: "work", invoicedUnpaid: false,
     groups: [
       { clientId: 1, clientName: 'ΧΑΤΖΙΔΗΣ ΑΡΙΣΤΗ', totalAmount: 100, paidAmount: 50, invoicedAmount: 0, rows: [
         { key: 'a', taskName: 'ΦΠΑ', taskColor: '#7B8D6E', year: 2026, month: 10, isPaid: false, isInvoiced: false, amount: 100 }] },

@@ -1,3 +1,4 @@
+import { greekDateOptions } from "../domain/dates";
 import { useDialogA11y } from "../hooks/useDialogA11y";
 import { APP_NAME, APP_VERSION } from "../appInfo";
 import type { BackupArea } from "../persistence/backupArea";
@@ -11,8 +12,9 @@ interface AboutDialogProps {
 function formatDate(value: string | null): string {
   if (!value) return "Δεν έχει καταγραφεί ακόμα";
   return new Date(value).toLocaleString("el-GR", {
-    dateStyle: "long",
-    timeStyle: "short",
+    ...greekDateOptions,
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 

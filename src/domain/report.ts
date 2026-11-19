@@ -8,12 +8,17 @@
 
 import type {
   MonthlyStatusWithDetails,
+  ReportBasis,
   ReportClientGroup,
   ReportPeriod,
   ReportRange,
   ReportServiceRow,
 } from "./types";
 import { roundMoney, sumMoney } from "./money";
+
+export const REPORT_BASIS_LABELS: Record<ReportBasis, string> = {
+  work: "Εργασίες", payments: "Εισπράξεις", invoices: "Τιμολόγια",
+};
 
 export const REPORT_PERIOD_LABELS: Record<ReportPeriod, string> = {
   month: "Μηνιαία",
@@ -96,7 +101,7 @@ export function buildReport(
       groups.set(s.clientId, group);
     }
 
-    const amount = typeof s.amount === "number" && Number.isFinite(s.amount) ? s.amount : 0;
+    const amount = typeof s.amount === "number" && Number.isFinite(s.amount) ? s.amount : null;
     const row: ReportServiceRow = {
       key: `${s.id}`,
       taskName: s.taskName,
@@ -111,9 +116,9 @@ export function buildReport(
     };
     group.rows.push(row);
 
-    group.totalAmount = roundMoney(group.totalAmount + amount);
-    if (row.isPaid) group.paidAmount = roundMoney(group.paidAmount + amount);
-    if (row.isInvoiced) group.invoicedAmount = roundMoney(group.invoicedAmount + amount);
+    group.totalAmount = roundMoney(group.totalAmount + (amount ?? 0));
+    if (row.isPaid) group.paidAmount = roundMoney(group.paidAmount + (amount ?? 0));
+    if (row.isInvoiced) group.invoicedAmount = roundMoney(group.invoicedAmount + (amount ?? 0));
   }
 
   return [...groups.values()].sort((a, b) =>

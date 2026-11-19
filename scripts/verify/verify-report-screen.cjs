@@ -15,11 +15,11 @@ const rows = [];
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
 const names = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μάι', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
 const euros = cents => (cents / 100).toLocaleString('el-GR', { minimumFractionDigits: 2 }) + ' €';
-const date = iso => iso ? iso.split('-').reverse().map(Number).join('/') : '—';
+const date = iso => iso ? iso.split('-').reverse().join('/') : '—';
 
 function fixture() {
   const migration = fs.readFileSync(path.join(__dirname, '../../src-tauri/src/migration.rs'), 'utf8');
-  const statements = migration.split('let migrations = [')[1].split('];')[0];
+  const statements = ['migrations', 'financial_migrations'].map(name => migration.split('let ' + name + ' = [')[1].split('];')[0]).join('\n');
   for (const [, sql] of statements.matchAll(/^\s*"(.+)",/gm)) {
     try { db.exec(sql); } catch (e) { if (!e.message.includes('duplicate column name')) throw e; }
   }
@@ -43,8 +43,8 @@ function fixture() {
       const isoMonth = String(month).padStart(2, '0');
       const paidAt = paid ? (month === 12 ? '2025-01-02' : `2024-${isoMonth}-17`) : null;
       const invoicedAt = invoiced && month !== 8 ? (month === 2 ? '2024-02-29' : `2024-${isoMonth}-01`) : null;
-      rows.push({ client, task, month, cents, paidAt, invoicedAt });
-      insert.run(client, task, year, month, month % 2 ? 'pending' : 'completed', cents === null ? null : cents / 100,
+      rows.push({ client, task, month, cents, paid, invoiced, paidAt, invoicedAt });
+      insert.run(client, task, year, month, month % 2 || (month === 2 && client === 1) ? 'pending' : 'completed', cents === null ? null : cents / 100,
         Number(paid), paidAt, Number(invoiced), invoicedAt);
     }
   }
@@ -120,8 +120,8 @@ async function run(page) {
       const groups = [];
       for (const tr of trs) {
         if (tr.matches('.report-client-row')) {
-          groups.push({ name: tr.cells[0].innerText.replace(/[▾▸]/g, '').trim(), total: tr.cells[1].innerText, rows: [] });
-        } else {
+          groups.push({ name: tr.cells[0].innerText.replace(/[▾▸]/g, '').trim(), total: tr.cells[1].innerText, unpaid: tr.querySelector(".report-outstanding")?.innerText, rows: [] });
+        } else if (tr.matches(".report-service-row")) {
           groups.at(-1).rows.push(Array.from(tr.cells, td => td.innerText.trim()));
         }
       }
@@ -134,11 +134,12 @@ async function run(page) {
       if (only && index + 1 !== only) continue;
       const chosen = rows.filter(r => r.client === index + 1 && r.month >= lo && r.month <= hi);
       if (!chosen.length) continue;
-      if (sort) chosen.sort((a, b) => sort * (a.cents - b.cents));
+      chosen.sort((a, b) => a.month - b.month || (sort || 0) * (a.cents - b.cents));
       const sum = chosen.reduce((acc, r) => acc + (r.cents ?? 0), 0);
-      groups.push({ name, sum, total: euros(sum), rows: chosen.map(r => [
+      groups.push({ name, sum, total: euros(sum), unpaid: euros(chosen.reduce((n,r) => n + (r.paid ? 0 : r.cents ?? 0), 0)), rows: chosen.map(r => [
         tasks[r.task - 1],
-        euros(r.cents ?? 0), date(r.paidAt), date(r.invoicedAt),
+        r.cents == null ? 'Χωρίς ποσό' : euros(r.cents), r.paid ? euros(0) : r.cents == null ? '—' : euros(r.cents),
+        date(r.paidAt), r.invoiced && !r.invoicedAt ? 'Τιμολογήθηκε · λείπει ημερομηνία' : date(r.invoicedAt),
       ])});
     }
     if (sort) groups.sort((a,b) => sort * (a.sum - b.sum));
@@ -147,9 +148,37 @@ async function run(page) {
   async function verifyRange(lo, hi, only, sort) {
     assert.deepEqual(await table(), expected(lo, hi, only, sort));
     const title = lo === hi ? names[lo-1] : lo === 1 && hi === 12 ? 'Έτος' : names[lo-1] + ' – ' + names[hi-1];
-    assert.equal(await page.locator('.reports-range-label').innerText(), title + ' 2024' + (hi > lo ? ' · ' + (hi-lo+1) + ' μήνες' : ''));
+    assert.equal(await page.locator('.reports-range-label').innerText(), title + ' 2024');
   }
   await openReports();
+  await scenario('payment and invoice views use event dates across service months and year boundaries', async () => {
+    const basis = page.getByRole('group', {name: 'Είδος αναφοράς'});
+    for (const [label, column, flag] of [['Εισπράξεις','paid_at','is_paid'], ['Τιμολόγια','invoiced_at','is_invoiced']]) {
+      await basis.getByRole('button', {name:label}).click();
+      for (const [periodName, lo, hi] of [['Μηνιαία',1,1],['Τριμηνιαία',1,3],['Ετήσια',1,12],['Προσαρμοσμένη περίοδος',2,4]]) {
+        await chooseMonth(1);
+        await period(periodName);
+        if (periodName === 'Προσαρμοσμένη περίοδος') { await from.selectOption('2'); await to.selectOption('4'); }
+        const groups = await table();
+        const records = db.prepare('SELECT amount FROM monthly_task_status WHERE '+flag+'=1 AND strftime(\'%Y\','+column+')=\'2024\' AND CAST(strftime(\'%m\','+column+') AS INTEGER) BETWEEN ? AND ?').all(lo,hi);
+        assert.equal(groups.flatMap(g => g.rows).length, records.length);
+        assert.deepEqual(await page.locator('.reports-totals dd').allInnerTexts(), [euros(records.reduce((n,r) => n + Math.round((r.amount ?? 0)*100),0))]);
+        if (label === 'Εισπράξεις' && hi === 1) assert.ok(groups.flatMap(g => g.rows).some(row => row.includes('888,88 €') && row.includes('04/01/2024')));
+      }
+    }
+    await basis.getByRole('button',{name:'Εργασίες'}).click();
+    await period('Ετήσια');
+    const unpaid = page.getByRole('checkbox',{name:'Τιμολογημένα προς είσπραξη'});
+    await unpaid.check();
+    const groups = await table();
+    assert.ok(groups.length > 0);
+    const filtered = rows.filter(row => row.invoiced && !row.paid);
+    assert.equal(groups.flatMap(g => g.rows).length, filtered.length);
+    assert.equal(await page.locator('.reports-totals dd').last().innerText(), euros(filtered.reduce((n,r)=>n+(r.cents ?? 0),0)));
+    assert.ok(groups.every(group => group.total === group.unpaid));
+    await unpaid.uncheck();
+    await period('Μηνιαία');
+  });
   await scenario('12 monthly reports, both financial dates and client subtotals', async () => {
     for (const m of months) { await chooseMonth(m); await verifyRange(m, m); }
   });
@@ -188,11 +217,12 @@ async function run(page) {
     await page.locator('.report-client-toggle').first().click();
     const folded = await table();
     assert.equal(folded[0].rows.length, 0);
+    assert.equal(folded[0].unpaid, expected(1,12)[0].unpaid);
     assert.deepEqual(folded.slice(1), expected(1,12).slice(1));
     await page.locator('.report-client-toggle').first().click();
     await verifyRange(1,12);
   });
-  await scenario('four columns accessible at desktop and narrow widths, including print layout', async () => {
+  await scenario('five columns accessible at desktop and narrow widths, including print layout', async () => {
     for (const width of [1440,1024,390]) {
       await page.setViewportSize({width,height:900});
       assert.ok(await page.evaluate(() => {
@@ -201,7 +231,7 @@ async function run(page) {
         return Math.abs(picker.left - table.left) <= 1 && picker.right <= table.right + 1;
       }));
       const headings = page.locator('.report-table thead th');
-      assert.equal(await headings.count(),4);
+      assert.equal(await headings.count(),5);
       for (const heading of await headings.all()) { await heading.scrollIntoViewIfNeeded(); assert.ok(await heading.isVisible()); }
       const last = page.locator('.report-service-row').first().locator('td').last();
       await last.scrollIntoViewIfNeeded();
@@ -232,7 +262,7 @@ async function run(page) {
   await scenario('previous year by service month, and entirely empty next year', async () => {
     await chooseMonth(1);
     await button('Προηγούμενος μήνας').click();
-    assert.deepEqual((await table()).map(g => [g.total, g.rows[0].slice(1)]), [['888,88 €',['888,88 €','4/1/2024','—']]]);
+    assert.deepEqual((await table()).map(g => [g.total, g.rows[0].slice(1)]), [['888,88 €',['888,88 €','0,00 €','04/01/2024','—']]]);
     await button('Επόμενος μήνας').click();
     await chooseMonth(12);
     await button('Επόμενος μήνας').click();
@@ -246,8 +276,11 @@ async function run(page) {
   await period('Μηνιαία');
   await scenario('recover from a selected client absent in the new month', async () => {
     await settle();
-    // Either a visible reset/filter or an automatic return to all clients is valid.
-    if (await clientFilter.isVisible()) await chooseClient(null);
+    assert.match(await clientFilter.getAttribute('aria-label'), /Γάμμα/);
+    assert.deepEqual(await table(), []);
+    assert.equal(await page.locator('.reports-totals dd').last().innerText(), euros(0));
+    await page.getByText('Καμία κίνηση για τον επιλεγμένο πελάτη στην περίοδο.').waitFor();
+    await chooseClient(null);
     await verifyRange(2,2);
   });
   await button('Κεντρική').click();
@@ -272,40 +305,94 @@ async function run(page) {
   const amount = task.locator('input[inputmode=decimal]');
   const paid = task.locator('.task-payment-check input').first();
   const invoiced = task.locator('.task-payment-check input').last();
-  const dates = task.locator('input[type=date]');
   const saved = () => db.prepare('SELECT * FROM monthly_task_status WHERE client_id=1 AND task_type_id=1 AND year=2024 AND month=2').get();
-  const ready = () => amount.evaluate(el => new Promise(resolve => {
-    const check = () => el.disabled ? requestAnimationFrame(check) : resolve();
-    requestAnimationFrame(check);
-  }));
-  await amount.fill('1.234,56'); await amount.press('Enter'); await ready();
-  await paid.click(); await ready();
-  if (await invoiced.isChecked()) { await invoiced.click(); await ready(); }
-  await invoiced.click(); await ready();
-  await scenario('default collection and invoice dates use the local day in Athens', async () => {
-    assert.deepEqual([saved().paid_at,saved().invoiced_at], ['2024-02-29','2024-02-29']);
+  const dialog = page.getByRole('dialog');
+  const correction = task.getByRole('button', {name:'Διόρθωση καταχώρισης'});
+  async function confirm(name) {
+    await dialog.getByRole('button', {name, exact:true}).click();
+    await dialog.waitFor({state:'hidden'});
+  }
+  await scenario('review, cancel, and record a prepayment on leap day in Athens', async () => {
+    await amount.fill('1.234,56');
+    await paid.click();
+    assert.equal(await dialog.getByLabel('Ποσό (€)').inputValue(), '1.234,56');
+    assert.equal(await dialog.getByRole('textbox', {name:'Ημερομηνία είσπραξης', exact:true}).inputValue(),'29/02/2024');
+    assert.ok((await dialog.innerText()).includes(clients[0]));
+    await confirm('Άκυρο');
+    assert.equal(saved().is_paid, 0);
+    await paid.click();
+    await confirm('Είσπραξη μόνο');
+    assert.deepEqual([saved().status, saved().amount, saved().paid_at], ['pending',1234.56,'2024-02-29']);
+    assert.equal(await amount.isEditable(),false);
+    assert.ok(await task.getByText(/Εισπράχθηκαν 1.234,56/).isVisible());
   });
-  await dates.nth(0).fill('2024-03-02'); await ready();
-  await dates.nth(1).fill('2024-02-29'); await ready();
-  await scenario('worklist persists edited amount and distinct financial dates', async () => {
+  await scenario('separate invoice confirmation and locked amount', async () => {
+    await invoiced.click();
+    assert.equal(await dialog.getByLabel('Ποσό (€)').isEditable(),false);
+    await confirm('Καταχώριση τιμολογίου');
+    assert.deepEqual([saved().status,saved().is_invoiced,saved().invoiced_at],['pending',1,'2024-02-29']);
+  });
+  await scenario('confirmed correction preserves the previous amount and dates', async () => {
+    await correction.click();
+    await dialog.getByLabel('Ποσό (€)').fill('120');
+    const paidDate = dialog.getByRole('textbox', {name:'Ημερομηνία είσπραξης', exact:true});
+    await paidDate.fill('31/02/2024');
+    await dialog.getByRole('button', {name:'Επιβεβαίωση διόρθωσης'}).click();
+    await dialog.getByRole('alert').waitFor();
+    assert.equal(saved().paid_at, '2024-02-29');
+    const picker = dialog.locator('.finance-date-field').filter({has: page.getByRole('textbox', {name:'Ημερομηνία είσπραξης', exact:true})}).locator('input[type="date"]');
+    await picker.fill('2026-11-25', {force:true});
+    assert.equal(await paidDate.inputValue(), '25/11/2026');
+    await dialog.getByRole('textbox', {name:'Ημερομηνία είσπραξης', exact:true}).fill('02/03/2024');
+    await confirm('Επιβεβαίωση διόρθωσης');
     const r = saved();
-    assert.deepEqual([r.amount,r.paid_at,r.invoiced_at],[1234.56,'2024-03-02','2024-02-29']);
+    const history = JSON.parse(r.corrections_json);
+    assert.equal(history.length,1);
+    assert.deepEqual([history[0].before.amount,history[0].after.amount,history[0].before.paidAt,history[0].after.paidAt],
+      [1234.56,120,'2024-02-29','2024-03-02']);
+    assert.deepEqual([r.amount,r.paid_at,r.invoiced_at],[120,'2024-03-02','2024-02-29']);
   });
-  Object.assign(rows.find(r => r.client === 1 && r.task === 1 && r.month === 2),
-    { cents:123456, paidAt:'2024-03-02', invoicedAt:'2024-02-29' });
+  const changed = rows.find(r => r.client === 1 && r.task === 1 && r.month === 2);
+  Object.assign(changed,{ cents:12000, paid:true, invoiced:true, paidAt:'2024-03-02', invoicedAt:'2024-02-29' });
   await openReports();
-  await scenario('opening Reports immediately reflects the saved edits', () => verifyRange(2,2));
-  await period('Ετήσια'); await period('Μηνιαία');
-  await scenario('after requery, the edited amount and both dates appear in the correct cells', () => verifyRange(2,2));
-  await button('Κεντρική').click();
-  await paid.click(); await ready();
-  await invoiced.click(); await ready();
-  await scenario('withdrawing collection and invoice clears the stored dates', async () => {
-    const r = saved(); assert.deepEqual([r.is_paid,r.paid_at,r.is_invoiced,r.invoiced_at],[0,null,0,null]);
+  await scenario('pending collection and invoice appear immediately and count once', async () => {
+    await verifyRange(2,2);
+    await chooseClient(1);
+    const values = await page.locator('.reports-totals dd').allInnerTexts();
+    assert.deepEqual(values,[12000,12000,12000,0].map(euros));
+    await chooseClient(null);
   });
-  Object.assign(rows.find(r => r.client === 1 && r.task === 1 && r.month === 2),{paidAt:null,invoicedAt:null});
-  await openReports(); await period('Ετήσια'); await period('Μηνιαία');
-  await scenario('withdrawn dates appear as dashes after refresh', () => verifyRange(2,2));
+  await button('Κεντρική').click();
+  const workStatus = task.locator('.worklist-item-main input');
+  await workStatus.click();
+  await confirm('Ναι, ολοκληρώθηκε');
+  await openReports();
+  await scenario('later task completion preserves the recorded finances', () => verifyRange(2,2));
+  await button('Κεντρική').click();
+  await workStatus.click();
+  await confirm('Ναι, επανήλθε');
+  await correction.click();
+  await dialog.getByRole('checkbox',{name:'Εισπράχθηκε'}).uncheck();
+  await dialog.getByRole('checkbox',{name:'Εκδόθηκε τιμολόγιο'}).uncheck();
+  await confirm('Επιβεβαίωση διόρθωσης');
+  Object.assign(changed,{paid:false,invoiced:false,paidAt:null,invoicedAt:null});
+  await openReports();
+  await scenario('withdrawn dates appear as dashes immediately', () => verifyRange(2,2));
+  await button('Κεντρική').click();
+  await scenario('combined completion and collection roll back together on failure', async () => {
+    db.exec("CREATE TRIGGER reject_test BEFORE UPDATE OF amount ON monthly_task_status BEGIN SELECT RAISE(ABORT,'test write rejected'); END");
+    try {
+      await paid.click();
+      await dialog.getByRole('button',{name:'Ολοκλήρωση και είσπραξη'}).click();
+      await dialog.getByRole('alert').waitFor();
+      assert.deepEqual([saved().status,saved().is_paid],['pending',0]);
+    } finally { db.exec('DROP TRIGGER reject_test'); }
+    await confirm('Ολοκλήρωση και είσπραξη');
+    assert.deepEqual([saved().status,saved().is_paid,saved().paid_at],['completed',1,'2024-02-29']);
+  });
+  changed.paid = true;
+  changed.paidAt = '2024-02-29';
+  await openReports();
   db.prepare(`INSERT INTO client_task_assignments(client_id,task_type_id,start_date,end_date,is_active)
     VALUES(1,1,'2022-01-01','2022-12-31',0)`).run();
   await period('Ετήσια');
@@ -341,7 +428,7 @@ async function run(page) {
   fixture();
   const browser = await chromium.launch({channel:'chromium',headless:true,executablePath:process.env.CHROMIUM_PATH});
   try {
-    const page = await browser.newPage({locale:'el-GR',timezoneId:'Europe/Athens',viewport:{width:1440,height:900}});
+    const page = await browser.newPage({locale:'en-US',timezoneId:'Europe/Athens',viewport:{width:1440,height:900}});
     await run(page);
   } finally { await browser.close(); db.close(); }
   if (failures.length) throw Error(failures.length + ' failing scenarios: ' + failures.join(' | '));

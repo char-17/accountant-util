@@ -38,8 +38,8 @@ console.log('\n4) a negative amount is refused in every state');
 check('negative while paid', messages({ amount: -1, isPaid: true, isInvoiced: false }).length === 1);
 check('negative while unpaid', messages({ amount: -1, isPaid: false, isInvoiced: false }).length === 1);
 
-console.log('\n5) invoicing is independent of the amount');
-check('invoiced without an amount is allowed', validatePayment({ amount: null, isPaid: false, isInvoiced: true }).length === 0);
+console.log('\n5) invoicing needs an amount');
+check('invoiced without an amount is refused', validatePayment({ amount: null, isPaid: false, isInvoiced: true }).length === 1);
 
 for (const f of [entry, bundle]) require('fs').unlinkSync(f);
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import type { SaveFinance } from "./domain/taskFinance";
 import type { TaskType, Profession } from "./domain/types";
 import { useDatabase } from "./hooks/useDatabase";
 import { useClients } from "./hooks/useClients";
@@ -168,9 +169,7 @@ function App() {
     statuses,
     markCompleted,
     markPending,
-    setAmount,
-    setPaid,
-    setInvoiced,
+    saveFinance,
     refresh: refreshStatus,
   } = useMonthlyStatus(db, year, month);
   const { assignments, refresh: refreshAssignments } = useAssignments(db);
@@ -245,7 +244,7 @@ function App() {
     reminderMonths
   );
 
-  const reports = useReports(db, year, month);
+  const reports = useReports(db, year, month, activeView === "reports");
 
   const [desktopNotifications, setDesktopNotifications] = useState(
     () => window.localStorage.getItem(DESKTOP_NOTIFICATIONS_PREFERENCE) !== "false"
@@ -448,48 +447,29 @@ function App() {
         failure: "Αποτυχία ενημέρωσης κατάστασης",
       }
     );
+    reports.refresh();
     // Completing a task must also retire its reminder, so the reminder list is
     // refreshed from the same event rather than on the next launch.
     refreshCompletedKeys();
   };
 
-  // Money writes are per-row and frequent; the toast is enough feedback, and a
-  // failure is also shown inline by the row itself.
-  const handleSetAmount = async (clientId: number, taskTypeId: number, amount: number | null) => {
-    await toasts.run(
-      async () => {
-        await setAmount(clientId, taskTypeId, amount);
-      },
-      { success: "", failure: "Αποτυχία αποθήκευσης ποσού" }
-    );
-  };
-
-  const handleSetPaid = async (
-    clientId: number,
-    taskTypeId: number,
-    isPaid: boolean,
-    paidAt: string | null
-  ) => {
-    await toasts.run(
-      async () => {
-        await setPaid(clientId, taskTypeId, isPaid, paidAt);
-      },
-      { success: "", failure: "Αποτυχία ενημέρωσης είσπραξης" }
-    );
-  };
-
-  const handleSetInvoiced = async (
-    clientId: number,
-    taskTypeId: number,
-    isInvoiced: boolean,
-    invoicedAt: string | null
-  ) => {
-    await toasts.run(
-      async () => {
-        await setInvoiced(clientId, taskTypeId, isInvoiced, invoicedAt);
-      },
-      { success: "", failure: "Αποτυχία ενημέρωσης τιμολογίου" }
-    );
+  const handleSaveFinance: SaveFinance = async (item, change) => {
+    try {
+      await saveFinance(item, change);
+    } catch (error) {
+      void refreshStatus();
+      throw error;
+    }
+    reports.refresh();
+    if (change.kind === "collect" && change.complete) void refreshCompletedKeys();
+    const messages = {
+      amount: "Το ποσό αποθηκεύτηκε.",
+      collect: "Η είσπραξη καταχωρίστηκε.",
+      invoice: "Η έκδοση τιμολογίου καταχωρίστηκε.",
+      correction: "Η διόρθωση αποθηκεύτηκε στο ιστορικό.",
+    };
+    toasts.success(messages[change.kind]);
+    await refreshStatus().catch(() => toasts.error("Η αλλαγή αποθηκεύτηκε, αλλά η λίστα δεν ανανεώθηκε."));
   };
 
   const handleTaskCreated = async (data: Pick<TaskType, "name" | "color" | "description">) => {
@@ -759,9 +739,7 @@ function App() {
                   onSelectClient={handleSelectClient}
                   onOpenClient={handleOpenClient}
                   highlightClientId={highlightClientId}
-                  onSetAmount={handleSetAmount}
-                  onSetPaid={handleSetPaid}
-                  onSetInvoiced={handleSetInvoiced}
+                  onSaveFinance={handleSaveFinance}
                   overview={compactLayout ? (
                     <div className="worklist-overview">
                       {summaryPanel}
@@ -804,6 +782,13 @@ function App() {
 
         {activeView === "reports" && (
           <ReportsView
+            error={reports.error}
+            onRetry={reports.refresh}
+            clients={clients}
+            basis={reports.basis}
+            onBasisChange={reports.setBasis}
+            invoicedUnpaid={reports.invoicedUnpaid}
+            onInvoicedUnpaidChange={reports.setInvoicedUnpaid}
             groups={reports.groups}
             loading={reports.loading}
             year={year}

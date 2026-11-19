@@ -1,4 +1,6 @@
+import { displayDate, greekDateOptions } from "../domain/dates";
 import { useState } from "react";
+import type { SaveFinance } from "../domain/taskFinance";
 import type { ReactNode } from "react";
 import type { MonthlyStatusWithDetails } from "../domain/types";
 import { PERIODICITY_LABELS } from "../domain/recurrence";
@@ -35,19 +37,7 @@ interface MonthlyWorklistProps {
   onOpenClient: (clientId: number) => void;
   /** Client to pulse, so an incoming reminder can point at the right card. */
   highlightClientId?: number | null;
-  onSetAmount: (clientId: number, taskTypeId: number, amount: number | null) => Promise<void>;
-  onSetPaid: (
-    clientId: number,
-    taskTypeId: number,
-    isPaid: boolean,
-    paidAt: string | null
-  ) => Promise<void>;
-  onSetInvoiced: (
-    clientId: number,
-    taskTypeId: number,
-    isInvoiced: boolean,
-    invoicedAt: string | null
-  ) => Promise<void>;
+  onSaveFinance: SaveFinance;
 }
 
 /** The change awaiting the user's confirmation. */
@@ -95,9 +85,7 @@ export function MonthlyWorklist({
   onSelectClient,
   onOpenClient,
   highlightClientId,
-  onSetAmount,
-  onSetPaid,
-  onSetInvoiced,
+  onSaveFinance,
 }: MonthlyWorklistProps) {
   const [pending, setPending] = useState<PendingChange | null>(null);
   const [saving, setSaving] = useState(false);
@@ -246,7 +234,7 @@ export function MonthlyWorklist({
                           <span className="worklist-task-name">{item.taskName}</span>
                           {item.dueOn ? (
                             <span className="worklist-task-deadline">
-                              Προθεσμία <time dateTime={item.dueOn}>{item.dueOn.split("-").reverse().join("/")}</time>
+                              Προθεσμία <time dateTime={item.dueOn}>{displayDate(item.dueOn)}</time>
                             </span>
                           ) : (
                             <span className="worklist-task-deadline">Χωρίς προσεχή προθεσμία</span>
@@ -257,7 +245,7 @@ export function MonthlyWorklist({
                       <div className="worklist-item-meta">
                         {item.completedAt && (
                           <span className="worklist-completed-at">
-                            Ολοκληρώθηκε {new Date(item.completedAt).toLocaleDateString("el-GR")}
+                            Ολοκληρώθηκε {new Date(item.completedAt).toLocaleDateString("el-GR", greekDateOptions)}
                           </span>
                         )}
                         <span className={`worklist-periodicity ${item.periodicity}`}>
@@ -268,9 +256,7 @@ export function MonthlyWorklist({
 
                     <TaskPaymentRow
                       item={item}
-                      onSetAmount={onSetAmount}
-                      onSetPaid={onSetPaid}
-                      onSetInvoiced={onSetInvoiced}
+                      onSave={onSaveFinance}
                     />
                   </li>
                 ))}

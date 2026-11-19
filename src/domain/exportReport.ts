@@ -1,3 +1,4 @@
+import { displayDate, greekDateOptions } from "./dates";
 /**
  * Building the monthly report as text a spreadsheet can open.
  *
@@ -41,9 +42,10 @@ export interface ReportOptions {
 
 function formatDate(iso?: string): string {
   if (!iso) return "";
-  const d = new Date(iso.includes("T") ? iso : `${iso}T00:00:00`);
+  if (iso.length === 10) return displayDate(iso, "");
+  const d = new Date(iso.replace(" ", "T"));
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("el-GR");
+  return d.toLocaleDateString("el-GR", greekDateOptions);
 }
 
 /** e.g. "2026-10-07" — sorts correctly and is unambiguous. */

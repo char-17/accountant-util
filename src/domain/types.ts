@@ -93,7 +93,22 @@ export interface ClientTaskAssignmentWithTask extends ClientTaskAssignment {
   taskType: TaskType;
 }
 
+export interface FinancialValues {
+  amount: number | null;
+  isPaid: boolean;
+  paidAt: string | null;
+  isInvoiced: boolean;
+  invoicedAt: string | null;
+}
+
+export interface FinancialCorrection {
+  at: string;
+  before: FinancialValues;
+  after: FinancialValues;
+}
+
 export interface MonthlyStatusWithDetails extends MonthlyTaskStatus {
+  corrections?: FinancialCorrection[];
   /** First scheduled deadline on or after the start of the dashboard month. */
   dueOn?: string | null;
   clientName: string;
@@ -109,6 +124,8 @@ export interface MonthlyStatusWithDetails extends MonthlyTaskStatus {
 
 /** Which span of months a report covers. */
 export type ReportPeriod = "month" | "quarter" | "year" | "custom";
+
+export type ReportBasis = "work" | "payments" | "invoices";
 
 export interface ReportRange {
   year: number;
@@ -127,7 +144,7 @@ export interface ReportServiceRow {
   month: number;
   isPaid: boolean;
   isInvoiced: boolean;
-  amount: number;
+  amount: number | null;
   paidAt?: string;
   invoicedAt?: string;
 }

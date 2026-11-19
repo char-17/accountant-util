@@ -1,3 +1,4 @@
+import { displayDate } from "../domain/dates";
 import { useId, useMemo, useState } from "react";
 import type { ClientTaskWithTask } from "../persistence/assignmentRepo";
 import { PERIODICITY_LABELS } from "../domain/recurrence";
@@ -110,7 +111,7 @@ export function Reminders({
               <div className="reminder-meta">
                 <span className={`reminder-when ${item.state}`}>{item.label}</span>
                 <span className="reminder-period">
-                  {PERIODICITY_LABELS[item.assignment.periodicity]} · {item.dueOn}
+                  {PERIODICITY_LABELS[item.assignment.periodicity]} · {displayDate(item.dueOn)}
                 </span>
               </div>
             </button>

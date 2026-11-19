@@ -1,3 +1,4 @@
+import { displayDate } from "../domain/dates";
 import { useState, useEffect, useCallback, useRef } from "react";
 import type Database from "@tauri-apps/plugin-sql";
 import type { Client, TaskType, Profession, Periodicity } from "../domain/types";
@@ -329,7 +330,7 @@ export function ClientTab({ db, client, tasks, professions, onClose, onUpdate, o
                           now,
                           assignment.reminderDays
                         )}`}
-                        title={`Λήξη: ${deadline.dueOn}`}
+                        title={`Λήξη: ${displayDate(deadline.dueOn)}`}
                       >
                         {describeDeadlineWithDistance(deadline, now)}
                       </span>

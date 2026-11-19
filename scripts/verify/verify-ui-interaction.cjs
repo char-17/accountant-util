@@ -235,7 +235,7 @@ console.log('\n4) ticking a task asks for confirmation instead of writing immedi
       onToggle: async (c, t, done) => { toggles.push({ c, t, done }); },
       onSelectClient: noop,
       onOpenClient: noop,
-      onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+      onSaveFinance: noop,
     })
   );
 
@@ -276,7 +276,7 @@ console.log('\n5) confirming writes exactly once and closes the dialog');
       onToggle: async (c, t, done) => { toggles.push({ c, t, done }); },
       onSelectClient: noop,
       onOpenClient: noop,
-      onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+      onSaveFinance: noop,
     })
   );
   // The pending ΕΝΦΚΑ row is the second task row.
@@ -311,7 +311,7 @@ console.log('\n6) cancelling writes nothing');
       taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: async () => { toggles.push(1); }, onSelectClient: noop,
-      onOpenClient: noop, onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+      onOpenClient: noop, onSaveFinance: noop,
     })
   );
   const taskRows = container.querySelectorAll('.worklist-item');
@@ -339,7 +339,7 @@ console.log('\n7) un-ticking a completed task warns in the other direction');
       taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: async (c, t, done) => { seen = done; }, onSelectClient: noop,
-      onOpenClient: noop, onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+      onOpenClient: noop, onSaveFinance: noop,
     })
   );
   // The first task row is already completed.
@@ -375,7 +375,7 @@ console.log('\n8) clicking a client name opens its tab');
       taskOptions: [{ id: 1, name: 'ΦΠΑ' }],
       year: 2026, month: 10,
       onToggle: noop, onSelectClient: (id) => opened.push(id),
-      onOpenClient: noop, onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop,
+      onOpenClient: noop, onSaveFinance: noop,
     })
   );
   const headers = findAll((n) => n.classList?.contains('worklist-client-name'));
@@ -760,7 +760,7 @@ console.log('\n12f.1) reference panels start folded below the worklist heading')
     onFilterClientSelect: noop, onFilterTaskSelect: noop,
     clientOptions: [], taskOptions: [], year: 2026, month: 10,
     onToggle: noop, onSelectClient: noop, onOpenClient: noop,
-    onSetAmount: noop, onSetPaid: noop, onSetInvoiced: noop, overview,
+    onSaveFinance: noop, overview,
   };
   const view = mount(React.createElement(ui.MonthlyWorklist, props));
   const header = view.el.querySelector('.worklist-sticky-header');
@@ -1249,6 +1249,7 @@ console.log('\n12l) a report row folds only the client that was clicked');
 
   const view = mount(
     React.createElement(ui.ReportsView, {
+    clients: [], basis: "work", invoicedUnpaid: false,
       groups: GROUPS,
       loading: false,
       year: 2026, month: 10,

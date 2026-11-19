@@ -1,217 +1,109 @@
+import { displayDate, greekDateOptions } from "../domain/dates";
 import { useEffect, useState } from "react";
-import type { MonthlyStatusWithDetails } from "../domain/types";
-import { parseAmount } from "../domain/money";
-import { validatePayment } from "../domain/validation";
+import type { FinancialValues, MonthlyStatusWithDetails } from "../domain/types";
+import type { SaveFinance } from "../domain/taskFinance";
+import { formatAmount, parseAmount } from "../domain/money";
+import { TaskFinanceDialog, type FinanceAction } from "./TaskFinanceDialog";
+
+const dateLabel = (date: string | null | undefined) => displayDate(date, "χωρίς ημερομηνία");
+
+function describeValues(value: FinancialValues) {
+  const amount = value.amount == null ? "χωρίς ποσό" : formatAmount(value.amount) + " €";
+  const paid = value.isPaid ? "είσπραξη " + dateLabel(value.paidAt) : "χωρίς είσπραξη";
+  const invoice = value.isInvoiced ? "τιμολόγιο " + dateLabel(value.invoicedAt) : "χωρίς τιμολόγιο";
+  return [amount, paid, invoice].join(" · ");
+}
 
 interface TaskPaymentRowProps {
   item: MonthlyStatusWithDetails;
-  onSetAmount: (clientId: number, taskTypeId: number, amount: number | null) => Promise<void>;
-  onSetPaid: (
-    clientId: number,
-    taskTypeId: number,
-    isPaid: boolean,
-    paidAt: string | null
-  ) => Promise<void>;
-  onSetInvoiced: (
-    clientId: number,
-    taskTypeId: number,
-    isInvoiced: boolean,
-    invoicedAt: string | null
-  ) => Promise<void>;
+  onSave: SaveFinance;
 }
 
-/** YYYY-MM-DD, the shape both SQLite and a date input expect. */
-function toIsoDate(value?: string): string {
-  if (!value) return "";
-  return value.slice(0, 10);
-}
-
-/**
- * Fee, collection and invoicing for one month of one task.
- *
- * The amount is typed freely and committed on blur or Enter, so a half-typed
- * "1." never reaches the database. Ticking "Εισπραξη" without an amount is
- * refused with a message instead of silently writing a paid row with no figure,
- * which is the rule the accountant asked for.
- */
-export function TaskPaymentRow({
-  item,
-  onSetAmount,
-  onSetPaid,
-  onSetInvoiced,
-}: TaskPaymentRowProps) {
-  // Local draft so typing is not fighting the round trip to the database.
-  const [amountText, setAmountText] = useState(
-    item.amount !== null && item.amount !== undefined ? String(item.amount) : ""
-  );
+export function TaskPaymentRow({ item, onSave }: TaskPaymentRowProps) {
+  const [amountText, setAmountText] = useState(String(item.amount ?? ""));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dialog, setDialog] = useState<{ action: FinanceAction; item: MonthlyStatusWithDetails; amount: string } | null>(null);
+  const locked = Boolean(item.isPaid || item.isInvoiced);
 
-  // Adopt a value written elsewhere (another row, a restore, a month change)
-  // without stomping on what the user is currently typing.
   useEffect(() => {
-    setAmountText(item.amount !== null && item.amount !== undefined ? String(item.amount) : "");
+    setAmountText(String(item.amount ?? ""));
     setError("");
-  }, [item.id, item.amount, item.year, item.month]);
+  }, [item.id, item.year, item.month, item.amount]);
 
   async function commitAmount() {
-    const parsed = parseAmount(amountText);
-    const current = item.amount ?? null;
-    if (parsed === current) return;
-
-    const problems = validatePayment({ amount: parsed, isPaid: item.isPaid, isInvoiced: item.isInvoiced });
-    if (problems.length > 0) {
-      setError(problems[0].message);
+    if (locked || busy) return;
+    const amount = parseAmount(amountText);
+    if (amount === null && amountText.trim() !== "") {
+      setError("Συμπληρώστε έγκυρο ποσό σε ευρώ.");
       return;
     }
-
+    if (amount === (item.amount ?? null)) return;
     setBusy(true);
     try {
-      await onSetAmount(item.clientId, item.taskTypeId, parsed);
+      await onSave(item, { kind: "amount", amount });
       setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Αποτυχία αποθήκευσης ποσού");
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   }
 
-  async function togglePaid() {
-    const next = !item.isPaid;
-    const problems = validatePayment({ amount: item.amount ?? null, isPaid: next, isInvoiced: item.isInvoiced });
-    if (problems.length > 0) {
-      setError(problems[0].message);
-      return;
-    }
-
-    setBusy(true);
-    try {
-      // The collection date defaults to today the first time it is ticked, and is
-      // an editable date afterwards.
-      const paidAt = next ? new Date().toISOString().slice(0, 10) : null;
-      await onSetPaid(item.clientId, item.taskTypeId, next, paidAt);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Αποτυχία ενημέρωσης είσπραξης");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function toggleInvoiced() {
-    const next = !item.isInvoiced;
-    setBusy(true);
-    try {
-      const invoicedAt = next ? new Date().toISOString().slice(0, 10) : null;
-      await onSetInvoiced(item.clientId, item.taskTypeId, next, invoicedAt);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Αποτυχία ενημέρωσης τιμολογίου");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function changePaidAt(value: string) {
-    setBusy(true);
-    try {
-      await onSetPaid(item.clientId, item.taskTypeId, item.isPaid, value || null);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Αποτυχία ενημέρωσης ημερομηνίας");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function changeInvoicedAt(value: string) {
-    setBusy(true);
-    try {
-      await onSetInvoiced(item.clientId, item.taskTypeId, item.isInvoiced, value || null);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Αποτυχία ενημέρωσης ημερομηνίας");
-    } finally {
-      setBusy(false);
-    }
+  function review(action: FinanceAction) {
+    setError("");
+    setDialog({ action, item, amount: amountText });
   }
 
   return (
     <div className="task-payment">
       <div className="task-payment-fields">
         <label className="task-payment-field task-payment-check">
-          <input
-            type="checkbox"
-            checked={item.isPaid}
-            disabled={busy}
-            onChange={togglePaid}
-            aria-label={`Εισπραξη για ${item.taskName}`}
-          />
+          <input type="checkbox" checked={Boolean(item.isPaid)} disabled={busy} data-finance-action
+            onChange={() => review(item.isPaid ? "correction" : "collect")} aria-label={`Είσπραξη για ${item.taskName}`} />
           <span className="task-payment-check-label">Είσπραξη</span>
         </label>
-
         <label className="task-payment-field task-payment-amount-field">
           <span className="task-payment-label">Ποσό</span>
-          <input
-            type="text"
-            inputMode="decimal"
-            className="task-payment-amount"
-            value={amountText}
-            placeholder="0,00"
-            disabled={busy}
-            onChange={(e) => setAmountText(e.target.value)}
-            onBlur={commitAmount}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
+          <input type="text" inputMode="decimal" className="task-payment-amount"
+            value={amountText} placeholder="0,00" disabled={busy} readOnly={locked}
+            onChange={event => setAmountText(event.target.value)}
+            onBlur={event => {
+              const next = event.relatedTarget;
+              const opensReview = next instanceof HTMLElement && next.hasAttribute("data-finance-action")
+                && event.currentTarget.closest(".task-payment")?.contains(next);
+              if (!opensReview) void commitAmount();
             }}
-            aria-label={`Ποσό για ${item.taskName}`}
-          />
+            onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
+            aria-label={`Ποσό για ${item.taskName}`} />
         </label>
-
-        <label className="task-payment-field task-payment-date-field task-payment-paid-date">
-          <span className="task-payment-label">Ημ. Είσπραξης</span>
-          <input
-            type="date"
-            className="task-payment-date"
-            value={toIsoDate(item.paidAt)}
-            disabled={busy || !item.isPaid}
-            onChange={(e) => changePaidAt(e.target.value)}
-            aria-label={`Ημερομηνία είσπραξης για ${item.taskName}`}
-          />
-        </label>
-
         <label className="task-payment-field task-payment-check">
-          <input
-            type="checkbox"
-            checked={item.isInvoiced}
-            disabled={busy}
-            onChange={toggleInvoiced}
-            aria-label={`Τιμολόγιο για ${item.taskName}`}
-          />
+          <input type="checkbox" checked={Boolean(item.isInvoiced)} disabled={busy} data-finance-action
+            onChange={() => review(item.isInvoiced ? "correction" : "invoice")} aria-label={`Τιμολόγιο για ${item.taskName}`} />
           <span className="task-payment-check-label">Τιμολόγιο</span>
         </label>
-
-        <label className="task-payment-field task-payment-date-field">
-          <span className="task-payment-label">Ημ. Τιμολογίου</span>
-          <input
-            type="date"
-            className="task-payment-date"
-            value={toIsoDate(item.invoicedAt)}
-            disabled={busy || !item.isInvoiced}
-            onChange={(e) => changeInvoicedAt(e.target.value)}
-            aria-label={`Ημερομηνία τιμολογίου για ${item.taskName}`}
-          />
-        </label>
       </div>
-
-      {error && (
-        <span className="task-payment-error" role="alert">
-          {error}
-        </span>
+      {locked && (
+        <div className="task-finance-status">
+          {Boolean(item.isPaid) && <span>{item.amount == null ? "Καταχωρισμένη είσπραξη" : `Εισπράχθηκαν ${formatAmount(item.amount)} €`} · {dateLabel(item.paidAt)}</span>}
+          {Boolean(item.isInvoiced) && <span>Εκδόθηκε τιμολόγιο · {dateLabel(item.invoicedAt)}</span>}
+          <button type="button" className="link-button" onClick={() => review("correction")}>Διόρθωση καταχώρισης</button>
+        </div>
       )}
+      {Boolean(item.corrections?.length) && (
+        <details className="task-finance-history">
+          <summary>Ιστορικό διορθώσεων ({item.corrections?.length})</summary>
+          <ol>{item.corrections?.map((entry, index) => (
+            <li key={index}>{new Date(entry.at).toLocaleString("el-GR", { ...greekDateOptions, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+              <div>Πριν: {describeValues(entry.before)}</div>
+              <div>Μετά: {describeValues(entry.after)}</div>
+            </li>
+          ))}</ol>
+        </details>
+      )}
+      {error && <span className="task-payment-error" role="alert">{error}</span>}
+      {dialog && <TaskFinanceDialog action={dialog.action} item={dialog.item} initialAmount={dialog.amount}
+        onSave={onSave} onClose={() => setDialog(null)} />}
     </div>
   );
 }

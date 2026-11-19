@@ -91,13 +91,6 @@ function isValidColor(color: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(color);
 }
 
-/**
- * Οι συνθήκες για την καταγραφή είσπραξης και τιμολογίου.
- *
- * Ο κανόνας είναι ένας: χωρίς ποσό δεν μπορεί να υπάρξει «Εισπραγμένο». Το ίδιο
- * εφαρμόζεται και στη φόρμα και στο repository, γιατί μια τιμή μπορεί να φτάσει
- * στη βάση και από άλλο δρόμο.
- */
 export interface PaymentState {
   amount?: number | null;
   isPaid: boolean;
@@ -107,15 +100,15 @@ export interface PaymentState {
 export function validatePayment(state: PaymentState): ValidationError[] {
   const errors: ValidationError[] = [];
 
-  if (state.isPaid && (state.amount === null || state.amount === undefined)) {
+  if ((state.isPaid || state.isInvoiced) && state.amount == null) {
     errors.push({
       field: "amount",
-      message: "Συμπληρώστε το ποσό για να σημειωθεί ως εισπραγμένο",
+      message: "Συμπληρώστε το ποσό της εργασίας.",
     });
   }
 
-  if (state.amount !== null && state.amount !== undefined && state.amount < 0) {
-    errors.push({ field: "amount", message: "Το ποσό δεν μπορεί να είναι αρνητικό" });
+  if (state.amount != null && (!Number.isFinite(state.amount) || state.amount < 0)) {
+    errors.push({ field: "amount", message: "Συμπληρώστε έγκυρο ποσό." });
   }
 
   return errors;

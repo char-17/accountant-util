@@ -9,7 +9,7 @@ const DB_FILE_NAME: &str = "accountant.db";
 
 /// The bundle identifier used before the rename, so the old data is found.
 const LEGACY_DIRECTORY: &str = "com.ariston.tauri-app";
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(serde::Serialize)]
 pub struct MigrationResult {
@@ -68,47 +68,56 @@ async fn migrate_database_file(path: &Path) -> Result<Option<String>, String> {
         .begin()
         .await
         .map_err(|err| format!("Δεν ξεκίνησε η ασφαλής migration: {err}"))?;
-    let migrations = [
-        "CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, tax_id TEXT, notes TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
-        "CREATE TABLE IF NOT EXISTS task_types (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, color TEXT NOT NULL DEFAULT '#8B9DAD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
-        "CREATE TABLE IF NOT EXISTS client_task_assignments (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, task_type_id INTEGER NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, start_date TEXT NOT NULL, end_date TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE, FOREIGN KEY (task_type_id) REFERENCES task_types(id) ON DELETE CASCADE, UNIQUE(client_id, task_type_id, is_active))",
-        "CREATE TABLE IF NOT EXISTS monthly_task_status (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, task_type_id INTEGER NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL CHECK(month >= 1 AND month <= 12), status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'completed')), completed_at TEXT, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE, FOREIGN KEY (task_type_id) REFERENCES task_types(id) ON DELETE CASCADE, UNIQUE(client_id, task_type_id, year, month))",
-        "ALTER TABLE client_task_assignments ADD COLUMN periodicity TEXT NOT NULL DEFAULT 'monthly'",
-        "ALTER TABLE client_task_assignments ADD COLUMN due_day INTEGER NOT NULL DEFAULT 28",
-        "ALTER TABLE client_task_assignments ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 5",
-        "DROP TABLE IF EXISTS task_reminders",
-        "ALTER TABLE monthly_task_status ADD COLUMN amount REAL",
-        "ALTER TABLE monthly_task_status ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE monthly_task_status ADD COLUMN paid_at TEXT",
-        "ALTER TABLE monthly_task_status ADD COLUMN is_invoiced INTEGER NOT NULL DEFAULT 0",
-        "ALTER TABLE monthly_task_status ADD COLUMN invoiced_at TEXT",
-        "CREATE TABLE IF NOT EXISTS professions (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, color TEXT NOT NULL DEFAULT '#8B9DAD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
-        "ALTER TABLE professions ADD COLUMN color TEXT NOT NULL DEFAULT '#8B9DAD'",
-        "ALTER TABLE clients ADD COLUMN profession_id INTEGER REFERENCES professions(id)",
-    ];
+    let mut failed_drops = Vec::new();
+    if version < 1 {
+        let migrations = [
+            "CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, tax_id TEXT, notes TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
+            "CREATE TABLE IF NOT EXISTS task_types (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, color TEXT NOT NULL DEFAULT '#8B9DAD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
+            "CREATE TABLE IF NOT EXISTS client_task_assignments (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, task_type_id INTEGER NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, start_date TEXT NOT NULL, end_date TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE, FOREIGN KEY (task_type_id) REFERENCES task_types(id) ON DELETE CASCADE, UNIQUE(client_id, task_type_id, is_active))",
+            "CREATE TABLE IF NOT EXISTS monthly_task_status (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, task_type_id INTEGER NOT NULL, year INTEGER NOT NULL, month INTEGER NOT NULL CHECK(month >= 1 AND month <= 12), status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'completed')), completed_at TEXT, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')), FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE, FOREIGN KEY (task_type_id) REFERENCES task_types(id) ON DELETE CASCADE, UNIQUE(client_id, task_type_id, year, month))",
+            "ALTER TABLE client_task_assignments ADD COLUMN periodicity TEXT NOT NULL DEFAULT 'monthly'",
+            "ALTER TABLE client_task_assignments ADD COLUMN due_day INTEGER NOT NULL DEFAULT 28",
+            "ALTER TABLE client_task_assignments ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 5",
+            "DROP TABLE IF EXISTS task_reminders",
+            "ALTER TABLE monthly_task_status ADD COLUMN amount REAL",
+            "ALTER TABLE monthly_task_status ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE monthly_task_status ADD COLUMN paid_at TEXT",
+            "ALTER TABLE monthly_task_status ADD COLUMN is_invoiced INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE monthly_task_status ADD COLUMN invoiced_at TEXT",
+            "CREATE TABLE IF NOT EXISTS professions (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT, color TEXT NOT NULL DEFAULT '#8B9DAD', is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
+            "ALTER TABLE professions ADD COLUMN color TEXT NOT NULL DEFAULT '#8B9DAD'",
+            "ALTER TABLE clients ADD COLUMN profession_id INTEGER REFERENCES professions(id)",
+        ];
 
-    for migration in migrations {
-        if let Err(err) = tx.execute(sqlx::query(migration)).await {
-            let message = err.to_string();
-            let already_applied = message.contains("duplicate column name") || message.contains("already exists");
-            if !already_applied {
-                return Err(format!("Η migration απέτυχε και έγινε rollback: {message}"));
+        for migration in migrations {
+            if let Err(err) = tx.execute(sqlx::query(migration)).await {
+                let message = err.to_string();
+                let already_applied = message.contains("duplicate column name") || message.contains("already exists");
+                if !already_applied {
+                    return Err(format!("Η migration απέτυχε και έγινε rollback: {message}"));
+                }
+            }
+        }
+
+        for column in ["email", "phone", "address"] {
+            let rows = sqlx::query("PRAGMA table_info(clients)")
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(|err| format!("Δεν ήταν δυνατός ο έλεγχος της στήλης {column}: {err}"))?;
+            let exists = rows.iter().any(|row| row.get::<String, _>("name") == column);
+            if !exists { continue; }
+            if let Err(err) = tx.execute(sqlx::query(&format!("ALTER TABLE clients DROP COLUMN {column}"))).await {
+                failed_drops.push(column);
+                let _ = err;
             }
         }
     }
 
-    let mut failed_drops = Vec::new();
-    for column in ["email", "phone", "address"] {
-        let rows = sqlx::query("PRAGMA table_info(clients)")
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|err| format!("Δεν ήταν δυνατός ο έλεγχος της στήλης {column}: {err}"))?;
-        let exists = rows.iter().any(|row| row.get::<String, _>("name") == column);
-        if !exists { continue; }
-        if let Err(err) = tx.execute(sqlx::query(&format!("ALTER TABLE clients DROP COLUMN {column}"))).await {
-            failed_drops.push(column);
-            let _ = err;
-        }
+    let financial_migrations = [
+        "ALTER TABLE monthly_task_status ADD COLUMN corrections_json TEXT NOT NULL DEFAULT '[]'",
+    ];
+    for migration in financial_migrations {
+        tx.execute(sqlx::query(migration)).await.map_err(|err| format!("Αποτυχία προσθήκης ιστορικού διορθώσεων: {err}"))?;
     }
 
     tx.execute(sqlx::query(&format!("PRAGMA user_version = {SCHEMA_VERSION}")))
@@ -224,4 +233,42 @@ pub fn migrate_legacy_database(app: tauri::AppHandle) -> MigrationResult {
     }
 
     MigrationResult { migrated: true, warning: None, legacy_location: None }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upgrading_v1_preserves_finances_and_snapshots_once() {
+        tauri::async_runtime::block_on(async {
+            let dir = std::env::temp_dir().join(format!(
+                "accountant-migration-{}-{}", std::process::id(), chrono::Utc::now().timestamp_micros()
+            ));
+            fs::create_dir(&dir).unwrap();
+            let path = dir.join(DB_FILE_NAME);
+            let options = sqlx::sqlite::SqliteConnectOptions::new().filename(&path).create_if_missing(true);
+            let pool = SqlitePoolOptions::new().max_connections(1).connect_with(options.clone()).await.unwrap();
+            pool.execute("CREATE TABLE monthly_task_status (amount REAL, is_paid INTEGER, paid_at TEXT, is_invoiced INTEGER, invoiced_at TEXT, status TEXT)").await.unwrap();
+            pool.execute("INSERT INTO monthly_task_status VALUES (95.5, 1, '2026-10-18', 1, '2026-09-29', 'pending')").await.unwrap();
+            pool.execute("PRAGMA user_version=1").await.unwrap();
+            pool.close().await;
+
+            migrate_database_file(&path).await.unwrap();
+            migrate_database_file(&path).await.unwrap();
+            let pool = SqlitePoolOptions::new().connect_with(options).await.unwrap();
+            let version: i64 = sqlx::query_scalar("PRAGMA user_version").fetch_one(&pool).await.unwrap();
+            assert_eq!(version, SCHEMA_VERSION);
+            let preserved: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM monthly_task_status WHERE amount=95.5 AND is_paid=1 AND paid_at='2026-10-18' AND is_invoiced=1 AND invoiced_at='2026-09-29' AND status='pending' AND corrections_json='[]'").fetch_one(&pool).await.unwrap();
+            assert_eq!(preserved, 1);
+            pool.close().await;
+
+            let snapshots: Vec<_> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path())
+                .filter(|file| file.file_name().unwrap().to_string_lossy().starts_with("accountant.db.pre-migration-")).collect();
+            assert_eq!(snapshots.len(), 1);
+            fs::remove_file(&snapshots[0]).unwrap();
+            fs::remove_file(&path).unwrap();
+            fs::remove_dir(dir).unwrap();
+        });
+    }
 }

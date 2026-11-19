@@ -1,3 +1,4 @@
+import { greekDateOptions } from "../domain/dates";
 import type { AutoUpdate } from "../hooks/useAutoUpdate";
 import { useDialogA11y } from "../hooks/useDialogA11y";
 
@@ -69,11 +70,7 @@ export function UpdateDialog({ update, onInstalled }: UpdateDialogProps) {
 
   // RFC 3339 from the server; the plugin hands it over as a Date.
   const releasedOn = available.date
-    ? new Date(available.date).toLocaleDateString("el-GR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-      })
+    ? new Date(available.date).toLocaleDateString("el-GR", greekDateOptions)
     : null;
 
   return (

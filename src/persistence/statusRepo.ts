@@ -1,5 +1,6 @@
 import type Database from "@tauri-apps/plugin-sql";
-import type { ClientTaskAssignment, MonthlyStatusWithDetails, MonthlySummary } from "../domain/types";
+import type { ClientTaskAssignment, FinancialCorrection, ReportBasis, MonthlyStatusWithDetails, MonthlySummary } from "../domain/types";
+import { applyFinancialChange, financialValues, type FinancialChange } from "../domain/taskFinance";
 import { summarize } from "../domain/worklist";
 import { nextDeadline } from "../domain/recurrence";
 
@@ -26,12 +27,17 @@ const STATUS_QUERY = `
     p.name        AS professionName,
     t.name        AS taskName,
     t.color       AS taskColor,
-    a.periodicity AS periodicity
+    COALESCE(a.periodicity, 'monthly') AS periodicity
   FROM monthly_task_status m
   JOIN clients c    ON m.client_id = c.id
   JOIN task_types t ON m.task_type_id = t.id
-  JOIN client_task_assignments a
-    ON a.client_id = m.client_id AND a.task_type_id = m.task_type_id
+  LEFT JOIN client_task_assignments a ON a.id = (
+    SELECT assignment.id FROM client_task_assignments assignment
+    WHERE assignment.client_id = m.client_id AND assignment.task_type_id = m.task_type_id
+      AND assignment.start_date <= date(printf('%04d-%02d-01', m.year, m.month), '+1 month', '-1 day')
+      AND (assignment.end_date IS NULL OR assignment.end_date >= printf('%04d-%02d-01', m.year, m.month))
+    ORDER BY assignment.start_date DESC, assignment.id DESC LIMIT 1
+  )
   -- LEFT, not JOIN: most clients are unclassified to begin with, and an inner
   -- join would silently drop their rows out of the worklist and the totals.
   LEFT JOIN professions p ON c.profession_id = p.id
@@ -52,6 +58,7 @@ const WORKLIST_QUERY = `
     m.completed_at   AS completedAt,
     m.note,
     m.amount,
+    m.corrections_json AS correctionsJson,
     (COALESCE(m.is_paid, 0) = 1) AS isPaid,
     m.paid_at        AS paidAt,
     (COALESCE(m.is_invoiced, 0) = 1) AS isInvoiced,
@@ -88,11 +95,11 @@ export async function getMonthlyStatus(
   month: number
 ): Promise<MonthlyStatusWithDetails[]> {
   const { firstDay, lastDay } = monthBounds(year, month);
-  type Row = MonthlyStatusWithDetails & Pick<ClientTaskAssignment, "startDate" | "endDate" | "dueDay" | "reminderDays">;
+  type Row = MonthlyStatusWithDetails & { correctionsJson: string | null } & Pick<ClientTaskAssignment, "startDate" | "endDate" | "dueDay" | "reminderDays">;
   const rows = await db.select<Row[]>(
     `${WORKLIST_QUERY}
      ORDER BY c.name,
-       CASE a.periodicity
+       CASE periodicity
          WHEN 'monthly' THEN 1
          WHEN 'quarterly' THEN 2
          WHEN 'semiannual' THEN 3
@@ -103,9 +110,13 @@ export async function getMonthlyStatus(
     [year, month, firstDay, lastDay]
   );
   const beforeMonth = new Date(year, month - 1, 0);
-  return rows.map(row => {
+  return rows.map(({ correctionsJson, ...row }) => {
     const dueOn = nextDeadline(row, beforeMonth)?.dueOn;
-    return { ...row, dueOn: dueOn && (!row.endDate || dueOn <= row.endDate) ? dueOn : null };
+    return {
+      ...row,
+      corrections: JSON.parse(correctionsJson ?? "[]") as FinancialCorrection[],
+      dueOn: dueOn && (!row.endDate || dueOn <= row.endDate) ? dueOn : null,
+    };
   });
 }
 
@@ -118,13 +129,23 @@ export async function getStatusInRange(
   db: Database,
   year: number,
   fromMonth: number,
-  toMonth: number
+  toMonth: number,
+  basis: ReportBasis = "work",
+  invoicedUnpaid = false
 ): Promise<MonthlyStatusWithDetails[]> {
+  const conditions = {
+    work: "m.year = $1 AND m.month BETWEEN $2 AND $3",
+    payments: "m.is_paid = 1 AND substr(m.paid_at, 1, 10) BETWEEN $1 AND $2",
+    invoices: "m.is_invoiced = 1 AND substr(m.invoiced_at, 1, 10) BETWEEN $1 AND $2",
+  };
+  const params = basis === "work" ? [year, fromMonth, toMonth] :
+    [monthBounds(year, fromMonth).firstDay, monthBounds(year, toMonth).lastDay];
+  const outstanding = basis === "work" && invoicedUnpaid ? " AND m.is_invoiced=1 AND m.is_paid=0" : "";
   return db.select<MonthlyStatusWithDetails[]>(
     `${STATUS_QUERY}
-     WHERE m.year = $1 AND m.month BETWEEN $2 AND $3
+     WHERE ${conditions[basis]}${outstanding}
      ORDER BY c.name,
-       CASE a.periodicity
+       CASE periodicity
          WHEN 'monthly' THEN 1
          WHEN 'quarterly' THEN 2
          WHEN 'semiannual' THEN 3
@@ -132,7 +153,7 @@ export async function getStatusInRange(
          ELSE 5
        END,
        t.name, m.month`,
-    [year, fromMonth, toMonth]
+    params
   );
 }
 
@@ -144,7 +165,7 @@ export async function getMonthlyStatusForClient(
 ): Promise<MonthlyStatusWithDetails[]> {
   return db.select<MonthlyStatusWithDetails[]>(
     `${STATUS_QUERY} WHERE m.client_id = $1 AND m.year = $2 AND m.month = $3
-     ORDER BY CASE a.periodicity
+     ORDER BY CASE periodicity
        WHEN 'monthly' THEN 1
        WHEN 'quarterly' THEN 2
        WHEN 'semiannual' THEN 3
@@ -202,84 +223,39 @@ export async function setTaskPending(
   );
 }
 
-/** Writes the fee for one month's row. Passing null clears it. */
-export async function setAmount(
+/** Compare and write the confirmed financial snapshot in a single SQLite statement. */
+export async function saveTaskFinance(
   db: Database,
-  clientId: number,
-  taskTypeId: number,
-  year: number,
-  month: number,
-  amount: number | null
+  item: MonthlyStatusWithDetails,
+  change: FinancialChange
 ): Promise<void> {
-  await db.execute(
-    `INSERT INTO monthly_task_status (client_id, task_type_id, year, month, amount)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT(client_id, task_type_id, year, month)
-     DO UPDATE SET amount = $5, updated_at = datetime('now')`,
-    [clientId, taskTypeId, year, month, amount]
-  );
-}
-
-/**
- * Records or withdraws the collection. An amount is required to mark a row as
- * paid, because "Εισπραγμένο" with no number cannot be reported on. The check
- * lives here as well as in the UI: this is the write path, and a value that
- * arrives from anywhere else still has to satisfy the same rule.
- */
-export async function setPaid(
-  db: Database,
-  clientId: number,
-  taskTypeId: number,
-  year: number,
-  month: number,
-  isPaid: boolean,
-  paidAt: string | null
-): Promise<void> {
-  if (isPaid) {
-    const row = await db.select<Array<{ amount: number | null }>>(
-      `SELECT amount FROM monthly_task_status
-       WHERE client_id = $1 AND task_type_id = $2 AND year = $3 AND month = $4`,
-      [clientId, taskTypeId, year, month]
-    );
-    if (!row[0] || row[0].amount === null) {
-      throw new Error("Συμπληρώστε πρώτα το ποσό για να σημειωθεί ως εισπραγμένο.");
-    }
-  }
-
-  await db.execute(
+  const before = financialValues(item);
+  const after = applyFinancialChange(before, change);
+  const complete = change.kind === "collect" && change.complete;
+  const correction = change.kind === "correction"
+    ? JSON.stringify({ at: new Date().toISOString(), before, after })
+    : null;
+  const result = await db.execute(
     `INSERT INTO monthly_task_status
-       (client_id, task_type_id, year, month, is_paid, paid_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT(client_id, task_type_id, year, month)
-     DO UPDATE SET
-       is_paid = $5,
-       paid_at = $6,
-       updated_at = datetime('now')`,
-    [clientId, taskTypeId, year, month, isPaid ? 1 : 0, isPaid ? paidAt : null]
+      (client_id, task_type_id, year, month, amount, is_paid, paid_at, is_invoiced, invoiced_at, status, completed_at)
+     SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9,
+       CASE WHEN $10 THEN 'completed' ELSE 'pending' END, CASE WHEN $10 THEN datetime('now') END
+     WHERE EXISTS (SELECT 1 FROM monthly_task_status WHERE id = $11 AND client_id=$1 AND task_type_id=$2 AND year=$3 AND month=$4)
+        OR ($11 < 0 AND EXISTS (SELECT 1 FROM client_task_assignments WHERE id = -$11 AND client_id=$1 AND task_type_id=$2 AND is_active=1))
+     ON CONFLICT(client_id,task_type_id,year,month) DO UPDATE SET
+       amount=excluded.amount, is_paid=excluded.is_paid, paid_at=excluded.paid_at,
+       is_invoiced=excluded.is_invoiced, invoiced_at=excluded.invoiced_at,
+       status=CASE WHEN $10 THEN 'completed' ELSE status END,
+       completed_at=CASE WHEN $10 THEN COALESCE(completed_at, excluded.completed_at) ELSE completed_at END,
+       corrections_json=CASE WHEN $12 IS NULL THEN corrections_json
+         ELSE json_insert(corrections_json, '$[#]', json($12)) END,
+       updated_at=datetime('now')
+     WHERE amount IS $13 AND is_paid=$14 AND paid_at IS $15 AND is_invoiced=$16 AND invoiced_at IS $17`,
+    [item.clientId, item.taskTypeId, item.year, item.month, after.amount, Number(after.isPaid),
+     after.paidAt, Number(after.isInvoiced), after.invoicedAt, Number(complete), item.id, correction,
+     before.amount, Number(before.isPaid), before.paidAt, Number(before.isInvoiced), before.invoicedAt]
   );
-}
-
-/** Records or withdraws the issued invoice, with its optional date. */
-export async function setInvoiced(
-  db: Database,
-  clientId: number,
-  taskTypeId: number,
-  year: number,
-  month: number,
-  isInvoiced: boolean,
-  invoicedAt: string | null
-): Promise<void> {
-  await db.execute(
-    `INSERT INTO monthly_task_status
-       (client_id, task_type_id, year, month, is_invoiced, invoiced_at)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT(client_id, task_type_id, year, month)
-     DO UPDATE SET
-       is_invoiced = $5,
-       invoiced_at = $6,
-       updated_at = datetime('now')`,
-    [clientId, taskTypeId, year, month, isInvoiced ? 1 : 0, isInvoiced ? invoicedAt : null]
-  );
+  if (result.rowsAffected !== 1) throw Error("Η εγγραφή έχει αλλάξει. Ελέγξτε τα ενημερωμένα στοιχεία και δοκιμάστε ξανά.");
 }
 
 /**

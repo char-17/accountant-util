@@ -144,7 +144,7 @@ check('uses the right month', emptyCsv.includes('Ιανουάριος 2026'));
 check('no per-client block when there are no clients', !emptyCsv.includes('Πρόοδος ανά πελάτη'));
 
 console.log('\n12) a completed date is formatted for reading');
-check('renders the completion date', csv.includes('7/') || csv.includes('07/'), `- expected a d/m/yyyy date`);
+check('renders the completion date', csv.includes('07/10/2026'), `- expected a d/m/yyyy date`);
 
 console.log('\n13) a malformed date does not produce "Invalid Date"');
 const badDate = report.buildCsvReport({

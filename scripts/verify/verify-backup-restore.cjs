@@ -82,6 +82,7 @@ const SCHEMA = `
 const raw = new Database(dbPath);
 raw.pragma('journal_mode = WAL');
 raw.exec(SCHEMA);
+raw.exec("ALTER TABLE monthly_task_status ADD COLUMN corrections_json TEXT NOT NULL DEFAULT '[]'");
 const db = adapter(raw);
 
 // Seed.
@@ -93,6 +94,11 @@ insTask.run('ΦΠΑ');
 insTask.run('ΕΝΦΚΑ');
 raw.prepare(`INSERT INTO client_task_assignments (client_id, task_type_id, start_date) VALUES (1,1,'2026-10-01')`).run();
 raw.prepare(`INSERT INTO monthly_task_status (client_id, task_type_id, year, month, status) VALUES (1,1,2026,10,'completed')`).run();
+
+const correctedEntry = JSON.stringify([{ at: '2026-10-19T09:30:00Z',
+  before: { amount: 90, isPaid: true, paidAt: '2026-10-17', isInvoiced: false, invoicedAt: null },
+  after: { amount: 95, isPaid: true, paidAt: '2026-10-18', isInvoiced: false, invoicedAt: null } }]);
+raw.prepare('UPDATE monthly_task_status SET corrections_json=?').run(correctedEntry);
 
 async function main() {
 console.log('1) backup captures everything, including WAL-only rows');
@@ -141,6 +147,8 @@ console.log('\n5) restore clears and refills every table, not just clients');
 raw.prepare('DELETE FROM monthly_task_status').run();
 checkEq('status table emptied first', raw.prepare('SELECT COUNT(*) c FROM monthly_task_status').get().c, 0);
 await repo.restoreFromBackup(db, backupPath);
+checkEq('financial correction history restored exactly',
+  raw.prepare('SELECT corrections_json FROM monthly_task_status').get().corrections_json, correctedEntry);
 checkEq('status table refilled', raw.prepare('SELECT COUNT(*) c FROM monthly_task_status').get().c, 1);
 checkEq('task types refilled', raw.prepare('SELECT COUNT(*) c FROM task_types').get().c, 2);
 checkEq('assignments refilled', raw.prepare('SELECT COUNT(*) c FROM client_task_assignments').get().c, 1);
