@@ -102,7 +102,12 @@ async function run(page) {
     await page.locator('.month-display').click();
     await page.locator('.month-option').nth(month - 1).click();
   };
-  const clientFilter = page.getByLabel('Φίλτρο αναφορών ανά πελάτη');
+  const clientFilter = page.getByRole('button', {name: /^Φίλτρο αναφορών ανά πελάτη:/});
+  async function chooseClient(id) {
+    await clientFilter.click();
+    const name = id ? clients[id - 1] : 'Όλοι οι πελάτες';
+    await page.getByRole('option', {name, exact:true}).click();
+  }
   const from = page.getByLabel('Αναφορά από μήνα');
   const to = page.getByLabel('Αναφορά έως μήνα');
   const settle = () => page.evaluate(async () => {
@@ -173,8 +178,12 @@ async function run(page) {
   });
   await period('Ετήσια');
   await scenario('individual clients, sorting both directions, collapse and expand', async () => {
-    for (const id of [1,2,3]) { await clientFilter.selectOption(String(id)); await verifyRange(1,12,id); }
-    await clientFilter.selectOption('');
+    const search = page.getByRole('searchbox', {name: 'Αναζήτηση πελάτη...'});
+    await search.fill('αλφ');
+    await search.press('Enter');
+    await verifyRange(1,12,1);
+    for (const id of [1,2,3]) { await chooseClient(id); await verifyRange(1,12,id); }
+    await chooseClient(null);
     const sort = page.locator('.report-sort-button');
     for (const direction of [1,-1,0]) { await sort.click(); await verifyRange(1,12,null,direction); }
     await page.locator('.report-client-toggle').first().click();
@@ -187,6 +196,11 @@ async function run(page) {
   await scenario('four columns accessible at desktop and narrow widths, including print layout', async () => {
     for (const width of [1440,1024,390]) {
       await page.setViewportSize({width,height:900});
+      assert.ok(await page.evaluate(() => {
+        const picker = document.querySelector('.reports-filter-row').getBoundingClientRect();
+        const table = document.querySelector('.report-table-wrap').getBoundingClientRect();
+        return Math.abs(picker.left - table.left) <= 1 && picker.right <= table.right + 1;
+      }));
       const headings = page.locator('.report-table thead th');
       assert.equal(await headings.count(),4);
       for (const heading of await headings.all()) { await heading.scrollIntoViewIfNeeded(); assert.ok(await heading.isVisible()); }
@@ -221,12 +235,12 @@ async function run(page) {
   });
   await chooseMonth(2);
   await period('Ετήσια');
-  await clientFilter.selectOption('3');
+  await chooseClient(3);
   await period('Μηνιαία');
   await scenario('recover from a selected client absent in the new month', async () => {
     await settle();
     // Either a visible reset/filter or an automatic return to all clients is valid.
-    if (await clientFilter.isVisible()) await clientFilter.selectOption('');
+    if (await clientFilter.isVisible()) await chooseClient(null);
     await verifyRange(2,2);
   });
   await button('Κεντρική').click();
@@ -308,7 +322,7 @@ async function run(page) {
     assert.equal(db.prepare('SELECT count(*) n FROM client_task_assignments WHERE client_id=2 AND task_type_id=1').get().n,0);
     await openReports();
     await period('Μηνιαία'); await period('Ετήσια');
-    await clientFilter.selectOption('2');
+    await chooseClient(2);
     const [actual] = await table();
     const [correct] = expected(1,12,2);
     assert.equal(actual.total,correct.total,'Βήτα: ' + actual.rows.length + ' lines and ' + actual.total +
@@ -318,7 +332,7 @@ async function run(page) {
 
 (async () => {
   fixture();
-  const browser = await chromium.launch({channel:'chromium',headless:true});
+  const browser = await chromium.launch({channel:'chromium',headless:true,executablePath:process.env.CHROMIUM_PATH});
   try {
     const page = await browser.newPage({locale:'el-GR',timezoneId:'Europe/Athens',viewport:{width:1440,height:900}});
     await run(page);

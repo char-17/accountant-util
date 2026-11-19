@@ -2333,19 +2333,9 @@ input[type="search"]::-webkit-search-results-decoration {
   margin-left: auto;
 }
 
-.reports-client-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-soft);
-  font-size: 0.8rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
 .reports-filter-row {
-  display: flex;
-  justify-content: flex-end;
+  width: min(100%, 28rem);
+  align-self: flex-start;
   margin: -8px 0 4px;
 }
 
@@ -2364,25 +2354,6 @@ input[type="search"]::-webkit-search-results-decoration {
   text-align: center;
 }
 
-.reports-client-filter select {
-  min-width: 240px;
-  min-height: 36px;
-  padding: 0 32px 0 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  color: var(--text-strong);
-  background: var(--surface);
-  font: inherit;
-  font-size: 0.92rem;
-  font-weight: 600;
-}
-
-.reports-client-filter select:focus {
-  outline: none;
-  border-color: var(--accent-500);
-  box-shadow: 0 0 0 3px var(--accent-100);
-}
-
 @media print {
   .reports-filter-row {
     display: none !important;
@@ -2396,13 +2367,7 @@ input[type="search"]::-webkit-search-results-decoration {
   }
 
   .reports-filter-row {
-    justify-content: stretch;
     margin: 0;
-  }
-
-  .reports-client-filter {
-    width: 100%;
-    justify-content: space-between;
   }
 
   .reports-totals {
@@ -5737,7 +5702,7 @@ textarea {
 }
 
 .reports-view {
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Reports is a full-width workspace rather than a narrow card: the table has
@@ -5966,18 +5931,8 @@ textarea {
 
   .reports-custom-range label,
   .reports-custom-range select,
-  .reports-client-filter,
-  .reports-client-filter select,
   .reports-print {
     flex: 1 1 0;
-  }
-
-  .reports-client-filter {
-    justify-content: space-between;
-  }
-
-  .reports-client-filter select {
-    min-width: 0;
   }
 
   .reports-print {
@@ -8198,6 +8153,10 @@ textarea {
    controls in the interface typeface so the numbers still align across rows. */
 .dashboard {
   --client-typeface: Georgia, "Times New Roman", serif;
+}
+
+.dashboard,
+.reports-filter-row {
   --detail-size: 0.8125rem;
 }
 
@@ -8242,7 +8201,7 @@ textarea {
 .dashboard .reminder-task,
 .dashboard .reminder-period,
 .dashboard .worklist-completed-at,
-.dashboard .filter-select-head input::placeholder,
+:is(.dashboard, .reports-filter-row) .filter-select-head input::placeholder,
 .dashboard .status-filter-option:not(.active) {
   color: var(--text-soft);
 }
@@ -8254,7 +8213,7 @@ textarea {
 .dashboard .stat-label,
 .dashboard .progress-label,
 .dashboard .status-filter-option,
-.dashboard .filter-select-head input,
+:is(.dashboard, .reports-filter-row) .filter-select-head input,
 .dashboard .reminder-task,
 .dashboard .reminder-period,
 .dashboard .reminder-when {
@@ -8271,17 +8230,17 @@ textarea {
   width: min(100%, 8.5rem);
 }
 
-.dashboard .filter-select-head {
+:is(.dashboard, .reports-filter-row) .filter-select-head {
   container-type: inline-size;
   flex-wrap: wrap;
 }
 
 @container (max-width: 21rem) {
-  .dashboard .filter-select-head input {
+  :is(.dashboard, .reports-filter-row) .filter-select-head input {
     flex: 1 1 0;
   }
 
-  .dashboard .filter-select-toggle {
+  :is(.dashboard, .reports-filter-row) .filter-select-toggle {
     flex: 0 0 100%;
     justify-content: space-between;
     max-width: 100%;
@@ -8290,7 +8249,7 @@ textarea {
     border-top: 1px solid var(--border);
   }
 
-  .dashboard .filter-select-current {
+  :is(.dashboard, .reports-filter-row) .filter-select-current {
     padding-block: 4px;
     white-space: normal;
     overflow-wrap: anywhere;

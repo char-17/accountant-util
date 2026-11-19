@@ -5,6 +5,7 @@ import {
   monthsInRange,
   reportRangeLabel,
 } from "../domain/report";
+import { ClientFilterSelect } from "./WorklistFiltersBar";
 import { formatAmount } from "../domain/money";
 
 interface ReportsViewProps {
@@ -113,6 +114,9 @@ export function ReportsView({
   const visibleGroups = selectedClientId === null
     ? groups
     : groups.filter((group) => group.clientId === selectedClientId);
+  if (!loading && selectedClientId !== null && visibleGroups.length === 0) {
+    setSelectedClientId(null);
+  }
   const hasVisibleRows = visibleGroups.length > 0;
   const orderedGroups = amountSort === null
     ? visibleGroups
@@ -214,6 +218,20 @@ export function ReportsView({
         </button>
       </div>
 
+      {!loading && groups.length > 0 && (
+        <div className="reports-filter-row">
+          <ClientFilterSelect
+            value={selectedClientId}
+            options={groups.map(group => ({ id: group.clientId, name: group.clientName }))}
+            onChange={setSelectedClientId}
+            allLabel="Όλοι οι πελάτες"
+            searchLabel="Αναζήτηση πελάτη..."
+            listLabel="Φίλτρο αναφορών ανά πελάτη"
+            className="filter-client"
+          />
+        </div>
+      )}
+
       {loading ? (
         <p className="empty-message">Φόρτωση...</p>
       ) : isEmpty || !hasVisibleRows ? (
@@ -224,24 +242,6 @@ export function ReportsView({
         </p>
       ) : (
         <>
-          <div className="reports-filter-row">
-            <label className="reports-client-filter">
-              <span>Πελάτης</span>
-              <select
-                value={selectedClientId ?? ""}
-                onChange={(event) => setSelectedClientId(event.target.value ? Number(event.target.value) : null)}
-                aria-label="Φίλτρο αναφορών ανά πελάτη"
-              >
-                <option value="">Όλοι οι πελάτες</option>
-                {groups.map((group) => (
-                  <option key={group.clientId} value={group.clientId}>
-                    {group.clientName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
           <div className="report-table-wrap">
             <table className="report-table">
               <thead>
