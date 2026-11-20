@@ -56,15 +56,11 @@ export function Reminders({
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
   }, [assignments, now, completedKeys]);
 
-  const overdueCount = items.filter((i) => i.state === "overdue").length;
-
   const heading = (
     <>
       <span className={collapsible ? "section-heading" : undefined}>Ειδοποιήσεις</span>
-      {overdueCount > 0 && (
-        <span className="reminder-count overdue" aria-label={`${overdueCount} ληγμένες`}>
-          {overdueCount}
-        </span>
+      {items.length > 0 && (
+        <span className="reminder-count">{items.length}</span>
       )}
     </>
   );

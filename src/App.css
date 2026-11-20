@@ -2981,10 +2981,6 @@ input[type="search"]::-webkit-search-results-decoration {
   color: var(--surface);
 }
 
-.reminder-count.overdue {
-  background: var(--danger);
-}
-
 /* One list surface, not a stack of cards. A row in this column is about 250px
    wide; wrapping each one in its own border meant the accountant read a column
    of frames and had to decode every one of them, which is the opposite of
@@ -8369,9 +8365,18 @@ textarea {
   text-align: left;
 }
 
-.dashboard .reminder-count.overdue {
-  color: var(--danger-text);
-  background: var(--danger-soft);
+.reminders .reminder-count {
+  width: max-content;
+  min-width: 22px;
+  height: auto;
+  aspect-ratio: 1;
+  flex: none;
+  padding: 0 3px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  color: white;
+  background: #b42318;
 }
 
 .dashboard .progress-bar {
@@ -8457,7 +8462,10 @@ textarea {
 
 .report-basis-options { margin-bottom: 8px; }
 .reports-filter-row { width: 100%; }
-.reports-filter-row .filter-client { width: min(100%, 28rem); }
+.reports-filter-row .filter-client {
+  flex: 0 1 23rem;
+  max-width: 100%;
+}
 .report-outstanding-filter { display: inline-flex; align-items: center; gap: 6px; }
 .report-table .report-month-row th { text-align: left; padding-inline-start: 24px; }
 .report-client-row .report-outstanding { font-weight: 700; }
