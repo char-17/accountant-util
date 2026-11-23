@@ -3,6 +3,8 @@ mod logger;
 mod migration;
 mod paths;
 
+use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -23,6 +25,14 @@ pub fn run() {
         // started and at which version - the first thing anybody would ask.
         // `record` cannot fail, so this cannot be the reason a launch fails.
         .setup(|app| {
+            let handle = app.handle().clone();
+            logger::on_first_write_failure(move || {
+                handle.dialog()
+                    .message("Δεν ήταν δυνατή η εγγραφή στο αρχείο καταγραφής. Ορισμένα συμβάντα ενδέχεται να λείπουν. Ελέγξτε τον ελεύθερο χώρο και τα δικαιώματα εγγραφής στον φάκελο logs.")
+                    .title("Accountant Util")
+                    .kind(MessageDialogKind::Warning)
+                    .show(|_| {});
+            });
             logger::record(
                 "info",
                 &format!("Εκκίνηση του προγράμματος, έκδοση {}", app.package_info().version),

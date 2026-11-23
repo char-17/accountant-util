@@ -7,10 +7,8 @@
  * and a writer in JavaScript would be silent in exactly the case this file
  * exists for, which is a webview that never came up.
  *
- * So this module does nothing but hand lines over, and nothing with the
- * result: it never throws, never shows anything, and never refuses to lose one.
- * A log line is diagnostics; diagnostics must not be able to stop the program
- * they were meant to describe.
+ * The backend warns once per session if a file write fails. Logging stays
+ * best effort so a diagnostic failure cannot interrupt the caller.
  *
  * The events are descriptions, not data. Nothing here builds a client name, a
  * month, or an amount into a line, and the callers are written the same way -
@@ -34,7 +32,6 @@ export async function logEvent(level: LogLevel, message: string): Promise<void> 
   try {
     await invoke("log_event", { level, message });
   } catch {
-    // Deliberately empty: the contract on the function says the line may be
-    // lost and that is the whole truth.
+    // The native writer handles file errors, including ones during startup.
   }
 }

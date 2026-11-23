@@ -23,9 +23,11 @@ export const state = {
   failNext: false,
 };
 export async function isPermissionGranted() {
+  if (state.checkError) throw state.checkError;
   return state.permission === "granted";
 }
 export async function requestPermission() {
+  if (state.requestError) throw state.requestError;
   state.permission = state.requestPermissionResult;
   return state.permission;
 }
@@ -322,6 +324,34 @@ export { state } from ${JSON.stringify(stub)};
   await latest.notify([monthly], (item) => `${item.id}:retry`, () => "retry test");
   await latest.notify([monthly], (item) => `${item.id}:retry`, () => "retry test");
   checkEq("failed OS send is retried", state.calls.length, 2);
+
+  const logEvents = [];
+  dom.window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {
+    if (command === "log_event") logEvents.push(args);
+  } };
+  state.requestPermissionResult = "denied";
+  await act(async () => {
+    permissionResult = await latest.askForPermission();
+  });
+  checkEq("declining permission returns false", permissionResult, false);
+  checkEq("declining permission does not log a failure", logEvents.length, 0);
+
+  const privateDetail = "private test detail";
+  state.requestError = new Error(privateDetail);
+  await act(async () => {
+    permissionResult = await latest.askForPermission();
+  });
+  checkEq("failed permission request returns false", permissionResult, false);
+  check("request failure logs the operation", logEvents[0]?.message.includes("requestPermission"));
+
+  await act(async () => rootNode.unmount());
+  rootNode = createRoot(container);
+  state.checkError = privateDetail;
+  await render(true);
+  checkEq("failed permission check blocks sending", latest.permission, "denied");
+  check("check failure logs the operation", logEvents[1]?.message.includes("isPermissionGranted"));
+  checkEq("each permission failure logs once", logEvents.length, 2);
+  check("permission diagnostics omit private details", logEvents.every((event) => !event.message.includes(privateDetail)));
 } finally {
   if (rootNode) {
     try {

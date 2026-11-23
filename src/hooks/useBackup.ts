@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { open, confirm } from "@tauri-apps/plugin-dialog";
 import type Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
@@ -18,6 +18,12 @@ import {
   type BackupArea,
 } from "../persistence/backupArea";
 
+export type AutoBackupStage = "snapshot" | "promote";
+export type RunAutoBackup = (
+  area: BackupArea,
+  onStage: (stage: AutoBackupStage) => void
+) => Promise<number>;
+
 interface UseBackupResult {
   /** Non-null while a backup or restore is running; disables the buttons. */
   busy: "backup" | "restore" | null;
@@ -29,10 +35,11 @@ interface UseBackupResult {
    * not anybody is watching, and a dialog at 3 PM would be an interruption
    * dressed as a confirmation.
    */
-  autoBackup: () => Promise<string>;
+  autoBackup: RunAutoBackup;
   /** Resolves to null when the dialog was dismissed or the user declined. */
   restore: () => Promise<TableCounts | null>;
   area: BackupArea | null;
+  onAreaReady: (area: BackupArea) => void;
 }
 
 const NO_DATABASE = "Η βάση δεδομένων δεν είναι ακόμη διαθέσιμη.";
@@ -53,11 +60,6 @@ const NO_DATABASE = "Η βάση δεδομένων δεν είναι ακόμη
 export function useBackup(db: Database | null): UseBackupResult {
   const [busy, setBusy] = useState<"backup" | "restore" | null>(null);
   const [area, setArea] = useState<BackupArea | null>(null);
-
-  useEffect(() => {
-    if (!db) return;
-    void prepareBackupArea().then(setArea).catch(() => undefined);
-  }, [db]);
 
   const backup = useCallback(async (): Promise<string> => {
     if (!db) throw new Error(NO_DATABASE);
@@ -81,23 +83,19 @@ export function useBackup(db: Database | null): UseBackupResult {
     }
   }, [db]);
 
-  const autoBackup = useCallback(async (): Promise<string> => {
+  const autoBackup = useCallback<RunAutoBackup>(async (area, onStage) => {
     if (!db) throw new Error(NO_DATABASE);
 
     setBusy("backup");
     try {
-      const area = await prepareBackupArea();
-      setArea(area);
       // Staged, not written over yesterday's file: VACUUM INTO refuses an
       // existing target, and deleting first would leave no backup at all if
       // the write then failed. The swap behind it is a single rename, so the
       // folder never holds neither file.
+      onStage("snapshot");
       await db.execute(vacuumIntoStatement(area.autoStaging));
-      await promoteAutoBackup();
-      return area.autoFinal;
-    } catch (err) {
-      await logEvent("error", `Το αυτόματο αντίγραφο ασφαλείας δεν ολοκληρώθηκε: ${toMessage(err)}`);
-      throw err;
+      onStage("promote");
+      return await promoteAutoBackup();
     } finally {
       setBusy(null);
     }
@@ -154,5 +152,5 @@ export function useBackup(db: Database | null): UseBackupResult {
     }
   }, [db]);
 
-  return { busy, backup, autoBackup, restore, area };
+  return { busy, backup, autoBackup, restore, area, onAreaReady: setArea };
 }

@@ -46,19 +46,20 @@ export interface BackupArea {
  * thing it deletes is a partial file that would otherwise block every later
  * `VACUUM INTO`.
  */
-export function prepareBackupArea(): Promise<BackupArea> {
-  return invoke<BackupArea>("prepare_backup_area");
+export function prepareBackupArea(source?: "automatic"): Promise<BackupArea> {
+  const automatic = source === "automatic";
+  return invoke<BackupArea>("prepare_backup_area", { automatic });
 }
 
 /**
- * Renames the freshly written snapshot over the previous automatic backup.
+ * Renames the freshly written snapshot and returns its size in bytes.
  *
  * Called only after `VACUUM INTO` has succeeded on `autoStaging`. If nothing
  * was staged this refuses rather than removing the backup that is there, which
  * is the difference between a subsystem that fails and one that destroys.
  */
-export function promoteAutoBackup(): Promise<void> {
-  return invoke("promote_auto_backup");
+export function promoteAutoBackup(): Promise<number> {
+  return invoke<number>("promote_auto_backup");
 }
 
 /**

@@ -21,12 +21,19 @@ const checkEq = (label, actual, expected) =>
     `- expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
 
 // ── Load the module ───────────────────────────────────────────────────────────
-// Pure functions with no runtime dependency, so bundling is the only step.
+// Load the planner and the same two hooks wired together by App.
 const entry = path.join(path.resolve(__dirname, "../.."), '.tmp-schedule-entry.ts');
 const bundle = path.join(path.resolve(__dirname, "../.."), '.tmp-schedule-bundle.cjs');
-fs.writeFileSync(entry, `export * from "./src/domain/autoBackup";`, 'utf8');
-esbuild.buildSync({ entryPoints: [entry], bundle: true, outfile: bundle, format: 'cjs', platform: 'node' });
-const { planAutoBackup, tomorrowAt } = require(bundle);
+fs.writeFileSync(entry, `
+  export * from "./src/domain/autoBackup";
+  export { useBackup } from "./src/hooks/useBackup";
+  export { useAutoBackup } from "./src/hooks/useAutoBackup";
+`, 'utf8');
+esbuild.buildSync({
+  entryPoints: [entry], bundle: true, outfile: bundle, format: 'cjs', platform: 'node',
+  external: ['react'],
+});
+const { planAutoBackup, tomorrowAt, useBackup, useAutoBackup } = require(bundle);
 
 /** A local wall-clock time as a timestamp, which is the only clock in play. */
 const at = (month, day, hour, minute = 0) => new Date(2026, month, day, hour, minute, 0, 0).getTime();
@@ -153,5 +160,143 @@ console.log('\n12) the hour is the argument, not a baked-in 15');
 fs.unlinkSync(entry);
 fs.unlinkSync(bundle);
 
-console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
-process.exit(failures === 0 ? 0 : 1);
+// Mount the hooks together as in App. The IPC boundary stands in for the
+// filesystem and the database, so the schedule can run against a fixed clock.
+async function verifyLifecycle() {
+  const assert = require('node:assert/strict');
+  const { JSDOM } = require('jsdom');
+  const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://localhost' });
+  global.window = dom.window;
+  global.document = dom.window.document;
+  global.IS_REACT_ACT_ENVIRONMENT = true;
+  const React = require('react');
+  const { createRoot } = require('react-dom/client');
+  const { act } = React;
+  const clock = Date.now;
+
+  async function scenario({ stage, now, last = null, fireTimer = false }) {
+    const events = [];
+    const toasts = [];
+    const commands = [];
+    const preparations = [];
+    let timer;
+    Date.now = () => now;
+    window.setTimeout = (run, delay) => {
+      timer = { run, at: now + delay };
+      return 1;
+    };
+    window.clearTimeout = () => { timer = undefined; };
+    const area = { manualDir: '/fixture/manual', autoStaging: '/fixture/staging.db',
+      autoFinal: '/fixture/backup.db', lastAutoMs: last };
+    window.__TAURI_INTERNALS__ = { async invoke(command, args) {
+      switch (command) {
+        case 'log_event':
+          events.push({
+            ...args,
+            fields: Object.fromEntries(
+              Array.from(args.message.matchAll(/(\w+)=(\S+)/g), match => [match[1], match[2]])
+            ),
+          });
+          return;
+        case 'prepare_backup_area':
+          preparations.push(args.automatic);
+          if (args.automatic && stage === 'schedule') throw new Error('fixture-prepare-failure');
+          return area;
+        case 'promote_auto_backup':
+          commands.push('promote');
+          if (stage === 'promote') throw new Error('fixture-promote-failure');
+          return 8192;
+        default: throw new Error(`Unexpected command ${command}`);
+      }
+    } };
+    const db = { async execute(sql) {
+      assert.match(sql, /VACUUM INTO.*staging\.db/);
+      commands.push('snapshot');
+      if (stage === 'snapshot') throw new Error('fixture-snapshot-failure');
+    } };
+    const report = (message) => toasts.push(message);
+    function Harness({ database }) {
+      const { autoBackup, onAreaReady } = useBackup(database);
+      useAutoBackup(database, autoBackup, report, onAreaReady);
+      return null;
+    }
+    const root = createRoot(document.createElement('div'));
+    const render = database => act(() => root.render(
+      React.createElement(React.StrictMode, null, React.createElement(Harness, { database }))
+    ));
+    try {
+      await render(null);
+      await render(db);
+      const count = events.length;
+      await render(db);
+      assert.equal(events.length, count, 'ordinary rerender duplicated a scheduler event');
+      if (fireTimer) {
+        assert.equal(timer.at, at(9, 23, 15));
+        now = timer.at;
+        await act(() => timer.run());
+      }
+      return { events, toasts, commands, preparations, nextAt: timer?.at };
+    } finally {
+      await act(() => root.unmount());
+    }
+  }
+
+  try {
+    const morning = at(9, 23, 9);
+    const afternoon = at(9, 23, 15);
+    const tomorrow = at(9, 24, 15);
+    const result = await scenario({ now: morning, fireTimer: true });
+    const events = result.events.map(row => row.fields);
+    assert.deepEqual(events.map(row => row.event), ['check', 'wait', 'check', 'start', 'success']);
+    assert.deepEqual(events.map(row => row.trigger), ['startup', 'startup', 'timer', 'timer', 'timer']);
+    assert.ok(events[0].operation && events[2].operation);
+    assert.equal(events[1].operation, events[0].operation);
+    assert.notEqual(events[2].operation, events[0].operation);
+    assert.equal(events[3].operation, events[2].operation);
+    assert.equal(events[4].operation, events[2].operation);
+    assert.ok(result.events.every(entry => entry.message.startsWith('backup.auto ') && entry.level === 'info'));
+    assert.deepEqual(result.commands, ['snapshot', 'promote']);
+    assert.deepEqual(result.preparations, [true, true], 'backup folders must be prepared once per tick');
+    assert.deepEqual(result.toasts, []);
+    assert.equal(events[1].last, 'none');
+    assert.equal(Date.parse(events[1].next), afternoon);
+    assert.equal(Number(events[4].bytes), 8192);
+    assert.ok(Number(events[4].durationMs) >= 0);
+    assert.equal(Date.parse(events[4].next), tomorrow);
+    assert.equal(result.nextAt, tomorrow);
+    console.log('  PASS  timer writes one complete, correlated backup log and stays silent on success');
+
+    const today = await scenario({ now: at(9, 23, 18), last: afternoon });
+    assert.deepEqual(today.events.map(row => row.fields.event), ['check', 'wait']);
+    assert.equal(Date.parse(today.events[1].fields.last), afternoon);
+    assert.deepEqual(today.commands, []);
+    assert.equal(today.nextAt, tomorrow);
+    console.log('  PASS  a current backup is logged and left alone');
+
+    const expectedCommands = { schedule: [], snapshot: ['snapshot'], promote: ['snapshot', 'promote'] };
+    for (const [stage, commands] of Object.entries(expectedCommands)) {
+      const failed = await scenario({ now: afternoon, stage });
+      const sequence = failed.events.map(row => row.fields.event);
+      assert.deepEqual(sequence, stage === 'schedule' ? ['check', 'failure'] : ['check', 'start', 'failure']);
+      const failure = failed.events.at(-1);
+      assert.equal(failure.level, 'error');
+      assert.equal(failure.fields.stage, stage);
+      assert.equal(failure.fields.operation, failed.events[0].fields.operation);
+      assert.match(failure.message, /fixture-.*-failure/);
+      assert.equal(failed.toasts.length, 1);
+      assert.equal(failed.nextAt, stage === 'schedule' ? undefined : tomorrow);
+      assert.equal(failure.fields.next, stage === 'schedule' ? 'none' : new Date(tomorrow).toISOString());
+      assert.deepEqual(failed.commands, commands);
+      assert.deepEqual(failed.preparations, [true]);
+      console.log(`  PASS  one failure record and one user message for ${stage}`);
+    }
+  } finally {
+    Date.now = clock;
+    dom.window.close();
+  }
+}
+
+verifyLifecycle().then(() => {
+  console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
+  process.exitCode = failures === 0 ? 0 : 1;
+}).catch(err => { console.error(err); process.exitCode = 1; });

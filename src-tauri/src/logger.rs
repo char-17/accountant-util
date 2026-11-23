@@ -25,14 +25,13 @@
 //!    module formats a client, a month, or an amount, and the callers are
 //!    written the same way.
 //!
-//! A failure to write is never fatal. `record` returns nothing at all, and the
-//! command reports an error the frontend is written to ignore: a log line is
-//! diagnostics, and diagnostics must not be able to stop the program they were
-//! meant to describe.
+//! The first write failure triggers a warning for the current app session.
+//! The operation that needed the log can continue.
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use chrono::{DateTime, Local, NaiveDate};
 
@@ -48,6 +47,13 @@ const KEEP_DAYS: i64 = 14;
 /// a loop, an error that quotes a whole statement - would defeat the point of
 /// rotating by day.
 const MAX_MESSAGE: usize = 2000;
+
+type WriteWarning = Box<dyn FnOnce() + Send>;
+static WRITE_WARNING: Mutex<Option<WriteWarning>> = Mutex::new(None);
+
+pub fn on_first_write_failure(warn: impl FnOnce() + Send + 'static) {
+    *WRITE_WARNING.lock().expect("log warning mutex") = Some(Box::new(warn));
+}
 
 fn log_dir() -> Result<PathBuf, String> {
     Ok(install_dir()?.join(LOG_ROOT))
@@ -144,9 +150,20 @@ fn append(dir: &Path, at: DateTime<Local>, level: &str, message: &str) -> Result
 /// report a failure to, so a log that could raise would be able to stop the
 /// launch it was meant to describe.
 pub fn record(level: &str, message: &str) {
-    if let Ok(dir) = log_dir() {
-        let _ = append(&dir, Local::now(), level, message);
+    let _ = write_event(log_dir(), level, message);
+}
+
+fn write_event(dir: Result<PathBuf, String>, level: &str, message: &str) -> Result<(), String> {
+    let result = dir.and_then(|dir| append(&dir, Local::now(), level, message));
+    if result.is_err() {
+        // Take the callback before showing the warning so concurrent failures
+        // cannot open another dialog. No logging from the callback itself.
+        let warn = WRITE_WARNING.lock().expect("log warning mutex").take();
+        if let Some(warn) = warn {
+            warn();
+        }
     }
+    result.map(|_| ())
 }
 
 /// Hands a command's result back unchanged, having recorded a failure on the
@@ -169,7 +186,7 @@ pub fn record_failure<T>(result: Result<T, String>, what: &str) -> Result<T, Str
 /// rather than recording one on its own.
 #[tauri::command]
 pub fn log_event(level: String, message: String) -> Result<(), String> {
-    append(&log_dir()?, Local::now(), &level, &message).map(|_| ())
+    write_event(log_dir(), &level, &message)
 }
 
 #[cfg(test)]
@@ -299,6 +316,24 @@ mod tests {
         let failed: Result<(), String> = Err("η αποτυχία".into());
         let returned = record_failure(failed, "Το πράγμα").unwrap_err();
         assert_eq!(returned, "η αποτυχία", "the caller still gets its own error");
+    }
+
+    #[test]
+    fn failed_writes_warn_once_and_a_later_write_can_succeed() {
+        let dir = scratch("write-warning");
+        let blocked = dir.join("regular-file");
+        fs::write(&blocked, b"").unwrap();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        on_first_write_failure(move || sender.send(()).unwrap());
+
+        write_event(Ok(dir.clone()), "info", "first entry").unwrap();
+        assert!(receiver.try_recv().is_err());
+        for _ in 0..2 {
+            assert!(write_event(Ok(blocked.clone()), "info", "unwritable").is_err());
+        }
+        assert_eq!(receiver.try_iter().count(), 1);
+        write_event(Ok(dir.clone()), "info", "recovered").unwrap();
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

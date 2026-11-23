@@ -165,31 +165,26 @@ fn prepare(manual: &Path, auto: &Path) -> Result<BackupArea, String> {
 /// If the rename fails, nothing has happened: staging keeps the new snapshot
 /// and `backup.db` keeps yesterday's, so no data is lost either way, and the
 /// next run's `prepare` clears staging for a fresh attempt.
-fn promote(staging: &Path, final_path: &Path) -> Result<(), String> {
-    if !staging.exists() {
-        return Err(format!(
-            "Το προσωρινό αντίγραφο \"{}\" δεν βρέθηκε, οπότε δεν υπάρχει τίποτε να αντικατασταθεί.",
-            as_string(staging)
-        ));
-    }
+fn promote(staging: &Path, final_path: &Path) -> Result<u64, String> {
+    let metadata = fs::metadata(staging)
+        .map_err(|err| format!("Δεν ήταν δυνατή η ανάγνωση του προσωρινού αντιγράφου: {err}"))?;
 
     fs::rename(staging, final_path).map_err(|err| {
         format!(
             "Δεν ήταν δυνατή η τοποθέτηση του νέου αντιγράφου στο \"{}\": {err}",
             as_string(final_path)
         )
-    })
+    })?;
+    Ok(metadata.len())
 }
 
 /// Resolves the backup area: creates the folders, clears a staging file left
 /// by an interrupted run, and reports the age of the automatic backup.
 ///
-/// The failure is recorded here rather than left to whoever called, because
-/// this command runs from the menu, from the 3 PM schedule, and from the
-/// startup read of the schedule's state - and only the first of those is
-/// guaranteed to have somebody watching the screen.
+/// The scheduler logs its own errors with the operation ID and next run.
+/// Other callers keep the native error record.
 #[tauri::command]
-pub fn prepare_backup_area(app: AppHandle) -> Result<BackupArea, String> {
+pub fn prepare_backup_area(app: AppHandle, automatic: Option<bool>) -> Result<BackupArea, String> {
     let result = backup_dir(MANUAL_DIR).and_then(|manual| {
         let auto = backup_dir(AUTO_DIR)?;
         let mut area = prepare(&manual, &auto)?;
@@ -201,19 +196,18 @@ pub fn prepare_backup_area(app: AppHandle) -> Result<BackupArea, String> {
         area.database_path = as_string(&database);
         Ok(area)
     });
-    logger::record_failure(result, "Αποτυχία προετοιμασίας της περιοχής αντιγράφων")
+    if automatic == Some(true) {
+        result
+    } else {
+        logger::record_failure(result, "Αποτυχία προετοιμασίας της περιοχής αντιγράφων")
+    }
 }
 
-/// Swaps yesterday's automatic backup for the one just staged.
-///
-/// Recorded here for the same reason as `prepare_backup_area`: the schedule
-/// calls it at 3 PM, and the moment it matters most is the one with nobody
-/// watching.
+/// Swaps in the staged snapshot and returns its size to the scheduler's log.
 #[tauri::command]
-pub fn promote_auto_backup() -> Result<(), String> {
-    let result = backup_dir(AUTO_DIR)
-        .and_then(|auto| promote(&auto.join(AUTO_STAGING), &auto.join(AUTO_FINAL)));
-    logger::record_failure(result, "Αποτυχία αντικατάστασης του αυτόματου αντιγράφου")
+pub fn promote_auto_backup() -> Result<u64, String> {
+    let auto = backup_dir(AUTO_DIR)?;
+    promote(&auto.join(AUTO_STAGING), &auto.join(AUTO_FINAL))
 }
 
 #[derive(serde::Serialize)]
@@ -400,7 +394,8 @@ mod tests {
         fs::write(&final_path, "yesterday").unwrap();
         fs::write(&staging, "today").unwrap();
 
-        promote(&staging, &final_path).expect("the rename should land");
+        let bytes = promote(&staging, &final_path).expect("the rename should land");
+        assert_eq!(bytes, fs::metadata(&final_path).unwrap().len());
 
         assert_eq!(fs::read_to_string(&final_path).unwrap(), "today");
         assert!(!staging.exists(), "staging is consumed by the rename");

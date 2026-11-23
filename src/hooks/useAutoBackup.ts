@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import type Database from "@tauri-apps/plugin-sql";
 import { AUTO_BACKUP_HOUR } from "../domain/appConfig";
 import { planAutoBackup, tomorrowAt } from "../domain/autoBackup";
-import { prepareBackupArea } from "../persistence/backupArea";
+import { prepareBackupArea, type BackupArea } from "../persistence/backupArea";
+import { toMessage } from "../utils/errors";
 import { logEvent } from "../utils/logging";
+import type { AutoBackupStage, RunAutoBackup } from "./useBackup";
 
 /**
  * Runs the automatic backup at 3 PM, or as soon as the program is next opened
@@ -36,8 +38,9 @@ import { logEvent } from "../utils/logging";
  */
 export function useAutoBackup(
   db: Database | null,
-  runBackup: () => Promise<string>,
-  reportFailure: (message: string) => void
+  runBackup: RunAutoBackup,
+  reportFailure: (message: string) => void,
+  onAreaReady: (area: BackupArea) => void
 ): void {
   useEffect(() => {
     if (!db) return;
@@ -45,63 +48,65 @@ export function useAutoBackup(
     let timer: number | undefined;
     let cancelled = false;
 
-    const describe = (err: unknown): string => {
-      const reason = err instanceof Error ? err.message : String(err);
-      return `Το αυτόματο αντίγραφο ασφαλείας δεν ολοκληρώθηκε: ${reason}`;
+    // Each timeout re-reads the file age, including when Windows wakes late.
+    const scheduleAt = (at: number): string => {
+      if (cancelled) return "none";
+      timer = window.setTimeout(() => void tick("timer"), Math.max(0, at - Date.now()));
+      return new Date(at).toISOString();
     };
 
-    /** Resolves after the next attempt has been scheduled, or not at all. */
-    const tick = async (): Promise<void> => {
+    const tick = async (trigger: "startup" | "timer"): Promise<void> => {
       if (cancelled) return;
-
-      let lastAutoMs: number | null;
+      const context = `backup.auto operation=${crypto.randomUUID()} trigger=${trigger}`;
+      void logEvent("info", `${context} event=check hourLocal=${AUTO_BACKUP_HOUR}`);
+      let area: BackupArea;
       try {
-        lastAutoMs = (await prepareBackupArea()).lastAutoMs;
+        area = await prepareBackupArea("automatic");
       } catch (err) {
-        // Without the folders there is nothing to schedule against, and no
-        // moment worth retrying at - the same call would fail the same way.
-        // Reported once, rather than on a timer forever, and logged before the
-        // next attempt is scheduled, so the failure reaches the file even when
-        // nobody is watching.
-        if (!cancelled) {
-          reportFailure(describe(err));
-          void logEvent("error", describe(err));
-        }
+        const reason = err instanceof Error ? err.message : String(err);
+        void logEvent("error", `${context} event=failure stage=schedule stopped=true last=unknown next=none reason=${reason}`);
+        if (!cancelled) reportFailure(`Το αυτόματο αντίγραφο ασφαλείας δεν ολοκληρώθηκε: ${toMessage(err)}`);
         return;
       }
-      if (cancelled) return;
-
-      const plan = planAutoBackup(Date.now(), lastAutoMs, AUTO_BACKUP_HOUR);
-
+      if (cancelled) {
+        void logEvent("info", `${context} event=cancelled stage=schedule next=none`);
+        return;
+      }
+      onAreaReady(area);
+      const last = area.lastAutoMs === null ? "none" : new Date(area.lastAutoMs).toISOString();
+      const plan = planAutoBackup(Date.now(), area.lastAutoMs, AUTO_BACKUP_HOUR);
       if (!plan.dueNow) {
-        // `Math.max(0, ...)` for a clock read backwards between the decision
-        // and the assignment: a negative delay fires immediately, which is the
-        // correct answer anyway.
-        timer = window.setTimeout(() => void tick(), Math.max(0, plan.nextAt - Date.now()));
+        const next = scheduleAt(plan.nextAt);
+        void logEvent("info", `${context} event=wait last=${last} next=${next}`);
         return;
       }
 
+      const startedAt = performance.now();
+      const dueAt = new Date(plan.nextAt).toISOString();
+      const plannedNext = new Date(tomorrowAt(Date.now(), AUTO_BACKUP_HOUR)).toISOString();
+      void logEvent("info", `${context} event=start last=${last} due=${dueAt} next=${plannedNext}`);
+      let stage: AutoBackupStage = "snapshot";
+      let bytes: number;
       try {
-        await runBackup();
+        bytes = await runBackup(area, (current) => { stage = current; });
       } catch (err) {
-        if (!cancelled) {
-          reportFailure(describe(err));
-          void logEvent("error", describe(err));
-        }
+        const reason = err instanceof Error ? err.message : String(err);
+        const next = scheduleAt(tomorrowAt(Date.now(), AUTO_BACKUP_HOUR));
+        const durationMs = Math.round(performance.now() - startedAt);
+        void logEvent("error", `${context} event=failure stage=${stage} durationMs=${durationMs} next=${next} reason=${reason}`);
+        if (!cancelled) reportFailure(`Το αυτόματο αντίγραφο ασφαλείας δεν ολοκληρώθηκε: ${toMessage(err)}`);
+        return;
       }
-      if (cancelled) return;
-
-      timer = window.setTimeout(
-        () => void tick(),
-        Math.max(0, tomorrowAt(Date.now(), AUTO_BACKUP_HOUR) - Date.now())
-      );
+      const next = scheduleAt(tomorrowAt(Date.now(), AUTO_BACKUP_HOUR));
+      const durationMs = Math.round(performance.now() - startedAt);
+      void logEvent("info", `${context} event=success durationMs=${durationMs} bytes=${bytes} next=${next}`);
     };
 
-    void tick();
+    void tick("startup");
 
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [db, runBackup, reportFailure]);
+  }, [db, runBackup, reportFailure, onAreaReady]);
 }

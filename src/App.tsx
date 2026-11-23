@@ -361,7 +361,7 @@ function App() {
   // wrapper around it: it is a useCallback with stable dependencies, so the
   // effect does not restart on every render - a fresh arrow function here
   // would clear the timer each time and the schedule would never fire.
-  useAutoBackup(db, backup.autoBackup, toasts.error);
+  useAutoBackup(db, backup.autoBackup, toasts.error, backup.onAreaReady);
 
   // Update checking. The startup pass is silent, but every installation first
   // creates a manual snapshot through the same tested backup path.

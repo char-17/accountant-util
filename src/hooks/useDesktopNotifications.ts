@@ -8,6 +8,7 @@ import {
   NotificationDeduper,
   type NotificationStorage,
 } from "../domain/notificationQueue";
+import { logEvent } from "../utils/logging";
 
 /**
  * Desktop notifications that mirror the in-app reminder list.
@@ -32,8 +33,10 @@ export function useDesktopNotifications(enabled: boolean) {
         const granted = await isPermissionGranted();
         if (!cancelled && !permissionRequested.current) setPermission(granted ? "granted" : "default");
       } catch {
-        // Plugin unavailable (e.g. unsupported platform) - stay silent.
-        if (!cancelled && !permissionRequested.current) setPermission("denied");
+        if (!cancelled && !permissionRequested.current) {
+          void logEvent("error", "Απέτυχε ο έλεγχος άδειας ειδοποιήσεων (isPermissionGranted).");
+          setPermission("denied");
+        }
       }
     })();
     return () => {
@@ -48,6 +51,7 @@ export function useDesktopNotifications(enabled: boolean) {
       setPermission(result);
       return result === "granted";
     } catch {
+      void logEvent("error", "Απέτυχε το αίτημα άδειας ειδοποιήσεων (requestPermission).");
       setPermission("denied");
       return false;
     }
